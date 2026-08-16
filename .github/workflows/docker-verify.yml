@@ -95,8 +95,14 @@ jobs:
 
       - name: Step 5b — Prove Redis + the Upstash-REST facade are wired correctly end-to-end
         run: |
-          docker compose exec -T app wget -qO- "http://redis-http:80/set/docker-verify-key/hello" \
-            --header="Authorization: Bearer ${UPSTASH_REDIS_REST_TOKEN:-local-dev-token}"
+          # serverless-redis-http عمدًا لا يدعم أوامر عبر مسار URL (مثل /set/key/value) —
+          # موثَّق رسميًا: "Only the body method is implemented, which the @upstash/redis SDK
+          # uses." — نفس عميل التطبيق الحقيقي (src/lib/rateLimit/upstash.ts) يرسل JSON array
+          # كجسم POST، فهذا هو الاختبار الحقيقي المطابق لما يفعله التطبيق فعليًا.
+          docker compose exec -T app wget -qO- "http://redis-http:80/" \
+            --header="Authorization: Bearer local-dev-token" \
+            --header="Content-Type: application/json" \
+            --post-data='["SET","docker-verify-key","hello"]'
           docker compose exec -T redis redis-cli get docker-verify-key | grep -q hello
 
       - name: Step 6 — Restart and force-recreate containers, confirm the app comes back healthy
