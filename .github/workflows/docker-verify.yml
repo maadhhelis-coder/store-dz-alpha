@@ -269,8 +269,16 @@ jobs:
           echo "--- per-request results (n / http status) ---"
           cat /tmp/shutdown-requests.log
 
-          if [ "$EXIT_CODE" != "0" ]; then
-            echo "::error::app did not exit cleanly after SIGTERM (exit code $EXIT_CODE — likely SIGKILLed after the stop timeout instead of shutting down gracefully)"
+          # 143 = 128+15 (SIGTERM) هو الخروج الصحيح المتوقَّع لعملية استقبلت الإشارة وأنهت
+          # نفسها بأدب (اصطلاح POSIX قياسي) — وليس فشلًا. 137 = 128+9 (SIGKILL) هو الفشل
+          # الفعلي: يعني Docker اضطُرَّ لقتل العملية قسرًا بعد انتهاء مهلة --timeout 30 بلا
+          # استجابة، أي أن الإغلاق الرشيق تعطَّل فعليًا. أي رمز آخر غير متوقَّع أيضًا.
+          if [ "$EXIT_CODE" = "137" ]; then
+            echo "::error::app was force-killed (SIGKILL, exit 137) after the 30s stop timeout — graceful shutdown did not complete in time"
+            exit 1
+          fi
+          if [ "$EXIT_CODE" != "0" ] && [ "$EXIT_CODE" != "143" ]; then
+            echo "::error::unexpected exit code $EXIT_CODE after SIGTERM (expected 0 or 143)"
             exit 1
           fi
 
