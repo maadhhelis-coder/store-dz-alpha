@@ -47,6 +47,16 @@ RUN npx next build
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 RUN apk upgrade --no-cache
+# إزالة npm/npx/corepack من الصورة النهائية — الحاوية تشغّل "node server.js" مباشرة ولا تستدعي
+# npm إطلاقًا زمن التشغيل. اكتُشف فعليًا عبر Trivy أن جميع ثغرات Node.js الـ33 (CRITICAL×3،
+# HIGH×30) المتبقية فالصورة لم تكن فتبعيات المشروع نفسه إطلاقًا (npm overrides فpackage.json
+# لا علاقة لها بها)، بل فتبعيات npm الداخلية المرفقة مع صورة node الأساس نفسها تحت
+# usr/local/lib/node_modules/npm/node_modules/{tar,glob,minimatch,brace-expansion,sigstore,
+# ip-address} — أدوات npm الداخلية (تُستعمل فعمليات npm install/pack ونحوها)، غير قابلة
+# للإصلاح عبر overrides لأنها ليست جزءًا من شجرة تبعيات هذا المشروع. حذفها كليًا من صورة
+# التشغيل (بدل محاولة ترقيعها) يزيل الثغرة فعليًا ويقلّل حجم الصورة أيضًا — لا فائدة تشغيلية
+# من وجود npm فحاوية إنتاجية أصلًا.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
