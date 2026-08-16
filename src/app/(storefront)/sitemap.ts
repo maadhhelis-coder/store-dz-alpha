@@ -4,10 +4,13 @@ import { getPublishedProducts, getCategories } from "@/lib/storefrontData";
 import { getAllBlogPosts } from "@/lib/blog";
 import { prisma } from "@/server/db/prisma";
 
-// أُزيل force-static — كان يجمّد الخريطة على المنتجات/التصنيفات الثابتة القديمة إلى
-// الأبد بغض النظر عن حجم الكتالوج الحقيقي؛ الآن تُبنى من قاعدة البيانات مع إعادة توليد
-// دورية (revalidate) بدل تجميد كامل.
-export const revalidate = 3600;
+// force-dynamic بدل revalidate الثابت: sitemap.ts (خلافًا لصفحات (storefront) العادية) مسار
+// Metadata منفصل لا يمر بـ(storefront)/layout.tsx، فلا يستفيد من إجبار headers() للـrendering
+// الديناميكي هناك — بلا هذا كان Next.js يحاول توليده Statically وقت "next build" فعليًا،
+// فيستدعي قاعدة البيانات حينها (اكتُشف فعليًا: بناء Docker بلا اتصال DB حيّ كان يفشل بالضبط
+// هنا). الآن يُولَّد عند أول طلب حقيقي بدل زمن البناء — أحدث فعليًا من revalidate=3600 السابق
+// (لا تجميد لمدة تصل لساعة)، ويزيل اعتماد البناء على قاعدة بيانات حيّة.
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [products, categories, productDates, categoryDates] = await Promise.all([
