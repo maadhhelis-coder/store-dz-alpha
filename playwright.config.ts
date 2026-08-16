@@ -24,7 +24,14 @@ export default defineConfig({
   globalTeardown: "./tests/e2e/global-teardown.ts",
   fullyParallel: false, // بيانات الاختبار تتشارك نفس قاعدة الإنتاج (عزل منطقي) — التوازي الكامل يرفع خطر تضارب سباق غير مقصود بين ملفات الاختبار المختلفة
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // 0 عمدًا حتى فCI (لا 1 الافتراضية): اكتُشف فعليًا على GitHub Actions حقيقي أن retries:1
+  // يُضاعف خطر تجاوز حد معدّل الدخول الحقيقي الصارم (5/15 دقيقة — راجع
+  // src/lib/rateLimit/upstash.ts وpermissions.spec.ts) — أي فشل عابر لاختبار يعتمد على
+  // ownerPage/staffPage يُعيد Playwright تشغيله، وقد يُعيد تسجيل الدخول فعليًا (worker جديد)،
+  // فيتجاوز الحد بسهولة. المجموعة هنا حتمية أصلًا (61/61 تنجح باستمرار محليًا)، فلا حاجة
+  // فعلية لإعادة محاولة تُخفي عدم استقرار — وإعادة المحاولة هنا تُسبِّب فشلًا حقيقيًا بدل
+  // إخفائه.
+  retries: 0,
   workers: 1,
   reporter: [
     ["html", { outputFolder: "playwright-report", open: "never" }],

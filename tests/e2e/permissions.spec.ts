@@ -63,21 +63,23 @@ test.describe("مصفوفة صلاحيات Owner مقابل Staff @desktop-only"
   });
 });
 
-// يُشغَّل هذا الوصف أخيرًا فالملف عمدًا — وليس بعد اختبار الدخول الصحيح مباشرة كما كان
-// سابقًا. السبب المُكتشَف فعليًا: Supabase الدخول signOut() بلا خيارات يستعمل
-// scope: 'global' افتراضيًا — يُبطل كل جلسات ذلك المستخدم أينما كانت، وليس فقط الجلسة/
-// السياق الذي استدعاها. حتى مع دخول مستقل تمامًا (سياق متصفح منفصل، كويكيز منفصلة) لهذا
-// الاختبار، الخروج هنا يُبطل جلسة ownerPage المشتركة بنطاق worker أيضًا لأنهما لنفس حساب
-// Owner الحقيقي — ما كان يُسقط اختبار "Owner: إنشاء webhook" أعلاه زورًا بـ401 بدل 201 لو
-// شُغِّل الخروج قبله. لا يوجد ownerPage/staffPage مُستخدَم بعد هذا الاختبار (لا فهذا
-// الملف ولا فأي ملف لاحق أبجديًا)، فوضعه هنا آمن تمامًا.
+// يُشغَّل هذا الوصف أخيرًا فالملف عمدًا. السبب المُكتشَف فعليًا خلال بناء هذه المنظومة:
+// Supabase signOut() بلا خيارات يستعمل scope: 'global' افتراضيًا — يُبطل كل جلسات ذلك
+// المستخدم أينما كانت، وليس فقط الجلسة/السياق الذي استدعاها. لهذا يجب أن يبقى هذا آخر شيء
+// يلمس حساب Owner إطلاقًا — لا فهذا الملف ولا فأي ملف لاحق أبجديًا يستعمل ownerPage بعده.
+// بما أنه آخر شيء فعلًا الآن، إعادة استعمال جلسة ownerPage (بدل دخول حقيقي مستقل ثالث) آمنة
+// تمامًا هنا، وتُبقي إجمالي محاولات الدخول الحقيقية أقل من حد المعدّل (5/15 دقيقة —
+// src/lib/rateLimit/upstash.ts) بهامش حقيقي بدل الحدّ الأقصى بالضبط: دخول ببيانات صحيحة(1)
+// + كلمة مرور خاطئة(1) + ownerPage(1) = 3 محاولات Owner، + staffPage(1) = 4 إجمالي على IP
+// (كان 5/5 بالضبط سابقًا، وهو ما تسبَّب فعليًا ففشل حقيقي على GitHub Actions).
 test.describe("الخروج @desktop-only", () => {
-  test("خروج: الجلسة تُمسَح فعليًا ومحاولة الوصول للوحة التحكم تُعيد للدخول", async ({ page }) => {
-    await page.goto("/admin/login");
-    await page.getByTestId("login-email").fill(E2E_OWNER_EMAIL);
-    await page.getByTestId("login-password").fill(E2E_OWNER_PASSWORD);
-    await page.getByTestId("login-submit").click();
-    await page.waitForURL(/\/admin\/?(\?.*)?$/, { timeout: 15_000 });
+  test("خروج: الجلسة تُمسَح فعليًا ومحاولة الوصول للوحة التحكم تُعيد للدخول", async ({ browser, ownerPage }) => {
+    const storageState = await ownerPage.context().storageState();
+    const context = await browser.newContext({ storageState });
+    const page = await context.newPage();
+
+    await page.goto("/admin/orders");
+    await expect(page.getByTestId("admin-logout")).toBeVisible({ timeout: 10_000 });
 
     await page.getByTestId("admin-logout").click();
     await page.waitForURL(/\/admin\/login\/?(\?.*)?$/, { timeout: 10_000 });
@@ -85,5 +87,7 @@ test.describe("الخروج @desktop-only", () => {
     // محاولة الوصول مباشرة لصفحة محمية بعد الخروج يجب أن تُعيد التوجيه للدخول (لا جلسة صالحة).
     await page.goto("/admin/orders");
     await page.waitForURL(/\/admin\/login/, { timeout: 10_000 });
+
+    await context.close();
   });
 });
