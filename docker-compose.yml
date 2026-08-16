@@ -1,0 +1,113 @@
+name: store-dz
+
+# ملاحظة معمارية مهمة: @upstash/redis (src/lib/rateLimit/upstash.ts) عميل REST/HTTP، وليس
+# عميل بروتوكول Redis التقليدي (TCP/RESP) — حاوية "redis:7-alpine" عادية ليست بديلاً صالحًا
+# له مباشرة. لذلك نضيف "redis-http" (serverless-redis-http) كواجهة REST أمام Redis حقيقي —
+# هذا هو النمط الرسمي الذي توصي به Upstash نفسها للتطوير/الاختبار المحلي.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-storedz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-storedz}
+      POSTGRES_DB: ${POSTGRES_DB:-storedz}
+    volumes:
+      # اسم مُشتق من "name:" أعلاه — يعزل بيانات هذا المشروع عن أي مشروع Compose آخر على نفس
+      # الجهاز، ويضمن بقاء البيانات عبر إعادة إنشاء الحاويات (down بلا -v، أو restart/recreate).
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-storedz} -d ${POSTGRES_DB:-storedz}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+    # بلا "ports:" فالتشغيل العادي — غير مكشوفة خارج شبكة Docker الداخلية. للوصول المحلي من
+    # خارج الحاويات (Prisma Studio مثلاً)، استعمل: docker compose -f docker-compose.yml
+    # -f docker-compose.override.dev.yml up (أضِف ports هناك عند الحاجة فقط).
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+
+  # واجهة REST أمام "redis" أعلاه — تتكلم نفس بروتوكول Upstash REST الذي يستعمله عميل التطبيق
+  # الحقيقي (@upstash/redis)، فلا حاجة لتغيير أي كود بين محلي/Docker وإنتاج Upstash الحقيقي.
+  redis-http:
+    image: hiett/serverless-redis-http:0.0.10
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-local-dev-token}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [backend]
+
+  # خدمة تشغَّل مرة واحدة (one-shot): ترحيل السكيما (prisma migrate deploy) ثم زرع البيانات
+  # الابتدائية (فئات + ولايات) الضرورية لعمل المتجر فعليًا. منفصلة عمدًا عن بناء الصورة
+  # (Dockerfile لا يشغّل migrate إطلاقًا) — الترحيل فعل زمن-تشغيل يعتمد على قاعدة بيانات حيّة،
+  # وليس فعل زمن-بناء. "app" لا يبدأ إلا بعد نجاح هذه الخدمة فعليًا (service_completed_successfully).
+  migrate:
+    build:
+      context: .
+      target: builder
+    command: sh -c "npx prisma migrate deploy && node --import tsx prisma/seed.ts"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend]
+
+  app:
+    build:
+      context: .
+      target: runner
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
+      DIRECT_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
+      UPSTASH_REDIS_REST_URL: http://redis-http:80
+      UPSTASH_REDIS_REST_TOKEN: ${UPSTASH_REDIS_REST_TOKEN:-local-dev-token}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-local-dev-only-change-me}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXT_PUBLIC_ORDER_ENDPOINT: ${NEXT_PUBLIC_ORDER_ENDPOINT:-}
+      CRON_SECRET: ${CRON_SECRET:-local-dev-cron-secret}
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis-http:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+    networks: [backend]
+    # منافذ التطبيق فقط مكشوفة للمضيف — قاعدة البيانات وRedis يبقيان داخليَّين حصرًا
+    # (مبدأ "اكشف فقط ما تحتاجه" — لا "ports:" على db/redis/redis-http أعلاه).
+
+networks:
+  backend:
+
+volumes:
+  pgdata:
+  redisdata:

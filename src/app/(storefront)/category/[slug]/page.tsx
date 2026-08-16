@@ -14,9 +14,11 @@ type CategoryPageProps = {
   searchParams: Promise<{ page?: string }>;
 };
 
+// [] عمدًا — نفس سبب products/[slug]/page.tsx: (storefront)/layout.tsx يفرض dynamic rendering
+// عبر headers()، فتعداد التصنيفات هنا وقت البناء لا يخدم أي غرض تشغيلي فعلي ويمنع بناء صور
+// Docker مستقلة عن قاعدة بيانات حيّة. dynamicParams الافتراضي (true) يبقي أي slug يعمل طبيعيًا.
 export async function generateStaticParams() {
-  const categories = await getCategories();
-  return categories.map((category) => ({ slug: category.slug }));
+  return [];
 }
 
 export async function generateMetadata({

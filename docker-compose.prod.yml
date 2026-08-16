@@ -1,0 +1,51 @@
+# تراكب (overlay) خاص بالإنتاج — يُستعمل فوق docker-compose.yml الأساسي، لا بديلاً عنه:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# يضيف فقط ما يخص الإنتاج تحديدًا (سياسات إعادة التشغيل، حدود الموارد، تصليب الحاويات
+# Container Hardening) بدل تكرار كل ملف docker-compose.yml من جديد.
+
+services:
+  db:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  redis:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  redis-http:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+
+  app:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+    # تصليب إضافي غير مفعَّل فـdocker-compose.yml الأساسي (تفاديًا لتعقيد التشخيص محليًا/فCI):
+    # لا صلاحيات جديدة عبر setuid/setgid، وإسقاط كل Linux capabilities غير الضرورية — التطبيق
+    # (Next.js standalone كمستخدم غير جذر أصلًا) لا يحتاج أي منها فعليًا وقت التشغيل.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # نظام ملفات جذر للقراءة فقط: التطبيق لا يكتب على القرص المحلي وقت التشغيل فمنطق العمل
+    # الفعلي (رفع الصور يذهب لتخزين Supabase الخارجي) — tmpfs يوفّر فقط ما قد يحتاجه Node/
+    # Next.js داخليًا (ملفات مؤقتة عابرة)، بلا استمرارية وبلا كتابة على طبقات الصورة نفسها.
+    read_only: true
+    tmpfs:
+      - /tmp

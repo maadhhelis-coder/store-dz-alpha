@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // output: "standalone" مطلوب لصورة Docker إنتاجية سليمة: يولّد .next/standalone (server.js
+  // مستقل يحمل فقط node_modules الفعليًا المُستعملة) بدل نسخ node_modules كاملة، ويسمح بتشغيل
+  // "node server.js" مباشرة كـPID 1 (بدل "next start" عبر مضيف Node)، فتصل إشارات
+  // SIGTERM/SIGINT مباشرة للعملية بلا وسيط يبتلعها — هذا ما يجعل Graceful Shutdown ممكنًا
+  // فعليًا داخل حاوية. آمن مع Vercel: موثَّق رسميًا أن Vercel يتجاهل output عند النشر (يستعمل
+  // خط أنابيب البناء الخاص به دائمًا) — راجع https://nextjs.org/docs/app/api-reference/config/next-config-js/output
+  output: "standalone",
   trailingSlash: true,
   images: {
     formats: ["image/avif", "image/webp"],

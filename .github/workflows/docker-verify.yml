@@ -1,0 +1,172 @@
+name: Docker Verify
+
+# تحقق مستقل من إعداد Docker الكامل (Dockerfile + docker-compose.yml + docker-compose.prod.yml)
+# على بنية تحتية حقيقية تملك Docker مثبَّتًا مسبقًا (عمّال ubuntu-latest) — بلا حاجة لتثبيت
+# Docker Desktop محليًا. لا يعتمد فقط على نجاح "docker build"؛ يبني الصورة فعليًا، يشغّل
+# المكدس كاملًا، يتحقق من التواصل الحقيقي بين الخدمات، يثبت بقاء البيانات عبر إعادة الإنشاء،
+# يفحص أمان الصورة، ويشغّل بوابات الجودة (typecheck/lint/build) الحالية للمشروع.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: docker-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: ESLint
+        run: npm run lint
+
+      # بناء محلي مستقل عن Docker (بلا npm run build — بلا migrate) كخط أساس: يثبت أن
+      # "next build" لم يعد يحتاج اتصال DB وقت البناء (بعد إزالة تعداد المنتجات/التصنيفات
+      # الساكن غير المُستعمل فعليًا زمن التشغيل — راجع products/[slug]/page.tsx وcategory/[slug]).
+      - name: Build sanity check (no DB required, proves build/DB decoupling)
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npx next build
+
+      - name: Step 1 — Remove any leftover containers/images/volumes from previous runs
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v --remove-orphans || true
+          docker system prune -af --volumes || true
+
+      - name: Step 2 — Build every image from scratch (no cache)
+        run: docker compose build --no-cache
+
+      - name: Step 3 — Bring the full stack up (db + redis + redis-http + migrate + app)
+        run: docker compose up -d
+
+      - name: Wait for app to report healthy
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-app-1 2>/dev/null || echo starting)
+            echo "attempt $i: app health = $status"
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::app container never became healthy"
+          docker compose ps
+          docker compose logs
+          exit 1
+
+      - name: Step 4 — Prove services actually communicate (real HTTP, not just container status)
+        run: |
+          curl -sf http://localhost:3000/api/health | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+          curl -sf http://localhost:3000/ -o /dev/null
+          curl -sf http://localhost:3000/api/wilayas | tee /tmp/wilayas.json
+          grep -q "wilayas" /tmp/wilayas.json
+
+      - name: Step 5a — Prove Postgres + Prisma migrations actually applied (real tables, real seed data)
+        run: |
+          docker compose exec -T db psql -U storedz -d storedz -c "\dt" | grep -q "orders"
+          docker compose exec -T db psql -U storedz -d storedz -c "SELECT COUNT(*) FROM wilayas;" | grep -E "5[0-9]|4[0-9]"
+
+      - name: Step 5b — Prove Redis + the Upstash-REST facade are wired correctly end-to-end
+        run: |
+          docker compose exec -T app wget -qO- "http://redis-http:80/set/docker-verify-key/hello" \
+            --header="Authorization: Bearer ${UPSTASH_REDIS_REST_TOKEN:-local-dev-token}"
+          docker compose exec -T redis redis-cli get docker-verify-key | grep -q hello
+
+      - name: Step 6 — Restart and force-recreate containers, confirm the app comes back healthy
+        run: |
+          docker compose restart app
+          sleep 5
+          docker compose up -d --force-recreate app
+          for i in $(seq 1 20); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-app-1 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::app did not become healthy again after restart/recreate"
+          docker compose logs app
+          exit 1
+
+      - name: Step 7 — Confirm persistent data survives a full container teardown (volumes kept)
+        run: |
+          before=$(docker compose exec -T db psql -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "wilaya count before: $before"
+          docker compose down --remove-orphans
+          docker compose up -d
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-app-1 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then break; fi
+            sleep 5
+          done
+          after=$(docker compose exec -T db psql -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "wilaya count after: $after"
+          if [ "$before" != "$after" ] || [ -z "$after" ] || [ "$after" = "0" ]; then
+            echo "::error::persistent data did not survive container recreation (before=$before after=$after)"
+            exit 1
+          fi
+
+      - name: Step 8 — Real production runtime (prod overlay: restart:always, resource limits, read-only rootfs, cap_drop ALL)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-app-1 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 5
+          done
+          echo "::error::app never became healthy under the production overlay"
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml logs app
+          exit 1
+
+      - name: Step 8b — Confirm the production container truly runs as non-root
+        run: docker compose exec -T app id | grep -q "uid=1001"
+
+      - name: Step 8c — Confirm the app still answers real requests under the read-only-rootfs overlay
+        run: curl -sf http://localhost:3000/api/health | grep -q '"status":"ok"'
+
+      - name: Step 9 — Security scan the production image (Trivy)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: store-dz-app:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          output: trivy-report.txt
+
+      - name: Step 10 — Full project quality gates already ran above (typecheck, lint, build) — record confirmation
+        run: echo "typecheck, eslint, and next build all passed earlier in this job (job fails fast otherwise)"
+
+      - name: Dump full stack logs (regression evidence)
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml logs --no-color > docker-compose-full.log
+
+      - name: Upload verification artifacts (logs + security scan)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-verify-evidence
+          path: |
+            docker-compose-full.log
+            trivy-report.txt
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: Final cleanup (containers, images, volumes)
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v --remove-orphans || true
+          docker system prune -af --volumes || true

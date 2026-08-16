@@ -6,7 +6,6 @@ import ProductDetail from "@/components/commerce/ProductDetail";
 import RelatedProducts from "@/components/commerce/RelatedProducts";
 import {
   getPublishedProductBySlug,
-  getPublishedProducts,
   getRelatedProducts,
   getCategoryBySlug,
 } from "@/lib/storefrontData";
@@ -16,9 +15,13 @@ type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
 
+// [] عمدًا: (storefront)/layout.tsx يقرأ headers() (Dynamic API)، فكل صفحة تحت هذا الـlayout
+// تُصبح dynamic rendering إجباريًا بصرف النظر عمّا تُعيده هذه الدالة — أي HTML ثابت تولّده هنا
+// لن يُخدَّم فعليًا فالإنتاج أبدًا. تعداد المنتجات هنا كان يستدعي قاعدة البيانات وقت البناء
+// بلا أي فائدة تشغيلية فعلية، ويمنع بناء صور Docker مستقلة عن قاعدة بيانات حيّة. dynamicParams
+// الافتراضي (true) يبقي أي slug يعمل طبيعيًا وقت الطلب — لا تغيير فالسلوك الفعلي.
 export async function generateStaticParams() {
-  const products = await getPublishedProducts();
-  return products.map((product) => ({ slug: product.slug }));
+  return [];
 }
 
 export async function generateMetadata({

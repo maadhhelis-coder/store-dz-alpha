@@ -1,0 +1,38 @@
+# تبعيات وقت البناء المحلي — تُعاد فتثبيتها داخل الحاوية عبر npm ci، نسخها من المضيف
+# يُفسد الحسم الحتمي (reproducibility) ويُضخّم سياق البناء بلا داعٍ.
+node_modules
+npm-debug.log*
+
+# Git
+.git
+.gitignore
+
+# مخرجات بناء محلية — تُعاد توليدها داخل الحاوية؛ نسخها من المضيف قد يحمل ملفات لمنصة
+# مختلفة (مثلاً بناء Windows محلي) وتُفسد Layer caching.
+.next
+out
+coverage
+playwright-report
+test-results
+blob-report
+playwright/.cache
+
+# أسرار محلية — لا يجب أن تدخل صورة Docker إطلاقًا (تبقى فطبقات الصورة حتى لو حُذفت لاحقًا).
+.env
+.env.*
+!.env.example
+
+# ملفات Docker نفسها — لا حاجة لنسخها داخل سياق البناء.
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# أدوات تطوير/IDE ووثائق — لا تؤثر على التشغيل.
+.vscode
+.idea
+*.md
+.claude
+.github
+
+# اختبارات E2E — غير مطلوبة داخل صورة الإنتاج.
+tests
