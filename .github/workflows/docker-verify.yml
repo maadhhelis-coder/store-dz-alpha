@@ -124,7 +124,7 @@ jobs:
           OWNER_EMAIL="e2e-owner@storedz-test.invalid"
           OWNER_PASSWORD="E2E-Owner-Test-Pw-9f3a7c!"
 
-          LOGIN_CODE=$(curl -s -o /tmp/login-response.json -w "%{http_code}" -c /tmp/owner-cookies.txt \
+          LOGIN_CODE=$(curl -sL -o /tmp/login-response.json -w "%{http_code}" -c /tmp/owner-cookies.txt \
             -X POST http://localhost:3000/api/auth/login \
             -H "Content-Type: application/json" \
             -d "{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}")
@@ -137,7 +137,7 @@ jobs:
           grep -q "$OWNER_EMAIL" /tmp/login-response.json
 
           # إثبات أن الجلسة الحقيقية تفتح فعليًا مسارًا إداريًا محميًا (200)...
-          PROTECTED_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
+          PROTECTED_CODE=$(curl -sL -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
             "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
           echo "protected route WITH session: $PROTECTED_CODE"
           if [ "$PROTECTED_CODE" != "200" ]; then
@@ -147,7 +147,7 @@ jobs:
 
           # ...بينما نفس المسار بلا أي جلسة يُرفَض فعليًا (401) — يثبت أن الحماية حقيقية،
           # وليست 200 دائمة بصرف النظر عن الجلسة.
-          UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
+          UNAUTH_CODE=$(curl -sL -o /dev/null -w "%{http_code}" "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
           echo "protected route WITHOUT session: $UNAUTH_CODE"
           if [ "$UNAUTH_CODE" != "401" ]; then
             echo "::error::protected admin route did not reject an unauthenticated request (got $UNAUTH_CODE, expected 401)"
@@ -159,7 +159,7 @@ jobs:
           ORDER_NUMBER_FILE=/tmp/order-number.txt
           BODY='{"firstName":"DockerVerify","lastName":"OrderTest","phone":"0555123456","wilayaCode":16,"commune":"Alger Centre","deliveryOption":"office","productSlug":"docker-verify-test-product","quantity":1,"visitorId":"docker-verify-order-test"}'
 
-          CODE=$(curl -s -o /tmp/order-response.json -w "%{http_code}" \
+          CODE=$(curl -sL -o /tmp/order-response.json -w "%{http_code}" \
             -X POST http://localhost:3000/api/orders \
             -H "Content-Type: application/json" \
             -d "$BODY")
@@ -243,7 +243,7 @@ jobs:
             n=$1
             phone=$(printf "0555%06d" "$n")
             body="{\"firstName\":\"Shutdown\",\"lastName\":\"Test$n\",\"phone\":\"$phone\",\"wilayaCode\":16,\"commune\":\"Alger Centre\",\"deliveryOption\":\"office\",\"productSlug\":\"docker-verify-test-product\",\"quantity\":1,\"visitorId\":\"shutdown-test-$n\"}"
-            code=$(curl -s -o /tmp/shutdown-resp-$n.json -w "%{http_code}" -m 20 \
+            code=$(curl -sL -o /tmp/shutdown-resp-$n.json -w "%{http_code}" -m 20 \
               -X POST http://localhost:3000/api/orders -H "Content-Type: application/json" -d "$body")
             echo "n=$n code=$code" >> /tmp/shutdown-requests.log
           }
