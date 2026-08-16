@@ -11,6 +11,10 @@ ARG NODE_IMAGE=node:22-alpine3.20
 # ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
+# ترقية حزم نظام Alpine الأساسية داخل نفس فرع الإصدار (3.20) — اكتُشف فعليًا عبر فحص أمني
+# حقيقي بـTrivy على الصورة النهائية أن libcrypto3/libssl3 (OpenSSL) المرفقتين مع صورة القاعدة
+# تحملان ثغرة CRITICAL مُصلَحة أصلًا فإصدار أحدث من نفس فرع 3.20 (لا تغيير إصدار توزيعة).
+RUN apk upgrade --no-cache
 # libc6-compat: بعض الحزم الأصلية (native bindings) تحتاجها فوق musl (Alpine).
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
@@ -28,6 +32,7 @@ RUN npm ci
 # ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
+RUN apk upgrade --no-cache
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -41,6 +46,7 @@ RUN npx next build
 # ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
+RUN apk upgrade --no-cache
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

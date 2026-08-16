@@ -50,6 +50,14 @@
     "tsx": "^4.23.1",
     "typescript": "^5"
   },
+  "overrides": {
+    "brace-expansion": "5.0.9",
+    "glob": "10.5.0",
+    "minimatch": "10.2.3",
+    "sigstore": "4.1.1",
+    "tar": "7.5.19",
+    "ip-address": "10.3.1"
+  },
   "allowScripts": {
     "@prisma/engines@7.9.1": true,
     "prisma@7.9.1": true,
