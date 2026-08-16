@@ -1,0 +1,531 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AdminRole {
+  owner
+  staff
+}
+
+enum ProductBadge {
+  bestseller
+  new
+  sale
+}
+
+enum DeliveryOption {
+  office
+  home
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  no_answer
+  callback
+  voicemail
+  fake
+  wrong_number
+  duplicate
+  cancelled
+  shipped
+  delivered
+}
+
+enum OrderSource {
+  website
+  manual
+  whatsapp
+}
+
+enum CouponType {
+  percentage
+  fixed
+}
+
+enum AdPlatform {
+  facebook
+  instagram
+  tiktok
+}
+
+enum TrackingEventType {
+  page_view
+  cta_click
+  form_submit
+}
+
+enum PageKind {
+  product
+  landing
+}
+
+enum LeadStatus {
+  new
+  contacted
+  converted
+  ignored
+}
+
+enum FunnelPageType {
+  funnel
+  product_page
+}
+
+enum WebhookEvent {
+  order_created
+  order_status_changed
+}
+
+model AdminUser {
+  id          String    @id @default(uuid())
+  authUserId  String    @unique @map("auth_user_id")
+  email       String    @unique
+  fullName    String?   @map("full_name")
+  role        AdminRole @default(owner)
+  isActive    Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("admin_users")
+}
+
+model Category {
+  id                String  @id @default(uuid())
+  slug              String  @unique
+  name              String
+  shortDescription  String? @map("short_description")
+  description       String?
+  imageUrl          String? @map("image_url")
+  icon              String?
+  sortOrder         Int     @default(0) @map("sort_order")
+
+  products Product[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("categories")
+}
+
+model Product {
+  id                   String        @id @default(uuid())
+  slug                 String        @unique
+  name                 String
+  categoryId           String        @map("category_id")
+  category             Category      @relation(fields: [categoryId], references: [id])
+  priceDzd             Int           @map("price_dzd")
+  oldPriceDzd          Int?          @map("old_price_dzd")
+  shortDescription     String        @map("short_description")
+  longDescriptionHtml  String        @map("long_description_html")
+  howToUse             Json          @default("[]") @map("how_to_use")
+  badge                ProductBadge?
+  inStock              Boolean       @default(true) @map("in_stock")
+  inventoryCount       Int           @default(0) @map("inventory_count")
+  isPublished          Boolean       @default(true) @map("is_published")
+  sortOrder            Int           @default(0) @map("sort_order")
+
+  images         ProductImage[]
+  variants       ProductVariant[]
+  orderItems     OrderItem[]
+  funnels        Funnel[]
+  offersAsTrigger Offer[] @relation("OfferTrigger")
+  offersAsOffer   Offer[] @relation("OfferProduct")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@index([isPublished])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String  @id @default(uuid())
+  productId String  @map("product_id")
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  altText   String? @map("alt_text")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+model ProductVariant {
+  id                String  @id @default(uuid())
+  productId         String  @map("product_id")
+  product           Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name              String
+  value             String
+  sku               String? @unique
+  priceOverrideDzd  Int?    @map("price_override_dzd")
+  inventoryCount    Int     @default(0) @map("inventory_count")
+  sortOrder         Int     @default(0) @map("sort_order")
+
+  orderItems OrderItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Wilaya {
+  code            Int      @id
+  name            String
+  officePriceDzd  Int?     @map("office_price_dzd")
+  homePriceDzd    Int      @map("home_price_dzd")
+  isActive        Boolean  @default(true) @map("is_active")
+
+  orders Order[]
+  leads  Lead[]
+
+  @@map("wilayas")
+}
+
+model Order {
+  id                  String         @id @default(uuid())
+  orderSeq            Int            @default(autoincrement()) @unique @map("order_seq")
+  orderNumber         String         @unique @map("order_number")
+  status              OrderStatus    @default(pending)
+  customerFirstName   String         @map("customer_first_name")
+  customerLastName    String         @map("customer_last_name")
+  phone               String
+  wilayaCode          Int            @map("wilaya_code")
+  wilaya              Wilaya         @relation(fields: [wilayaCode], references: [code])
+  wilayaName          String         @map("wilaya_name")
+  commune             String
+  address             String?
+  deliveryOption      DeliveryOption @map("delivery_option")
+  deliveryPriceDzd    Int            @map("delivery_price_dzd")
+  itemsSubtotalDzd    Int            @map("items_subtotal_dzd")
+  totalDzd            Int            @map("total_dzd")
+  notes               String?
+  courierProvider     String?        @map("courier_provider")
+  courierTrackingId   String?        @map("courier_tracking_id")
+  courierStatus       String?        @map("courier_status")
+  source              OrderSource    @default(website)
+  ipAddress           String?        @map("ip_address")
+  userAgent           String?        @map("user_agent")
+  deviceFingerprint   String?        @map("device_fingerprint")
+  confirmedAt         DateTime?      @map("confirmed_at")
+  offerId             String?        @map("offer_id")
+  offer               Offer?         @relation(fields: [offerId], references: [id])
+  couponCode          String?        @map("coupon_code")
+  discountDzd         Int            @default(0) @map("discount_dzd")
+  platform            AdPlatform?
+  creativeName        String?        @map("creative_name")
+  visitorId           String?        @map("visitor_id")
+  // موعد إعادة الاتصال التالي المُجدوَل يدويًا من المؤكِّد، وعدد محاولات الاتصال المتراكمة
+  // (يُزاد تلقائيًا كل مرة تتحول فيها الحالة لـcallback/no_answer/voicemail).
+  nextCallAt          DateTime?      @map("next_call_at")
+  callAttempts        Int            @default(0) @map("call_attempts")
+
+  items OrderItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([phone])
+  @@index([createdAt(sort: Desc)])
+  @@index([wilayaCode])
+  @@index([platform, creativeName])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                    String          @id @default(uuid())
+  orderId               String          @map("order_id")
+  order                 Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId             String?         @map("product_id")
+  product               Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productNameSnapshot   String          @map("product_name_snapshot")
+  productSlugSnapshot   String          @map("product_slug_snapshot")
+  variantId             String?         @map("variant_id")
+  variant               ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantLabelSnapshot  String?         @map("variant_label_snapshot")
+  unitPriceDzd          Int             @map("unit_price_dzd")
+  quantity              Int
+  lineTotalDzd          Int             @map("line_total_dzd")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("order_items")
+}
+
+model Funnel {
+  id           String         @id @default(uuid())
+  slug         String         @unique
+  title        String
+  productId    String         @map("product_id")
+  product      Product        @relation(fields: [productId], references: [id])
+  pageType     FunnelPageType @default(funnel) @map("page_type")
+  headline     String
+  subheadline  String?
+  heroImageUrl String?        @map("hero_image_url")
+  bullets      Json           @default("[]")
+  ctaText      String         @default("اطلب الآن") @map("cta_text")
+  isPublished  Boolean        @default(false) @map("is_published")
+  views        Int            @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([isPublished])
+  @@map("funnels")
+}
+
+model Offer {
+  id               String   @id @default(uuid())
+  title            String
+  triggerProductId String   @map("trigger_product_id")
+  triggerProduct   Product  @relation("OfferTrigger", fields: [triggerProductId], references: [id])
+  offerProductId   String   @map("offer_product_id")
+  offerProduct     Product  @relation("OfferProduct", fields: [offerProductId], references: [id])
+  offerPriceDzd    Int      @map("offer_price_dzd")
+  isActive         Boolean  @default(true) @map("is_active")
+  sortOrder        Int      @default(0) @map("sort_order")
+
+  orders Order[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([triggerProductId, isActive])
+  @@map("offers")
+}
+
+model Lead {
+  id          String     @id @default(uuid())
+  firstName   String?    @map("first_name")
+  lastName    String?    @map("last_name")
+  phone       String?
+  wilayaCode  Int?       @map("wilaya_code")
+  wilaya      Wilaya?    @relation(fields: [wilayaCode], references: [code])
+  wilayaName  String?    @map("wilaya_name")
+  commune     String?
+  address     String?
+  productSlug String?    @map("product_slug")
+  productName String?    @map("product_name")
+  status      LeadStatus @default(new)
+  notes       String?
+  source      String     @default("abandoned_order_form")
+  ipAddress   String?    @map("ip_address")
+  userAgent   String?    @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([phone])
+  @@index([createdAt(sort: Desc)])
+  @@map("leads")
+}
+
+model SiteSettings {
+  id                     String  @id @default(uuid())
+  logoUrl                String? @map("logo_url")
+  faviconUrl             String? @map("favicon_url")
+  announcementBarText    String? @map("announcement_bar_text")
+  announcementBarEnabled Boolean @default(false) @map("announcement_bar_enabled")
+  instagramUrl           String? @map("instagram_url")
+  facebookUrl            String? @map("facebook_url")
+  tiktokUrl              String? @map("tiktok_url")
+  privacyPolicyText      String? @map("privacy_policy_text")
+  thankYouMessage        String? @map("thank_you_message")
+  thankYouPageUrl        String? @map("thank_you_page_url")
+  storeDomain            String? @map("store_domain")
+  funnelsDomain          String? @map("funnels_domain")
+
+  metaPixelId       String? @map("meta_pixel_id")
+  metaCapiAccessToken String? @map("meta_capi_access_token")
+  tiktokPixelId     String? @map("tiktok_pixel_id")
+  tiktokEventsApiAccessToken String? @map("tiktok_events_api_access_token")
+  googleTagId       String? @map("google_tag_id")
+  snapchatPixelId   String? @map("snapchat_pixel_id")
+
+  // للمزامنة التلقائية الحقيقية لبيانات النقرات والمصروف من حسابات الإعلانات (Marketing API)
+  // — منفصلة عن توكنات Pixel/Conversions API أعلاه لأنها تحتاج صلاحية مختلفة (ads_read).
+  metaAdAccountId            String? @map("meta_ad_account_id")
+  metaAdsInsightsAccessToken String? @map("meta_ads_insights_access_token")
+  tiktokAdvertiserId         String? @map("tiktok_advertiser_id")
+  tiktokAdsReportAccessToken String? @map("tiktok_ads_report_access_token")
+  adsLastSyncedAt            DateTime? @map("ads_last_synced_at")
+
+  notifyOrders          Boolean @default(true) @map("notify_orders")
+  notifyPlatformUpdates Boolean @default(true) @map("notify_platform_updates")
+  notifyAlerts          Boolean @default(true) @map("notify_alerts")
+  notifySystem          Boolean @default(true) @map("notify_system")
+
+  spamProtectionEnabled Boolean @default(true) @map("spam_protection_enabled")
+  orderLimitPerDevice   Int     @default(3) @map("order_limit_per_device")
+  orderLimitPerPhone    Int     @default(3) @map("order_limit_per_phone")
+  orderLimitPerEmail    Int     @default(3) @map("order_limit_per_email")
+  orderLimitPerName     Int     @default(5) @map("order_limit_per_name")
+  orderLimitWindowMin   Int     @default(10) @map("order_limit_window_min")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("site_settings")
+}
+
+model CourierIntegration {
+  id          String  @id @default(uuid())
+  provider    String  @unique
+  isEnabled   Boolean @default(false) @map("is_enabled")
+  apiKey      String? @map("api_key")
+  apiToken    String? @map("api_token")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("courier_integrations")
+}
+
+model CourierCommuneMapping {
+  id                 String   @id @default(uuid())
+  provider           String
+  wilayaCode         Int      @map("wilaya_code")
+  storeCommune       String   @map("store_commune")
+  courierCommuneName String   @map("courier_commune_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([provider, wilayaCode, storeCommune])
+  @@map("courier_commune_mappings")
+}
+
+model EmailIntegration {
+  id             String    @id @default(uuid())
+  provider       String    @unique
+  isConnected    Boolean   @default(false) @map("is_connected")
+  connectedEmail String?   @map("connected_email")
+  clientId       String?   @map("client_id")
+  clientSecret   String?   @map("client_secret")
+  accessToken    String?   @map("access_token")
+  refreshToken   String?   @map("refresh_token")
+  tokenExpiresAt DateTime? @map("token_expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_integrations")
+}
+
+model Coupon {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  type        CouponType
+  value       Int
+  isActive    Boolean    @default(true) @map("is_active")
+  usageLimit  Int?       @map("usage_limit")
+  usedCount   Int        @default(0) @map("used_count")
+  minOrderDzd Int?       @map("min_order_dzd")
+  expiresAt   DateTime?  @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("coupons")
+}
+
+// إدخال يدوي فقط للمصروف والنقرات (المتجر لا يملك اتصال API حقيقي بحسابات الإعلانات) —
+// كل باقي بيانات الأداء (الطلبات/التأكيد/التسليم) تُحسب تلقائيًا من طلبات حقيقية مربوطة
+// بنفس platform + creativeName عبر عمود Order.creativeName أدناه.
+model AdSpendEntry {
+  id           String     @id @default(uuid())
+  platform     AdPlatform
+  creativeName String     @map("creative_name")
+  clicks       Int        @default(0)
+  spendDzd     Int        @default(0) @map("spend_dzd")
+  isActive     Boolean    @default(true) @map("is_active")
+  isAutoSynced Boolean    @default(false) @map("is_auto_synced")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([platform, creativeName])
+  @@map("ad_spend_entries")
+}
+
+// أحداث تتبّع حقيقية تُرسَل من المتصفح مباشرة (صفحة المنتج وصفحة الهبوط) — تُستعمل
+// لحساب الزيارات/الارتداد/CTR/معدلات التحويل تلقائيًا بلا أي إدخال يدوي.
+model TrackingEvent {
+  id           String            @id @default(uuid())
+  eventType    TrackingEventType @map("event_type")
+  pageKind     PageKind          @map("page_kind")
+  path         String
+  productSlug  String?           @map("product_slug")
+  platform     AdPlatform?
+  creativeName String?           @map("creative_name")
+  visitorId    String            @map("visitor_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // الاستعلام الفعلي الوحيد (trackingEventsRepository.listEventsForScope) يفلتر بـpageKind
+  // (دائمًا) وplatform (اختياريًا) — لا يفلتر بـeventType إطلاقًا، فالفهرس السابق
+  // [eventType, pageKind, platform] كان بلا فائدة عمليًا (العمود القائد غير مستعمَل فأي
+  // WHERE، فلا يُطابَق بادئة الفهرس Leftmost-prefix).
+  @@index([pageKind, platform])
+  @@index([productSlug, platform])
+  @@index([visitorId])
+  @@index([createdAt])
+  @@map("tracking_events")
+}
+
+model Webhook {
+  id          String         @id @default(uuid())
+  // فريد — يمنع تسجيل نفس الرابط مرتين (طلبَين متزامنين لإضافة نفس الـwebhook، أو نقر
+  // مزدوج على الزر) فيتلقى نفس المستقبِل كل حدث مرتين.
+  url         String         @unique
+  events      WebhookEvent[]
+  isActive    Boolean        @default(true) @map("is_active")
+  lastStatus  Int?           @map("last_status")
+  lastFiredAt DateTime?      @map("last_fired_at")
+  // سر HMAC مشفَّر بالإنتاج (enc:v1:...) — يُنشأ عشوائيًا مرة واحدة عند إنشاء الـwebhook،
+  // يُستعمل لتوقيع كل حمولة صادرة (X-Webhook-Signature) حتى يتحقق المستقبِل من أصالتها.
+  secret String @map("secret")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("webhooks")
+}
+
+model PageView {
+  id        String   @id @default(uuid())
+  path      String
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([path])
+  @@map("page_views")
+}
+
+model ApiKey {
+  id         String    @id @default(uuid())
+  keyHash    String    @map("key_hash")
+  label      String
+  // مصفوفة فارغة = وصول كامل لكل النطاقات (توافقًا مع المفاتيح المُنشأة قبل هذه الميزة) —
+  // نطاق محدَّد يقيّد المفتاح لفئة إجراءات واحدة فقط (orders:read, orders:write, ...).
+  scopes     String[]  @default([])
+  lastUsedAt DateTime? @map("last_used_at")
+  // NULL = بلا انتهاء صلاحية (توافقًا مع المفاتيح القديمة) — يُفضَّل ضبط تاريخ عند الإنشاء.
+  expiresAt  DateTime? @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([keyHash])
+  @@map("api_keys")
+}

@@ -1,0 +1,81 @@
+name: E2E Tests
+
+# متطلب #3: CI قابل لإعادة التشغيل تلقائيًا — يعمل على كل push/PR لأي فرع، ويمكن أيضًا
+# تشغيله يدويًا (workflow_dispatch) عند الحاجة لإعادة تحقق فورية بلا commit جديد.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# يمنع تشغيلين متزامنين لنفس الفرع — كلاهما يستهدف نفس قاعدة بيانات الإنتاج المشتركة
+# (عزل منطقي فقط، وليس قاعدة بيانات اختبار منفصلة — راجع tests/e2e/README.md)، فتشغيلان
+# متوازيان قد يتسابقان على حدود معدل حقيقية (Rate Limiters) أو على تنظيف بيانات بعضهما.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SECRETS_ENCRYPTION_KEY: ${{ secrets.SECRETS_ENCRYPTION_KEY }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+      NEXT_PUBLIC_ORDER_ENDPOINT: ${{ secrets.NEXT_PUBLIC_ORDER_ENDPOINT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
+
+      # متطلب #20: بناء إنتاجي حقيقي (build + start)، وليس dev server — playwright.config.ts
+      # يشغّل "npm run build && npm run start" داخل webServer، فهذه الخطوة هنا تتحقق مبكرًا
+      # أن TypeScript سليم قبل إهدار وقت تشغيل الاختبارات كاملة على بناء سيفشل حتمًا.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # الاختبارات نفسها تُشغّل "npm run build && npm run start" عبر playwright.config.ts
+      # webServer — راجع تحذير العزل المنطقي المطبوع فبداية كل تشغيل عبر global-setup.ts.
+      - name: Run E2E suite (production build, all browser projects)
+        run: npx playwright test
+
+      # معزول ومُشغَّل أخيرًا عمدًا: يُغرق حد معدّل حقيقي مشترَك بنفس IP لمدة 10 دقائق —
+      # أي اختبار كوبون شرعي آخر بعده كان سيفشل زورًا. راجع rate-limit-429.spec.ts.
+      - name: Run isolated rate-limit (429) proof — must run last
+        run: npx playwright test tests/e2e/rate-limit-429.spec.ts --project=chromium-desktop
+        env:
+          INCLUDE_RATE_LIMIT_TEST: "1"
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+      # لقطات الشاشة/الفيديوهات/الآثار (traces) عند الفشل فقط — متطلب #16.
+      - name: Upload failure artifacts (screenshots/videos/traces)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: ignore
