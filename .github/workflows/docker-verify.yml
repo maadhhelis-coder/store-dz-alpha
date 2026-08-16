@@ -20,6 +20,14 @@ jobs:
   docker-verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # قيمة وهمية غير قابلة للاتصال فعليًا — كافية لأن prisma.config.ts يقرأ DIRECT_URL
+      # عبر env() وقت تحميل الإعدادات (يفشل "prisma generate" فخطوة npm ci's postinstall بلا
+      # هذا المتغيّر معرَّفًا إطلاقًا، حتى أن generate نفسه لا يحتاج اتصالًا حقيقيًا). لا علاقة
+      # لهذا بقاعدة بيانات Docker الفعلية المُستعملة لاحقًا (docker-compose.yml له متغيراته
+      # الخاصة المستقلة تمامًا عبر شبكة الحاويات).
+      DATABASE_URL: postgresql://storedz:storedz@localhost:5432/storedz
+      DIRECT_URL: postgresql://storedz:storedz@localhost:5432/storedz
     steps:
       - uses: actions/checkout@v4
 
