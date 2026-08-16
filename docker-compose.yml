@@ -59,10 +59,12 @@ services:
     build:
       context: .
       target: builder
-    command: sh -c "npx prisma migrate deploy && node --import tsx prisma/seed.ts"
+    command: sh scripts/docker-migrate-entrypoint.sh
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
       DIRECT_URL: postgresql://${POSTGRES_USER:-storedz}:${POSTGRES_PASSWORD:-storedz}@db:5432/${POSTGRES_DB:-storedz}
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
     depends_on:
       db:
         condition: service_healthy

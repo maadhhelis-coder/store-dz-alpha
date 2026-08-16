@@ -28,6 +28,12 @@ jobs:
       # الخاصة المستقلة تمامًا عبر شبكة الحاويات).
       DATABASE_URL: postgresql://storedz:storedz@localhost:5432/storedz
       DIRECT_URL: postgresql://storedz:storedz@localhost:5432/storedz
+      # أسرار Supabase حقيقية (نفس ما يستعمله .github/workflows/e2e.yml بالفعل فهذا المستودع) —
+      # مطلوبة لاختبار تسجيل دخول Owner حقيقي داخل الحاوية (وليس قيمًا فارغة/محلية فقط). تُقرأ
+      # docker-compose.yml هذه القيم عبر ${VAR} تلقائيًا من بيئة الصدفة التي يعمل بها compose.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -105,6 +111,78 @@ jobs:
             --post-data='["SET","docker-verify-key","hello"]'
           docker compose exec -T redis redis-cli get docker-verify-key | grep -q hello
 
+      - name: "Step 5c — Real admin login inside the container (real Supabase creds, not empty values)"
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL secret is not set — cannot prove real admin login"
+            exit 1
+          fi
+          # نفس حساب Owner الدائم الحقيقي المُستعمل فـtests/e2e (راجع
+          # tests/e2e/support/adminFixtures.ts) — وليس بيانات وهمية. صف AdminUser المطابق فقاعدة
+          # بيانات Docker المحلية هذه أُنشئ عبر scripts/dockerVerifySeed.ts (خدمة migrate)، مربوطًا
+          # بنفس حساب Supabase Auth الحقيقي الخارجي (مشترك، غير معزول لكل بيئة).
+          OWNER_EMAIL="e2e-owner@storedz-test.invalid"
+          OWNER_PASSWORD="E2E-Owner-Test-Pw-9f3a7c!"
+
+          LOGIN_CODE=$(curl -s -o /tmp/login-response.json -w "%{http_code}" -c /tmp/owner-cookies.txt \
+            -X POST http://localhost:3000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$OWNER_EMAIL\",\"password\":\"$OWNER_PASSWORD\"}")
+          echo "login status: $LOGIN_CODE"
+          cat /tmp/login-response.json
+          if [ "$LOGIN_CODE" != "200" ]; then
+            echo "::error::real admin login failed (status $LOGIN_CODE)"
+            exit 1
+          fi
+          grep -q "$OWNER_EMAIL" /tmp/login-response.json
+
+          # إثبات أن الجلسة الحقيقية تفتح فعليًا مسارًا إداريًا محميًا (200)...
+          PROTECTED_CODE=$(curl -s -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
+            "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
+          echo "protected route WITH session: $PROTECTED_CODE"
+          if [ "$PROTECTED_CODE" != "200" ]; then
+            echo "::error::authenticated request to a protected admin route did not return 200"
+            exit 1
+          fi
+
+          # ...بينما نفس المسار بلا أي جلسة يُرفَض فعليًا (401) — يثبت أن الحماية حقيقية،
+          # وليست 200 دائمة بصرف النظر عن الجلسة.
+          UNAUTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
+          echo "protected route WITHOUT session: $UNAUTH_CODE"
+          if [ "$UNAUTH_CODE" != "401" ]; then
+            echo "::error::protected admin route did not reject an unauthenticated request (got $UNAUTH_CODE, expected 401)"
+            exit 1
+          fi
+
+      - name: "Step 5d — Real order creation via HTTP end-to-end, verified directly in Postgres"
+        run: |
+          ORDER_NUMBER_FILE=/tmp/order-number.txt
+          BODY='{"firstName":"DockerVerify","lastName":"OrderTest","phone":"0555123456","wilayaCode":16,"commune":"Alger Centre","deliveryOption":"office","productSlug":"docker-verify-test-product","quantity":1,"visitorId":"docker-verify-order-test"}'
+
+          CODE=$(curl -s -o /tmp/order-response.json -w "%{http_code}" \
+            -X POST http://localhost:3000/api/orders \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          echo "order creation status: $CODE"
+          cat /tmp/order-response.json
+          if [ "$CODE" != "201" ]; then
+            echo "::error::real order creation via HTTP failed (status $CODE)"
+            exit 1
+          fi
+
+          ORDER_NUMBER=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/order-response.json','utf8')).orderNumber)")
+          echo "created order number: $ORDER_NUMBER"
+          echo "$ORDER_NUMBER" > "$ORDER_NUMBER_FILE"
+
+          # التحقق ليس من رسالة نجاح الواجهة فقط — استعلام مباشر فقاعدة البيانات الحقيقية
+          # يتأكد أن الصف فعلًا هناك، وبالبيانات الصحيحة (الاسم، الهاتف، الحالة الابتدائية).
+          docker compose exec -T db psql -U storedz -d storedz -t -c \
+            "SELECT customer_first_name || '|' || customer_last_name || '|' || phone || '|' || status FROM orders WHERE order_number = '$ORDER_NUMBER';" \
+            | tee /tmp/order-db-row.txt
+          grep -q "DockerVerify" /tmp/order-db-row.txt
+          grep -q "0555123456" /tmp/order-db-row.txt
+          grep -q "pending" /tmp/order-db-row.txt
+
       - name: Step 6 — Restart and force-recreate containers, confirm the app comes back healthy
         run: |
           docker compose restart app
@@ -154,6 +232,66 @@ jobs:
 
       - name: Step 8c — Confirm the app still answers real requests under the read-only-rootfs overlay
         run: curl -sfL http://localhost:3000/api/health | grep -q '"status":"ok"'
+
+      - name: "Step 8d — Graceful shutdown: real in-flight requests + measured SIGTERM handling"
+        run: |
+          rm -f /tmp/shutdown-requests.log
+          # 8 طلبات إنشاء طلب حقيقية (رقم هاتف/معرّف جهاز/لقب فريد لكل واحد لتفادي حدود معدّل
+          # الطلبات الحقيقية)، تُطلَق بفارق 300ms بعضها عن بعض — تمتد قرابة 2.5 ثانية، فيضمن هذا
+          # وجود طلب "قيد التنفيذ فعليًا" (in-flight) لحظة إرسال SIGTERM لاحقًا، وليس افتراضًا.
+          fire_order() {
+            n=$1
+            phone=$(printf "0555%06d" "$n")
+            body="{\"firstName\":\"Shutdown\",\"lastName\":\"Test$n\",\"phone\":\"$phone\",\"wilayaCode\":16,\"commune\":\"Alger Centre\",\"deliveryOption\":\"office\",\"productSlug\":\"docker-verify-test-product\",\"quantity\":1,\"visitorId\":\"shutdown-test-$n\"}"
+            code=$(curl -s -o /tmp/shutdown-resp-$n.json -w "%{http_code}" -m 20 \
+              -X POST http://localhost:3000/api/orders -H "Content-Type: application/json" -d "$body")
+            echo "n=$n code=$code" >> /tmp/shutdown-requests.log
+          }
+
+          for i in 1 2 3 4 5 6 7 8; do
+            fire_order "$i" &
+            sleep 0.3
+          done
+          sleep 0.5
+
+          SIGTERM_TS=$(date +%s.%N)
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml stop --timeout 30 app
+          STOPPED_TS=$(date +%s.%N)
+
+          wait   # ننتظر انتهاء كل الطلبات المُطلَقة فالخلفية (بعضها كان قيد التنفيذ فعليًا وقت SIGTERM)
+
+          DURATION=$(node -e "console.log((${STOPPED_TS} - ${SIGTERM_TS}).toFixed(2))")
+          echo "measured shutdown duration: ${DURATION}s"
+
+          EXIT_CODE=$(docker inspect store-dz-app-1 --format='{{.State.ExitCode}}')
+          echo "container exit code after SIGTERM: $EXIT_CODE"
+
+          echo "--- per-request results (n / http status) ---"
+          cat /tmp/shutdown-requests.log
+
+          if [ "$EXIT_CODE" != "0" ]; then
+            echo "::error::app did not exit cleanly after SIGTERM (exit code $EXIT_CODE — likely SIGKILLed after the stop timeout instead of shutting down gracefully)"
+            exit 1
+          fi
+
+          SUCCESS_COUNT=$(grep -c "code=201" /tmp/shutdown-requests.log || true)
+          echo "in-flight requests that completed successfully (201) despite SIGTERM: $SUCCESS_COUNT / 8"
+          if [ "$SUCCESS_COUNT" -lt 1 ]; then
+            echo "::error::not a single in-flight request completed successfully during shutdown — graceful shutdown is not actually working"
+            exit 1
+          fi
+
+      - name: "Step 8e — Confirm the in-flight orders from the shutdown test actually persisted (no data loss)"
+        run: |
+          docker compose exec -T db psql -U storedz -d storedz -t -c \
+            "SELECT phone, status FROM orders WHERE customer_first_name = 'Shutdown' AND customer_last_name LIKE 'Test%';" \
+            | tee /tmp/shutdown-orders-db.txt
+          DB_COUNT=$(grep -c "|" /tmp/shutdown-orders-db.txt || true)
+          echo "shutdown-test orders found in Postgres: $DB_COUNT"
+          if [ "$DB_COUNT" -lt 1 ]; then
+            echo "::error::the in-flight request(s) that returned 201 did not actually persist to Postgres — real data loss during shutdown"
+            exit 1
+          fi
 
       - name: Step 9 — Security scan the production image (Trivy)
         uses: aquasecurity/trivy-action@v0.36.0

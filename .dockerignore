@@ -34,5 +34,9 @@ docker-compose*.yml
 .claude
 .github
 
-# اختبارات E2E — غير مطلوبة داخل صورة الإنتاج.
-tests
+# ملاحظة: tests/ لم تعد مُستثناة عمدًا — scripts/dockerVerifySeed.ts (تُشغَّل داخل خدمة
+# migrate فdocker-compose.yml) يستورد tests/e2e/support/adminFixtures.ts لإعادة استعمال نفس
+# منطق حسابات Owner/Staff الاختباريَّين الحقيقيَّين بدل تكراره. لا أثر على حجم صورة الإنتاج
+# النهائية: مرحلة runner لا تنسخ شيئًا من مصدر builder سوى .next/standalone (متعقَّب تلقائيًا)
+# وnode_modules/.prisma الصريحة — ملفات tests/ الخام تبقى حصرًا فطبقات builder/migrate
+# الوسيطة غير المشحونة.
