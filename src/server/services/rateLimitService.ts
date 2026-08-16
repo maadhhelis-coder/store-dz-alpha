@@ -15,11 +15,24 @@ export type RateLimitResult = { allowed: true } | { allowed: false; reason: stri
 // كان سيرمي استثناءً غير مُعالَج فطلب العميل الأساسي بدل تجاهل حد المعدل بأمان. الفشل
 // المفتوح هنا (السماح بالطلب بدل رفضه) مبدأ هذا المشروع نفسه: فحص خلفي واحد لا يجب أن
 // يُسقط الإجراء الأساسي الذي يعتمد عليه.
-async function safeRateLimit(check: () => Promise<RateLimitResult>): Promise<RateLimitResult> {
+// وسم منظَّم (event: "rate_limit_fail_open") بدل سطر نصي حر — راجع Deployment Audit HIGH-05:
+// الفشل المفتوح كان صامتًا عمليًا (console.error عادي لا يميّزه أي نظام مراقبة خارجي عن أي
+// خطأ آخر). هذا الشكل قابل للتصفية مباشرة عبر أي أداة تجميع سجلّات تعتمد على JSON (Vercel Log
+// Drains، Datadog، إلخ) — يبقى تفعيل تنبيه فعلي (Slack/PagerDuty) مربوطًا بهذا الوسم مسؤولية
+// تُضبَط خارج هذا الكود (لا بيانات اعتماد قناة تنبيه متوفرة هنا).
+async function safeRateLimit(limiterName: string, check: () => Promise<RateLimitResult>): Promise<RateLimitResult> {
   try {
     return await check();
   } catch (error) {
-    console.error("rate limit check failed, failing open", error);
+    console.error(
+      JSON.stringify({
+        event: "rate_limit_fail_open",
+        limiter: limiterName,
+        message: "rate limit backend unreachable — request ALLOWED with no throttling",
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      }),
+    );
     return { allowed: true };
   }
 }
@@ -32,7 +45,7 @@ export function checkOrderRateLimit(
   fullName: string,
   deviceFingerprint?: string,
 ): Promise<RateLimitResult> {
-  return safeRateLimit(() => checkOrderRateLimitUnsafe(phone, ip, fullName, deviceFingerprint));
+  return safeRateLimit("order", () => checkOrderRateLimitUnsafe(phone, ip, fullName, deviceFingerprint));
 }
 
 async function checkOrderRateLimitUnsafe(
@@ -85,7 +98,7 @@ async function checkOrderRateLimitUnsafe(
 }
 
 export function checkLeadRateLimit(ip: string): Promise<RateLimitResult> {
-  return safeRateLimit(() => checkLeadRateLimitUnsafe(ip));
+  return safeRateLimit("lead", () => checkLeadRateLimitUnsafe(ip));
 }
 
 async function checkLeadRateLimitUnsafe(ip: string): Promise<RateLimitResult> {
@@ -97,7 +110,7 @@ async function checkLeadRateLimitUnsafe(ip: string): Promise<RateLimitResult> {
 }
 
 export function checkTrackRateLimit(ip: string): Promise<RateLimitResult> {
-  return safeRateLimit(() => checkTrackRateLimitUnsafe(ip));
+  return safeRateLimit("track", () => checkTrackRateLimitUnsafe(ip));
 }
 
 async function checkTrackRateLimitUnsafe(ip: string): Promise<RateLimitResult> {
@@ -109,7 +122,7 @@ async function checkTrackRateLimitUnsafe(ip: string): Promise<RateLimitResult> {
 }
 
 export function checkLoginRateLimit(ip: string, email: string): Promise<RateLimitResult> {
-  return safeRateLimit(() => checkLoginRateLimitUnsafe(ip, email));
+  return safeRateLimit("login", () => checkLoginRateLimitUnsafe(ip, email));
 }
 
 async function checkLoginRateLimitUnsafe(ip: string, email: string): Promise<RateLimitResult> {

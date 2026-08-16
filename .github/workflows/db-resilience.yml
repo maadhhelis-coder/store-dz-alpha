@@ -1,0 +1,210 @@
+name: DB Resilience Tests
+
+# اختبارات فعلية (لا نظرية) لـBackup/Restore/Migration Failure/Rollback A→B→A — على قاعدة
+# بيانات Postgres تجريبية معزولة تمامًا (حاوية GitHub Actions services، تُحذَف تلقائيًا بعد
+# التشغيلة)، وليس على قاعدة بيانات الإنتاج الحقيقية. راجع Deployment Audit HIGH-01/HIGH-02/
+# HIGH-03: الطلب الأصلي كان يتطلّب اختبار هذه السيناريوهات فعليًا، لكن تنفيذها على البيانات
+# الحقيقية يحمل خطر فقدان بيانات — هذا الـworkflow يثبتها بأمان تام على بيانات معزولة، بنفس
+# ملفات الترحيل (migrations) الحقيقية للمشروع.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-resilience-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  db-resilience:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: storedz
+          POSTGRES_PASSWORD: storedz
+          POSTGRES_DB: storedz
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U storedz -d storedz"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://storedz:storedz@localhost:5432/storedz
+      DIRECT_URL: postgresql://storedz:storedz@localhost:5432/storedz
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install postgresql-client (pg_dump/psql)
+        run: sudo apt-get update -y && sudo apt-get install -y postgresql-client
+
+      - name: "Test 1 — Migration succeeds against a fresh database (proves migrations apply cleanly)"
+        run: npx prisma migrate deploy
+
+      - name: Seed baseline data
+        run: node --import tsx prisma/seed.ts
+
+      - name: "Test 2 — Real backup (pg_dump) is non-empty and contains real schema"
+        run: |
+          PGPASSWORD=storedz pg_dump -h localhost -U storedz -d storedz -F p -f /tmp/backup_baseline.sql
+          SIZE=$(stat -c%s /tmp/backup_baseline.sql)
+          echo "backup size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::backup file suspiciously small — pg_dump likely failed silently"
+            exit 1
+          fi
+          grep -q "CREATE TABLE" /tmp/backup_baseline.sql
+          grep -q "wilayas" /tmp/backup_baseline.sql
+
+      - name: "Test 3 — Simulate data loss, then real restore, then verify data matches exactly"
+        run: |
+          BEFORE=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "wilaya count before corruption: $BEFORE"
+
+          # محاكاة فقدان بيانات حقيقي — حذف كل الولايات.
+          PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -c "DELETE FROM wilayas;"
+          AFTER_DELETE=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "wilaya count after simulated data loss: $AFTER_DELETE"
+          if [ "$AFTER_DELETE" != "0" ]; then
+            echo "::error::simulated data loss did not actually happen — test invalid"
+            exit 1
+          fi
+
+          # استرجاع حقيقي من النسخة الاحتياطية: إعادة إنشاء قاعدة البيانات كاملة ثم استيراد النسخة.
+          # يجب إنهاء أي اتصالات نشطة بـstoredz أولًا (Postgres يرفض DROP DATABASE بلا ذلك).
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='storedz' AND pid <> pg_backend_pid();" || true
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "DROP DATABASE IF EXISTS storedz;"
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "CREATE DATABASE storedz;"
+          PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -f /tmp/backup_baseline.sql > /tmp/restore.log 2>&1
+
+          AFTER_RESTORE=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "wilaya count after real restore: $AFTER_RESTORE"
+          if [ "$AFTER_RESTORE" != "$BEFORE" ]; then
+            echo "::error::restore did not recover the exact pre-loss data (before=$BEFORE after_restore=$AFTER_RESTORE)"
+            cat /tmp/restore.log
+            exit 1
+          fi
+
+      - name: "Test 4 — A deliberately failing migration does NOT corrupt or partially apply to the schema"
+        run: |
+          # عمود جديد NOT NULL بلا Default على جدول orders (فارغ هنا لكن القيد نفسه صالح ويُفشِل
+          # الترحيل فعليًا فPostgres بغض النظر عن وجود صفوف — يحاكي خطأ ترحيل حقيقي شائع).
+          # مجلد ترحيل مؤقت لهذه التشغيلة فقط — لا يُضاف لتاريخ الترحيلات الحقيقي للمشروع إطلاقًا.
+          mkdir -p prisma/migrations/99999999999999_deliberately_broken_test_migration
+          cat > prisma/migrations/99999999999999_deliberately_broken_test_migration/migration.sql <<'EOF'
+          ALTER TABLE "orders" ADD COLUMN "deliberately_broken_test_column" TEXT NOT NULL;
+          EOF
+
+          set +e
+          npx prisma migrate deploy > /tmp/bad_migration.log 2>&1
+          MIGRATE_EXIT=$?
+          set -e
+
+          echo "--- prisma migrate deploy output ---"
+          cat /tmp/bad_migration.log
+          echo "exit code: $MIGRATE_EXIT"
+
+          if [ "$MIGRATE_EXIT" -eq 0 ]; then
+            echo "::error::the deliberately broken migration was expected to fail, but 'prisma migrate deploy' reported success"
+            exit 1
+          fi
+
+          # الإثبات الحقيقي: العمود الفاشل لا يجب أن يكون موجودًا فالسكيما الفعلية بعد الفشل —
+          # هذا يثبت أن الترحيل الفاشل لم يترك القاعدة فحالة جزئية/تالفة.
+          COLUMN_EXISTS=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='deliberately_broken_test_column';" \
+            | tr -d '[:space:]')
+          echo "broken column exists in schema after failed migration: $COLUMN_EXISTS (expected 0)"
+          if [ "$COLUMN_EXISTS" != "0" ]; then
+            echo "::error::the failed migration partially applied — the schema is now corrupted"
+            exit 1
+          fi
+
+          # التأكد أن القاعدة تبقى قابلة للاستعمال الطبيعي بعد فشل الترحيل (لا قفل معلَّق، لا
+          # حالة "dirty" تمنع عمليات لاحقة).
+          PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -c "SELECT COUNT(*) FROM wilayas;" > /dev/null
+
+          rm -rf prisma/migrations/99999999999999_deliberately_broken_test_migration
+
+      - name: "Test 5 — Rollback A → B → A: real restore-from-pre-deploy-backup, verified against a real new migration+data"
+        run: |
+          # الحالة A: السكيما/البيانات الحالية (بعد نجاح كل الترحيلات الحقيقية + seed) — هذه هي
+          # استراتيجية Rollback الوحيدة الممكنة فعليًا مع Prisma (لا down-migrations تلقائية):
+          # استرجاع من نسخة احتياطية أُخذت قبل نشر النسخة التالية مباشرة.
+          PGPASSWORD=storedz pg_dump -h localhost -U storedz -d storedz -F p -f /tmp/backup_A.sql
+          WILAYA_COUNT_A=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          echo "Version A wilaya count: $WILAYA_COUNT_A"
+
+          # الحالة B: نشر إصدار تالٍ حقيقي — ترحيل جديد متوافق خلفيًا (عمود Nullable) + بيانات جديدة.
+          mkdir -p prisma/migrations/99999999999998_rollback_test_version_b
+          cat > prisma/migrations/99999999999998_rollback_test_version_b/migration.sql <<'EOF'
+          ALTER TABLE "orders" ADD COLUMN "rollback_test_version_b_column" TEXT;
+          EOF
+          npx prisma migrate deploy
+          PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -c \
+            "INSERT INTO wilayas (code, name, office_price_dzd, home_price_dzd, is_active) VALUES (999, 'Rollback-Test-Version-B-Only', 100, 100, true) ON CONFLICT (code) DO NOTHING;"
+
+          WILAYA_COUNT_B=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          COLUMN_EXISTS_B=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='rollback_test_version_b_column';" | tr -d '[:space:]')
+          echo "Version B wilaya count: $WILAYA_COUNT_B, column present: $COLUMN_EXISTS_B"
+          if [ "$COLUMN_EXISTS_B" != "1" ] || [ "$WILAYA_COUNT_B" = "$WILAYA_COUNT_A" ]; then
+            echo "::error::version B deploy did not actually change the database — test setup invalid"
+            exit 1
+          fi
+
+          # الرجوع الفعلي إلى A: استرجاع كامل من backup_A (وليس فقط حذف صف/عمود يدويًا — استرجاع
+          # حقيقي من نسخة احتياطية، تمامًا كما يحدث فعليًا فسيناريو Rollback حقيقي).
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='storedz' AND pid <> pg_backend_pid();" || true
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "DROP DATABASE IF EXISTS storedz;"
+          PGPASSWORD=storedz psql -h localhost -U storedz -d postgres -c "CREATE DATABASE storedz;"
+          PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -f /tmp/backup_A.sql > /tmp/rollback_restore.log 2>&1
+
+          WILAYA_COUNT_ROLLED_BACK=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c "SELECT COUNT(*) FROM wilayas;" | tr -d '[:space:]')
+          COLUMN_EXISTS_ROLLED_BACK=$(PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -t -c \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='orders' AND column_name='rollback_test_version_b_column';" | tr -d '[:space:]')
+          echo "After rollback to A — wilaya count: $WILAYA_COUNT_ROLLED_BACK (expect $WILAYA_COUNT_A), column present: $COLUMN_EXISTS_ROLLED_BACK (expect 0)"
+
+          if [ "$WILAYA_COUNT_ROLLED_BACK" != "$WILAYA_COUNT_A" ]; then
+            echo "::error::rollback did not restore the exact Version A row count"
+            cat /tmp/rollback_restore.log
+            exit 1
+          fi
+          if [ "$COLUMN_EXISTS_ROLLED_BACK" != "0" ]; then
+            echo "::error::rollback did not remove Version B's schema change — the B column still exists after 'rolling back to A'"
+            exit 1
+          fi
+
+          rm -rf prisma/migrations/99999999999998_rollback_test_version_b
+
+      - name: "Test 6 — Application (Prisma client) actually works normally against the post-rollback database"
+        run: |
+          cat > /tmp/verify_prisma_client.cjs <<'EOF'
+          const { PrismaClient } = require("@prisma/client");
+          const { PrismaPg } = require("@prisma/adapter-pg");
+          const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+          const prisma = new PrismaClient({ adapter });
+          prisma.wilaya.count().then((n) => {
+            console.log("wilaya count via real Prisma client after rollback:", n);
+            if (n < 1) { console.error("expected wilayas to exist post-rollback"); process.exit(1); }
+            return prisma.$disconnect();
+          }).catch((e) => { console.error(e); process.exit(1); });
+          EOF
+          node /tmp/verify_prisma_client.cjs

@@ -4,13 +4,24 @@ name: E2E Tests
 # تشغيله يدويًا (workflow_dispatch) عند الحاجة لإعادة تحقق فورية بلا commit جديد.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# permissions أدنى صراحة — راجع Deployment Audit LOW-01.
+permissions:
+  contents: read
 
 # يمنع تشغيلين متزامنين لنفس الفرع — كلاهما يستهدف نفس قاعدة بيانات الإنتاج المشتركة
 # (عزل منطقي فقط، وليس قاعدة بيانات اختبار منفصلة — راجع tests/e2e/README.md)، فتشغيلان
 # متوازيان قد يتسابقان على حدود معدل حقيقية (Rate Limiters) أو على تنظيف بيانات بعضهما.
+#
+# ملاحظة (Deployment Audit MED-01): هذا concurrency group منفصل عمدًا عن docker-verify.yml
+# (اسم مختلف)، فكلا الـworkflow كانا يعملان متوازيَين فعليًا على نفس push، ويكتبان لنفس
+# قاعدة البيانات الحقيقية سابقًا — أحد أسباب فشل E2E المتقطّع المُلاحَظ فعليًا. بعد إزالة
+# الأسرار الحقيقية من هذا المستودع (راجع CRIT-01)، هذا الـworkflow متوقف مؤقتًا (راجع خطوة
+# "Require test environment secrets" أدناه) فلم يعد هذا التضارب قائمًا فعليًا الآن، لكن
+# الاسم أُبقي منفصلًا عمدًا تحسّبًا لإعادة التفعيل المستقبلية بقاعدة اختبار حقيقية منفصلة.
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
@@ -31,9 +42,9 @@ jobs:
       UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
       NEXT_PUBLIC_ORDER_ENDPOINT: ${{ secrets.NEXT_PUBLIC_ORDER_ENDPOINT }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           # 22+ مطلوب فعليًا: @supabase/realtime-js الحالي يحتاج WebSocket أصلي فـNode (مضاف
           # فNode 22)، واكتُشف هذا حقيقيًا فتشغيلة CI فعلية سابقة فشلت بوضوح على Node 20:
@@ -41,6 +52,17 @@ jobs:
           # Node.js 22+" — عند globalSetup.ts الذي يُنشئ عملاء Supabase Admin حقيقيين.
           node-version: 22
           cache: npm
+
+      # فشل سريع وواضح بدل تسلسل فشل مُربِك عبر عشرات الخطوات: الأسرار الحقيقية أُزيلت عمدًا
+      # من هذا المستودع (راجع Deployment Audit CRIT-01 — كانت أسرار إنتاج حقيقية بلا حماية
+      # فرع). حتى تُضبَط أسرار مشروع Supabase **تجريبي منفصل** (وليس الإنتاج) بنفس الأسماء،
+      # هذا الـworkflow يفشل هنا فورًا برسالة واضحة بدل محاولة البناء بلا اتصال قاعدة بيانات.
+      - name: Require test environment secrets
+        run: |
+          if [ -z "$DATABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::error::E2E suite requires DATABASE_URL/DIRECT_URL/NEXT_PUBLIC_SUPABASE_* secrets pointing to a DEDICATED TEST Supabase project (not production). These were intentionally removed from this repo after Deployment Audit CRIT-01 found real production credentials stored here without branch protection. Provision a separate test project and re-add these secrets to re-enable this workflow."
+            exit 1
+          fi
 
       - name: Install dependencies
         run: npm ci
@@ -68,7 +90,7 @@ jobs:
 
       - name: Upload Playwright HTML report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-report
           path: playwright-report/
@@ -77,7 +99,7 @@ jobs:
       # لقطات الشاشة/الفيديوهات/الآثار (traces) عند الفشل فقط — متطلب #16.
       - name: Upload failure artifacts (screenshots/videos/traces)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-results
           path: test-results/

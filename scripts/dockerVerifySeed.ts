@@ -7,9 +7,18 @@ import { ensureAdminFixtures } from "../tests/e2e/support/adminFixtures";
 // الأساسية: فئات وولايات). يعيد استعمال ensureAdminFixtures نفسها المُستعملة فE2E الحقيقي —
 // حساب Owner/Staff فSupabase Auth موجود بالفعل (خارجي، مشترك)؛ هذا يضمن فقط وجود صف
 // AdminUser المطابق فقاعدة بيانات Postgres المحلية (Docker) هذه تحديدًا.
+//
+// منتج الاختبار (لاختبار إنشاء الطلبات) لا يعتمد على Supabase إطلاقًا — يُزرَع دومًا. فقط
+// حساب Owner (يحتاج Supabase Auth حقيقي خارجي) مشروط بوجود بيانات اعتماد حقيقية — هذا يمنع
+// تسريب أسرار إنتاج حقيقية عبر GitHub Secrets العامة (راجع CRIT-01 فتقرير Deployment Audit)
+// بينما يُبقي اختبار إنشاء الطلبات (لا يحتاج Supabase) يعمل دومًا بلا أي اعتماد خارجي.
 async function main() {
-  console.log("Ensuring E2E admin fixtures (owner/staff) exist in this database...");
-  await ensureAdminFixtures();
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log("Ensuring E2E admin fixtures (owner/staff) exist in this database...");
+    await ensureAdminFixtures();
+  } else {
+    console.log("Skipping admin fixtures: no Supabase credentials provided (real-login test will be skipped).");
+  }
 
   console.log("Upserting docker-verify test product...");
   const category = await prisma.category.findUniqueOrThrow({ where: { slug: "electronics-gadgets" } });

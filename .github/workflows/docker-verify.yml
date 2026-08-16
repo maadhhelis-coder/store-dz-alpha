@@ -8,9 +8,14 @@ name: Docker Verify
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# permissions أدنى صراحة (بدل الاعتماد على الإعداد الافتراضي على مستوى المستودع، الذي قد
+# يتغيّر مستقبلًا بلا أثر فهذا الملف) — راجع Deployment Audit LOW-01.
+permissions:
+  contents: read
 
 concurrency:
   group: docker-verify-${{ github.ref }}
@@ -28,16 +33,18 @@ jobs:
       # الخاصة المستقلة تمامًا عبر شبكة الحاويات).
       DATABASE_URL: postgresql://storedz:storedz@localhost:5432/storedz
       DIRECT_URL: postgresql://storedz:storedz@localhost:5432/storedz
-      # أسرار Supabase حقيقية (نفس ما يستعمله .github/workflows/e2e.yml بالفعل فهذا المستودع) —
-      # مطلوبة لاختبار تسجيل دخول Owner حقيقي داخل الحاوية (وليس قيمًا فارغة/محلية فقط). تُقرأ
-      # docker-compose.yml هذه القيم عبر ${VAR} تلقائيًا من بيئة الصدفة التي يعمل بها compose.
+      # أسرار Supabase الإنتاج الحقيقية أُزيلت عمدًا من هذا المستودع (راجع Deployment Audit
+      # CRIT-01: كانت مخزَّنة هنا بلا حماية فرع، ومع تشغيل الـworkflow سابقًا على أي فرع —
+      # خطر تسريب حقيقي). القيم أدناه الآن فارغة دومًا؛ خطوة تسجيل الدخول الحقيقي (5c) تتخطّى
+      # نفسها بأمان بلا هذه الأسرار بدل الفشل. لإعادة تفعيل ذلك الاختبار، أضِف أسرار مشروع
+      # Supabase **تجريبي منفصل** (وليس الإنتاج) بنفس هذه الأسماء.
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
@@ -111,12 +118,21 @@ jobs:
             --post-data='["SET","docker-verify-key","hello"]'
           docker compose exec -T redis redis-cli get docker-verify-key | grep -q hello
 
-      - name: "Step 5c — Real admin login inside the container (real Supabase creds, not empty values)"
+      - name: "Step 5c — Protected admin route rejects an unauthenticated request (no credentials required)"
         run: |
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
-            echo "::error::NEXT_PUBLIC_SUPABASE_URL secret is not set — cannot prove real admin login"
+          UNAUTH_CODE=$(curl -sL -o /dev/null -w "%{http_code}" "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
+          echo "protected route WITHOUT session: $UNAUTH_CODE"
+          if [ "$UNAUTH_CODE" != "401" ]; then
+            echo "::error::protected admin route did not reject an unauthenticated request (got $UNAUTH_CODE, expected 401)"
             exit 1
           fi
+
+      # مشروط بوجود أسرار Supabase (تجريبية، وليست الإنتاج الحقيقي — راجع CRIT-01 فتقرير
+      # Deployment Audit: الأسرار الحقيقية أُزيلت عمدًا من هذا المستودع). يتخطّى نفسه بوضوح
+      # (وليس فشلًا صامتًا) بلا هذه الأسرار، بدل الفشل الكامل للـworkflow.
+      - name: "Step 5c2 — Real admin login inside the container (skips cleanly if no test Supabase project is configured)"
+        if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' }}
+        run: |
           # نفس حساب Owner الدائم الحقيقي المُستعمل فـtests/e2e (راجع
           # tests/e2e/support/adminFixtures.ts) — وليس بيانات وهمية. صف AdminUser المطابق فقاعدة
           # بيانات Docker المحلية هذه أُنشئ عبر scripts/dockerVerifySeed.ts (خدمة migrate)، مربوطًا
@@ -136,7 +152,7 @@ jobs:
           fi
           grep -q "$OWNER_EMAIL" /tmp/login-response.json
 
-          # إثبات أن الجلسة الحقيقية تفتح فعليًا مسارًا إداريًا محميًا (200)...
+          # إثبات أن الجلسة الحقيقية تفتح فعليًا مسارًا إداريًا محميًا (200).
           PROTECTED_CODE=$(curl -sL -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
             "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
           echo "protected route WITH session: $PROTECTED_CODE"
@@ -145,13 +161,12 @@ jobs:
             exit 1
           fi
 
-          # ...بينما نفس المسار بلا أي جلسة يُرفَض فعليًا (401) — يثبت أن الحماية حقيقية،
-          # وليست 200 دائمة بصرف النظر عن الجلسة.
-          UNAUTH_CODE=$(curl -sL -o /dev/null -w "%{http_code}" "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
-          echo "protected route WITHOUT session: $UNAUTH_CODE"
-          if [ "$UNAUTH_CODE" != "401" ]; then
-            echo "::error::protected admin route did not reject an unauthenticated request (got $UNAUTH_CODE, expected 401)"
-            exit 1
+      - name: "Step 5c3 — Report whether the real-login test ran or was skipped"
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "::warning::Step 5c2 (real admin login) was SKIPPED — no test Supabase project configured. This is expected after CRIT-01's fix and does not fail the build, but real-login coverage is currently absent from this pipeline."
+          else
+            echo "Step 5c2 ran with real credentials."
           fi
 
       - name: "Step 5d — Real order creation via HTTP end-to-end, verified directly in Postgres"
@@ -302,7 +317,7 @@ jobs:
           fi
 
       - name: Step 9 — Security scan the production image (Trivy)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: store-dz-app:latest
           format: table
@@ -319,7 +334,7 @@ jobs:
 
       - name: Upload verification artifacts (logs + security scan)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: docker-verify-evidence
           path: |
