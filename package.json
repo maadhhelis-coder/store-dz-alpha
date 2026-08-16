@@ -52,11 +52,25 @@
   },
   "overrides": {
     "brace-expansion": "5.0.9",
-    "glob": "10.5.0",
     "minimatch": "10.2.3",
-    "sigstore": "4.1.1",
-    "tar": "7.5.19",
-    "ip-address": "10.3.1"
+    "prisma": {
+      "tar": "7.5.19",
+      "glob": "10.5.0",
+      "sigstore": "4.1.1",
+      "ip-address": "10.3.1"
+    },
+    "@prisma/client": {
+      "tar": "7.5.19",
+      "glob": "10.5.0",
+      "sigstore": "4.1.1",
+      "ip-address": "10.3.1"
+    },
+    "@prisma/engines": {
+      "tar": "7.5.19",
+      "glob": "10.5.0",
+      "sigstore": "4.1.1",
+      "ip-address": "10.3.1"
+    }
   },
   "allowScripts": {
     "@prisma/engines@7.9.1": true,
