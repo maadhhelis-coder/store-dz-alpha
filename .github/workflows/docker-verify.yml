@@ -120,7 +120,7 @@ jobs:
             exit 1
           fi
 
-      - name: Step 8 — Real production runtime (prod overlay: restart:always, resource limits, read-only rootfs, cap_drop ALL)
+      - name: "Step 8 — Real production runtime (prod overlay: restart always, resource limits, read-only rootfs, cap_drop ALL)"
         run: |
           docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
           for i in $(seq 1 30); do
