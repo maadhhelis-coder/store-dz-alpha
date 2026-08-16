@@ -1,5 +1,5 @@
 import { CheckCircle2 } from "lucide-react";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitizeProductHtml } from "@/lib/sanitizeHtml";
 import ProductGallery from "@/components/commerce/ProductGallery";
 import OrderNowButton from "@/components/order/OrderNowButton";
 import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
@@ -64,7 +64,7 @@ export default function ProductDetail({ product }: ProductDetailProps) {
           <h2 className="font-display font-semibold text-gold">وصف المنتج</h2>
           <div
             className="text-sm text-cream-dim leading-relaxed [&_p]:mb-3 [&_strong]:text-cream [&_ul]:list-disc [&_ul]:pr-5"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.longDescriptionHtml) }}
+            dangerouslySetInnerHTML={{ __html: sanitizeProductHtml(product.longDescriptionHtml) }}
           />
         </div>
 
