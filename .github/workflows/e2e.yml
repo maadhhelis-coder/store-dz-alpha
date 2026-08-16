@@ -35,7 +35,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22+ مطلوب فعليًا: @supabase/realtime-js الحالي يحتاج WebSocket أصلي فـNode (مضاف
+          # فNode 22)، واكتُشف هذا حقيقيًا فتشغيلة CI فعلية سابقة فشلت بوضوح على Node 20:
+          # "Node.js detected but native WebSocket not found... Ensure you are running
+          # Node.js 22+" — عند globalSetup.ts الذي يُنشئ عملاء Supabase Admin حقيقيين.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
