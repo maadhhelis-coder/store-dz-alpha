@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Lock } from "lucide-react";
 import Logo from "@/components/brand/Logo";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -36,8 +35,12 @@ function LoginForm() {
       // كرابط protocol-relative لنطاق خارجي)، أي قيمة أخرى تُرفض وتُستبدل بالمسار الافتراضي الآمن.
       const rawNext = searchParams.get("next");
       const next = rawNext && /^\/(?!\/|\\)/.test(rawNext) ? rawNext : "/admin";
-      router.push(next);
-      router.refresh();
+      // تنقّل متصفح حقيقي (لا router.push البرمجي) عمدًا: يضمن أن middleware.ts يُعيد تقييم
+      // كوكيز الجلسة المضبوطة للتو من الصفر عند الطلب التالي — router.push + router.refresh
+      // كانا يعتمدان على أن يلتقط الـclient router الكوكيز الجديدة بشكل صحيح، وهو تفصيل هش
+      // اكتُشف فعليًا عبر E2E حقيقي (Playwright's waitForURL انتظر تنقّلًا حقيقيًا لم يحدث قط).
+      window.location.href = next;
+      return;
     } catch {
       setError("تعذر الاتصال بالخادم، حاول من جديد");
     } finally {
