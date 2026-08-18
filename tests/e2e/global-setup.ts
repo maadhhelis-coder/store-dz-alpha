@@ -3,6 +3,7 @@ dotenv.config({ path: ".env.local" });
 
 import { sweepAllE2EData, testPrisma } from "./support/testPrisma";
 import { ensureAdminFixtures } from "./support/adminFixtures";
+import { redis } from "@/lib/rateLimit/upstash";
 
 // راجع tests/e2e/README.md لتفاصيل قرار عزل بيانات الاختبار (لا قاعدة بيانات منفصلة فعليًا
 // بعد — Docker غير متاح فبيئة التطوير الحالية، ولا مشروع Supabase اختباري ثانٍ). هذا الحارس
@@ -36,6 +37,18 @@ async function globalSetup() {
   const preSweepTotal = Object.values(preSweep).reduce((a, b) => a + b, 0);
   if (preSweepTotal > 0) {
     console.log(`[e2e-setup] cleaned up ${preSweepTotal} leftover row(s) from a previous run:`, preSweep);
+  }
+
+  // تنظيف احترازي لحدود معدّل تسجيل الدخول المتبقية من تشغيلات سابقة — Upstash هذا مخصّص
+  // بالكامل لبيئة الاختبار (مشروع منفصل)، فمسح مفاتيح login هنا آمن تمامًا ولا يمس أي حد
+  // إنتاجي حقيقي. اكتُشف فعليًا: تشغيلات E2E متتالية خلال أقل من 15 دقيقة (كما يحدث أثناء
+  // تصحيح أخطاء حقيقي متكرر) تُنهك حد 5 محاولات/15 دقيقة الحقيقي لبريد e2e-owner/e2e-staff
+  // الثابت (نفس البريد فكل تشغيلة عمدًا)، فتفشل اختبارات الدخول بـ429 حقيقي لا علاقة له
+  // بمنطق التطبيق — وليس شيئًا يمكن حله بإعادة محاولة داخل الاختبار نفسه.
+  const loginRateLimitKeys = await redis.keys("ratelimit:login:*");
+  if (loginRateLimitKeys.length > 0) {
+    await redis.del(...loginRateLimitKeys);
+    console.log(`[e2e-setup] cleared ${loginRateLimitKeys.length} leftover login rate-limit key(s) from a previous run`);
   }
 
   await ensureAdminFixtures();
