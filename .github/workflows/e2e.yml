@@ -64,44 +64,6 @@ jobs:
             exit 1
           fi
 
-      # تشخيص مؤقت — يُزال بعد تحديد السبب: signInWithPassword فتطبيقنا يفشل باستمرار
-      # بـ"Unexpected end of JSON input" فتشغيلات CI حقيقية (راجع authService.ts)، بينما نفس
-      # الطلب عبر curl مباشر من هذه الآلة المحلية نجح مرارًا. هذه الخطوة تختبر نفس نقطة
-      # النهاية بـcurl خام مباشرة من شبكة GitHub Actions نفسها (بلا Next.js/undici/gotrue-js
-      # فالمنتصف إطلاقًا) لتحديد: هل المشكلة فشبكة/خادم Supabase من هذه البيئة تحديدًا، أم
-      # فطبقة تطبيقنا فقط؟
-      - name: DIAGNOSTIC — raw curl to Supabase Auth token endpoint (5x)
-        run: |
-          # لا نطبع القيمة الفعلية (تبقى مقنَّعة ***); فقط خصائص لا تُسرّب السر نفسه —
-          # طول القيمة وهل تنتهي بشرطة مائلة، لتأكيد فرضية "double slash" التي أظهرها Location
-          # فتشخيص سابق: 301 من Cloudflare إلى نفس الرابط لكن بدون الشرطة المزدوجة.
-          echo "URL length: ${#NEXT_PUBLIC_SUPABASE_URL}"
-          case "$NEXT_PUBLIC_SUPABASE_URL" in
-            */) echo "HAS_TRAILING_SLASH: yes" ;;
-            *) echo "HAS_TRAILING_SLASH: no" ;;
-          esac
-          echo "--- attempt 1 with -L -D- (follow redirects, dump headers) ---"
-          curl -sS -L -D- -o /tmp/resp_1.json -w "\nHTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download} REDIRECTS:%{num_redirects} FINAL_URL:%{url_effective}\n" \
-            -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
-            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
-            || echo "curl exit code: $?"
-          echo "body byte count: $(wc -c < /tmp/resp_1.json)"
-          head -c 300 /tmp/resp_1.json | tr -d '\n'
-          echo
-          echo "--- attempt 2: same call, NO trailing-slash risk (single slash forced) ---"
-          BASE_NO_SLASH="${NEXT_PUBLIC_SUPABASE_URL%/}"
-          curl -sS -D- -o /tmp/resp_2.json -w "\nHTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download}\n" \
-            -X POST "$BASE_NO_SLASH/auth/v1/token?grant_type=password" \
-            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
-            -H "Content-Type: application/json" \
-            -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
-            || echo "curl exit code: $?"
-          echo "body byte count: $(wc -c < /tmp/resp_2.json)"
-          head -c 300 /tmp/resp_2.json | tr -d '\n'
-          echo
-
       - name: Install dependencies
         run: npm ci
 
@@ -128,8 +90,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
-      # الاختبارات نفسها تُشغّل "npm run build && npm run start" عبر playwright.config.ts
-      # webServer — راجع تحذير العزل المنطقي المطبوع فبداية كل تشغيل عبر global-setup.ts.
+      # الاختبارات نفسها تبني ثم تشغّل خادم standalone الحقيقي عبر playwright.config.ts
+      # webServer (راجع scripts/start-e2e-server.mjs) — راجع تحذير العزل المنطقي المطبوع
+      # فبداية كل تشغيل عبر global-setup.ts.
       - name: Run E2E suite (production build, all browser projects)
         run: npx playwright test
 
