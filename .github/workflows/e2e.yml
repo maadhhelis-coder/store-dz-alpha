@@ -72,18 +72,18 @@ jobs:
       # فطبقة تطبيقنا فقط؟
       - name: DIAGNOSTIC — raw curl to Supabase Auth token endpoint (5x)
         run: |
-          for i in 1 2 3 4 5; do
-            echo "--- attempt $i ---"
-            curl -sS -o /tmp/resp_$i.json -w "HTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download} TIME:%{time_total}s\n" \
-              -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
-              -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
-              -H "Content-Type: application/json" \
-              -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
-              || echo "curl exit code: $?"
-            echo "body byte count: $(wc -c < /tmp/resp_$i.json)"
-            head -c 200 /tmp/resp_$i.json | tr -d '\n'
-            echo
-          done
+          # NEXT_PUBLIC_ ليست سرًا حقيقيًا (تُشحَن أصلًا لحزمة العميل) — طباعتها آمنة.
+          echo "NEXT_PUBLIC_SUPABASE_URL=[$NEXT_PUBLIC_SUPABASE_URL]"
+          echo "--- attempt 1 with -L -D- (follow redirects, dump headers) ---"
+          curl -sS -L -D- -o /tmp/resp_1.json -w "\nHTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download} REDIRECTS:%{num_redirects} FINAL_URL:%{url_effective}\n" \
+            -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
+            || echo "curl exit code: $?"
+          echo "body byte count: $(wc -c < /tmp/resp_1.json)"
+          head -c 300 /tmp/resp_1.json | tr -d '\n'
+          echo
 
       - name: Install dependencies
         run: npm ci
