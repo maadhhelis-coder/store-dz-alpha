@@ -19,10 +19,26 @@ export class ForbiddenError extends Error {
 // يتحقق من جلسة Supabase الحالية، ثم يتأكد أن المستخدم موجود ونشط في admin_users.
 // استعملها فبداية كل route handler إداري (دفاع إضافي فوق الـ middleware).
 export async function requireAdmin(): Promise<AdminUser> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // فشل بناء عميل Supabase أو استدعاء auth.getUser() (رابط/مفتاح فارغ أو غير صالح، أو
+  // انقطاع خدمة Supabase Auth) يُعامَل كـ"غير مصرح" (401) لا كخطأ خادم 500 — هذه الطبقة
+  // دفاع إضافي مستقل عن middleware.ts، فيجب أن تفشل مغلقة (fail closed) بنفس المبدأ.
+  let user;
+  try {
+    const supabase = await createSupabaseServerClient();
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "auth_check_failed",
+        layer: "requireAdmin",
+        message: "Supabase auth client failed — treating request as unauthenticated",
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    throw new UnauthorizedError();
+  }
 
   if (!user) {
     throw new UnauthorizedError();

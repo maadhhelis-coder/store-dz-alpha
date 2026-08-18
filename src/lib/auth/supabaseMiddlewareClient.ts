@@ -40,9 +40,27 @@ export async function updateSupabaseSession(request: NextRequest, requestHeaders
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // فشل تكوين Supabase (رابط/مفتاح فارغ أو غير صالح) أو انقطاع خدمة Supabase Auth نفسها
+  // يجب أن يُعامَل كـ"لا جلسة" (401/إعادة توجيه لتسجيل الدخول) وليس تعطّل الطلب بالكامل
+  // بخطأ 500 غير معالَج — هذا هو نفس مبدأ "fail closed" المتبع فطبقة requireAdmin كدفاع
+  // إضافي، لكنه هنا فالطبقة الأولى (middleware) حيث يظهر التعطّل فعليًا لأي طلب إداري.
+  // اكتُشف فعليًا: تشغيلة CI حقيقية بدون أسرار Supabase (بعد حذفها عمدًا — Deployment
+  // Audit CRIT-01) أرجعت 500 على مسار محمي بدل 401 المتوقَّع.
+  let user = null;
+  try {
+    const result = await supabase.auth.getUser();
+    user = result.data.user;
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "auth_check_failed",
+        layer: "middleware",
+        message: "Supabase auth client failed — treating request as unauthenticated",
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  }
 
   return { response, user };
 }
