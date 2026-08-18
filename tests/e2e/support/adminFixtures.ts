@@ -26,10 +26,16 @@ async function ensureAdminFixture(email: string, password: string, role: "owner"
 
   // Supabase Auth: ننشئ المستخدم فقط لو لم يوجد بالفعل (قد يوجد فAuth بلا صف AdminUser
   // مطابق من محاولة سابقة فشلت جزئيًا — نتعامل مع الحالتين).
+  //
+  // اكتُشف فعليًا (تشخيص مباشر عبر curl خام + SDK، كلاهما يطابقان بعضهما تمامًا): تمرير
+  // email_confirm:true ضمن جسم POST /auth/v1/admin/users على مشروع Supabase هذا يجعل
+  // الخادم يُرجع استجابة GET /admin/users (قائمة فارغة) بدل إنشاء المستخدم فعليًا —
+  // {"users":[],"aud":"authenticated"} — بصرف النظر عن SDK أو fetch خام. إزالة
+  // email_confirm من جسم الإنشاء ينجح فورًا (يُرجع مستخدمًا حقيقيًا بمعرّف)، ثم نُأكّد
+  // البريد فخطوة PUT منفصلة (updateUserById) تعمل بشكل طبيعي تمامًا.
   const { data: created, error: createError } = await supabase.auth.admin.createUser({
     email,
     password,
-    email_confirm: true,
   });
 
   let authUserId = created?.user?.id;
@@ -38,6 +44,9 @@ async function ensureAdminFixture(email: string, password: string, role: "owner"
     const found = list?.users.find((u) => u.email === email);
     if (!found) throw new Error(`تعذّر إنشاء أو إيجاد حساب Supabase Auth لـ${label}: ${createError?.message}`);
     authUserId = found.id;
+  } else {
+    const { error: confirmError } = await supabase.auth.admin.updateUserById(authUserId, { email_confirm: true });
+    if (confirmError) throw new Error(`تعذّر تأكيد بريد حساب Supabase Auth لـ${label}: ${confirmError.message}`);
   }
 
   await testPrisma.adminUser.create({

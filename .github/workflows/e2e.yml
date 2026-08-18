@@ -75,57 +75,6 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
-      # تشخيص مؤقت: adminFixtures.ts's createUser() فشل مرتين بشكلين مختلفين (رسالة خطأ
-      # ممسوحة، ثم "undefined" بلا data ولا error) — هذا يستدعي نفس مسار الكود بالضبط
-      # (نفس نسخة @supabase/supabase-js، نفس بيئة CI) ويطبع الشكل الخام الكامل للاستجابة
-      # بدل التخمين عبر curl يدوي بمعزل عن بيئة التشغيل الفعلية. يُزال بعد التشخيص.
-      - name: DIAGNOSTIC — raw supabase.auth.admin.createUser() response
-        run: |
-          cat > diagnose_admin.cjs <<'EOF'
-          const { createClient } = require("@supabase/supabase-js");
-
-          async function main() {
-            // الخطوة 1: fetch خام (بلا SDK إطلاقًا) — يحسم هل المشكلة فطبقة العميل
-            // (supabase-js) أم فاستجابة الخادم نفسها. النتيجة السابقة عبر SDK كانت
-            // بشكل مطابق تمامًا لاستجابة GET /admin/users (قائمة فارغة) رغم أنه POST.
-            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-            const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            const rawResponse = await fetch(`${url}/auth/v1/admin/users`, {
-              method: "POST",
-              headers: {
-                apikey: key,
-                Authorization: `Bearer ${key}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                email: "diagnostic-test-raw@storedz-test.invalid",
-                password: "Diagnostic-Test-Pw-123!",
-                email_confirm: true,
-              }),
-            });
-            const rawBody = await rawResponse.text();
-            console.log("RAW FETCH status:", rawResponse.status);
-            console.log("RAW FETCH body:", rawBody);
-
-            // الخطوة 2: نفس الاستدعاء عبر SDK للمقارنة المباشرة.
-            const supabase = createClient(url, key, {
-              auth: { autoRefreshToken: false, persistSession: false },
-            });
-            const result = await supabase.auth.admin.createUser({
-              email: "diagnostic-test-sdk@storedz-test.invalid",
-              password: "Diagnostic-Test-Pw-123!",
-              email_confirm: true,
-            });
-            console.log("SDK RESULT:", JSON.stringify(result, null, 2));
-          }
-
-          main().catch((e) => {
-            console.log("THREW:", e instanceof Error ? e.stack : String(e));
-          });
-          EOF
-          node diagnose_admin.cjs
-          rm -f diagnose_admin.cjs
-
       # baseline لا يوجد بلا هذا: getActiveWilaya() فsupport/seedFixtures.ts يتطلب صفًا واحدًا
       # على الأقل فوجود بمشروع Supabase تجريبي جديد فارغ تمامًا. الزرع idempotent (upsert) —
       # آمن التكرار كل تشغيلة.
