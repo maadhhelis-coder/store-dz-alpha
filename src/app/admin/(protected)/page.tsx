@@ -1,9 +1,14 @@
-import { ShoppingCart, Clock, TrendingUp, AlertTriangle, CheckCircle2, Truck, Wallet } from "lucide-react";
-import { getDashboardStats } from "@/server/repositories/dashboardRepository";
+import { ShoppingCart, Clock, TrendingUp, AlertTriangle, CheckCircle2, Truck, Wallet, ShieldAlert } from "lucide-react";
+import { getDashboardStats, getUnresolvedAlerts } from "@/server/repositories/dashboardRepository";
 import { formatPrice } from "@/lib/format";
+
+const ALERT_TYPE_LABELS: Record<string, string> = {
+  rate_limit_fail_open: "تعطّل نظام تحديد المعدل",
+};
 
 export default async function AdminDashboardPage() {
   const stats = await getDashboardStats();
+  const alerts = await getUnresolvedAlerts();
 
   const cards = [
     {
@@ -49,6 +54,26 @@ export default async function AdminDashboardPage() {
   return (
     <div>
       <h1 className="font-display text-xl font-bold text-cream mb-6">الرئيسية</h1>
+
+      {alerts.length > 0 && (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-4 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldAlert className="w-5 h-5 text-red-400" strokeWidth={1.75} />
+            <p className="text-sm font-bold text-cream">تنبيهات تشغيلية تحتاج مراجعة</p>
+          </div>
+          <ul className="space-y-2">
+            {alerts.map((alert) => (
+              <li key={alert.id} className="text-xs text-cream-dim">
+                <span className="text-cream">{ALERT_TYPE_LABELS[alert.type] ?? alert.type}</span>
+                {" — "}
+                {alert.message}
+                {" · "}
+                {new Date(alert.createdAt).toLocaleString("ar-DZ-u-nu-latn")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {cards.map((card) => (

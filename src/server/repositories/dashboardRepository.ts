@@ -36,3 +36,11 @@ export async function getDashboardStats() {
     cpaDzd: cpa.cpaDzd,
   };
 }
+
+export async function getUnresolvedAlerts(limit = 10) {
+  return prisma.systemAlert.findMany({
+    where: { resolvedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+}

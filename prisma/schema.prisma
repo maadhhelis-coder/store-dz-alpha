@@ -529,3 +529,23 @@ model ApiKey {
   @@index([keyHash])
   @@map("api_keys")
 }
+
+// تنبيهات تشغيلية حقيقية (Deployment Audit HIGH-05): safeRateLimit() كان يكتفي بـ
+// console.error عند تعطّل Redis (fail-open بلا أي تنبيه فعلي). بلا بيانات اعتماد قناة خارجية
+// حقيقية (Slack/Email) متاحة، هذا الجدول يجعل التنبيه مرئيًا فعليًا لصاحب المتجر عبر لوحة
+// التحكم نفسها (بدل الاعتماد فقط على قراءة سجلّات الخادم يدويًا).
+model SystemAlert {
+  id       String  @id @default(uuid())
+  type     String
+  message  String
+  // تفاصيل إضافية اختيارية (مثلًا اسم المحدِّد، رسالة الخطأ الأصلية) — JSON حر لتفادي تغيير
+  // السكيما مستقبلًا لكل نوع تنبيه جديد.
+  metadata Json?
+
+  createdAt  DateTime  @default(now()) @map("created_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  @@index([type, createdAt])
+  @@index([resolvedAt])
+  @@map("system_alerts")
+}
