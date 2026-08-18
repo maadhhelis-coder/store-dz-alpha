@@ -1,5 +1,5 @@
 import { writeFileSync, appendFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { isE2ETestRun } from "@/lib/e2eGuard";
 
 // طبقة حماية ثانية مستقلة عن isE2ETestRun() المُستخدَم داخل كل خدمة (metaCapiService،
@@ -9,7 +9,15 @@ import { isE2ETestRun } from "@/lib/e2eGuard";
 // الفعلي، ويترك دليلًا ملموسًا (ملف) يمكن لاختبار E2E فحصه لإثبات عدم حدوث أي محاولة.
 const BLOCKED_HOSTS = ["graph.facebook.com", "business-api.tiktok.com"];
 
-export const E2E_NETWORK_VIOLATIONS_FILE = "test-results/.e2e-network-violations.jsonl";
+// اكتُشف فعليًا: خادم .next/standalone/server.js يستدعي process.chdir(__dirname) داخليًا فبدايته
+// (نفس ما يفعله Next.js دائمًا مع output: "standalone")، فمسار نسبي هنا يعتمد على process.cwd()
+// كان يُكتَب فعليًا داخل .next/standalone/test-results/... بدل جذر المستودع — بينما اختبار
+// Playwright نفسه (عملية منفصلة، CWD الصحيح) يبحث عنه فجذر المستودع فيفشل بـENOENT دائمًا حتى
+// فحالة عدم وجود أي انتهاك فعلي. E2E_REPO_ROOT يُمرَّر صراحةً من scripts/start-e2e-server.mjs.
+export const E2E_NETWORK_VIOLATIONS_FILE = join(
+  process.env.E2E_REPO_ROOT ?? process.cwd(),
+  "test-results/.e2e-network-violations.jsonl",
+);
 
 let installed = false;
 
