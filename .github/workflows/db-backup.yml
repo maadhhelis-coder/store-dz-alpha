@@ -74,10 +74,11 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get install -y postgresql-17
-          # systemctl start فشل هنا فعليًا بـ"Assertion failed on job" — بيئة runner هذه لا
-          # تدعم إدارة systemd الكاملة للخدمات. pg_ctlcluster (غلاف Debian المخصص) لا يعتمد
-          # على systemd ويعمل بشكل موثوق داخل حاويات/بيئات كهذه.
-          sudo pg_ctlcluster 17 main start
+          # systemctl start فشل بـ"Assertion failed on job" (بلا systemd كامل هنا)، ثم
+          # pg_ctlcluster فشل بـ"specified cluster '17 main' does not exist" — postinst
+          # الحزمة لم يُنشئ العنقود الافتراضي تلقائيًا فهذه البيئة. ننشئه صراحةً بدل الاعتماد
+          # على تلقائية postinst.
+          sudo pg_createcluster 17 main --start
           sudo -u postgres /usr/lib/postgresql/17/bin/pg_isready
           sudo -u postgres /usr/lib/postgresql/17/bin/psql -c "CREATE DATABASE restore_check;"
           sudo -u postgres /usr/lib/postgresql/17/bin/pg_restore --no-owner --no-privileges -d restore_check /tmp/backup.dump
