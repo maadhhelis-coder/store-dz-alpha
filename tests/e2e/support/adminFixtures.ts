@@ -21,6 +21,17 @@ async function ensureAdminFixture(email: string, password: string, role: "owner"
     if (!existing.isActive || existing.role !== role) {
       await testPrisma.adminUser.update({ where: { id: existing.id }, data: { isActive: true, role } });
     }
+
+    // اكتُشف فعليًا: authUserId المخزَّن هنا يمكن أن ينحرف عن Supabase Auth الحقيقي (مثلًا
+    // لو أُعيد إنشاء نفس البريد يدويًا عبر Supabase Auth API بمعرّف جديد، خارج هذا الكود) —
+    // النتيجة تسجيل دخول فاشل صامت لاحقًا بـ"البريد أو كلمة المرور غير صحيحة" رغم صحة كلمة
+    // المرور فعليًا، لأن findAdminByAuthUserId لا يجد تطابقًا. نعيد المزامنة هنا احترازيًا.
+    const { data: list } = await supabase.auth.admin.listUsers();
+    const currentAuthUser = list?.users.find((u) => u.email === email);
+    if (currentAuthUser && currentAuthUser.id !== existing.authUserId) {
+      await testPrisma.adminUser.update({ where: { id: existing.id }, data: { authUserId: currentAuthUser.id } });
+    }
+
     return { email, password };
   }
 
