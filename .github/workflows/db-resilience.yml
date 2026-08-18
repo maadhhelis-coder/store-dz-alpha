@@ -149,6 +149,12 @@ jobs:
           # حالة "dirty" تمنع عمليات لاحقة).
           PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -c "SELECT COUNT(*) FROM wilayas;" > /dev/null
 
+          # الخطوة الحقيقية للتعافي بعد فشل ترحيل فProduction: Prisma يسجّل المحاولة الفاشلة
+          # فجدول _prisma_migrations ويرفض تطبيق أي ترحيل لاحق (P3009) حتى تُحسَم يدويًا —
+          # اكتُشف هذا فعليًا: الاختبار التالي (Test 5) فشل بخطأ P3009 لأن هذه الخطوة لم تكن
+          # موجودة، رغم أن مجلد الترحيل نفسه كان قد أُزيل من نظام الملفات بالفعل.
+          npx prisma migrate resolve --rolled-back 99999999999999_deliberately_broken_test_migration
+
           # تنظيف الطلب التجريبي حتى لا يظهر فـbackup_A فالاختبار التالي.
           PGPASSWORD=storedz psql -h localhost -U storedz -d storedz -c "DELETE FROM orders WHERE id = '11111111-1111-1111-1111-111111111111';"
 
