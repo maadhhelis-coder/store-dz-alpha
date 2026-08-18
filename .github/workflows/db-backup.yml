@@ -55,7 +55,10 @@ jobs:
           set -euo pipefail
           timestamp=$(date -u +%Y%m%dT%H%M%SZ)
           echo "DUMP_NAME=db-backup-${timestamp}" >> "$GITHUB_ENV"
-          pg_dump "$DIRECT_URL" --format=custom --no-owner --no-privileges --file="/tmp/backup.dump"
+          # المسار الصريح مقصود — راجع اكتشاف فعلي: /usr/bin/pg_dump على صور ubuntu-latest يبقى
+          # مربوطًا بالإصدار 16 المثبَّت مسبقًا حتى بعد تثبيت postgresql-client-17 (لا يستبدله
+          # update-alternatives تلقائيًا هنا)، فيفشل بـ"aborting because of server version mismatch".
+          /usr/lib/postgresql/17/bin/pg_dump "$DIRECT_URL" --format=custom --no-owner --no-privileges --file="/tmp/backup.dump"
           size=$(stat -c%s /tmp/backup.dump)
           echo "backup size: ${size} bytes"
           if [ "$size" -lt 1000 ]; then
