@@ -72,8 +72,14 @@ jobs:
       # فطبقة تطبيقنا فقط؟
       - name: DIAGNOSTIC — raw curl to Supabase Auth token endpoint (5x)
         run: |
-          # NEXT_PUBLIC_ ليست سرًا حقيقيًا (تُشحَن أصلًا لحزمة العميل) — طباعتها آمنة.
-          echo "NEXT_PUBLIC_SUPABASE_URL=[$NEXT_PUBLIC_SUPABASE_URL]"
+          # لا نطبع القيمة الفعلية (تبقى مقنَّعة ***); فقط خصائص لا تُسرّب السر نفسه —
+          # طول القيمة وهل تنتهي بشرطة مائلة، لتأكيد فرضية "double slash" التي أظهرها Location
+          # فتشخيص سابق: 301 من Cloudflare إلى نفس الرابط لكن بدون الشرطة المزدوجة.
+          echo "URL length: ${#NEXT_PUBLIC_SUPABASE_URL}"
+          case "$NEXT_PUBLIC_SUPABASE_URL" in
+            */) echo "HAS_TRAILING_SLASH: yes" ;;
+            *) echo "HAS_TRAILING_SLASH: no" ;;
+          esac
           echo "--- attempt 1 with -L -D- (follow redirects, dump headers) ---"
           curl -sS -L -D- -o /tmp/resp_1.json -w "\nHTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download} REDIRECTS:%{num_redirects} FINAL_URL:%{url_effective}\n" \
             -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
@@ -83,6 +89,17 @@ jobs:
             || echo "curl exit code: $?"
           echo "body byte count: $(wc -c < /tmp/resp_1.json)"
           head -c 300 /tmp/resp_1.json | tr -d '\n'
+          echo
+          echo "--- attempt 2: same call, NO trailing-slash risk (single slash forced) ---"
+          BASE_NO_SLASH="${NEXT_PUBLIC_SUPABASE_URL%/}"
+          curl -sS -D- -o /tmp/resp_2.json -w "\nHTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download}\n" \
+            -X POST "$BASE_NO_SLASH/auth/v1/token?grant_type=password" \
+            -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
+            || echo "curl exit code: $?"
+          echo "body byte count: $(wc -c < /tmp/resp_2.json)"
+          head -c 300 /tmp/resp_2.json | tr -d '\n'
           echo
 
       - name: Install dependencies
