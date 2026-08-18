@@ -75,6 +75,30 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
+      # تشخيص مؤقت: adminFixtures.ts's createUser() فشل مرتين بشكلين مختلفين (رسالة خطأ
+      # ممسوحة، ثم "undefined" بلا data ولا error) — هذا يستدعي نفس مسار الكود بالضبط
+      # (نفس نسخة @supabase/supabase-js، نفس بيئة CI) ويطبع الشكل الخام الكامل للاستجابة
+      # بدل التخمين عبر curl يدوي بمعزل عن بيئة التشغيل الفعلية. يُزال بعد التشخيص.
+      - name: DIAGNOSTIC — raw supabase.auth.admin.createUser() response
+        run: |
+          cat > diagnose_admin.cjs <<'EOF'
+          const { createClient } = require("@supabase/supabase-js");
+          const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+            auth: { autoRefreshToken: false, persistSession: false },
+          });
+          supabase.auth.admin.createUser({
+            email: "diagnostic-test@storedz-test.invalid",
+            password: "Diagnostic-Test-Pw-123!",
+            email_confirm: true,
+          }).then((result) => {
+            console.log("FULL RESULT:", JSON.stringify(result, null, 2));
+          }).catch((e) => {
+            console.log("THREW:", e instanceof Error ? e.stack : String(e));
+          });
+          EOF
+          node diagnose_admin.cjs
+          rm -f diagnose_admin.cjs
+
       # baseline لا يوجد بلا هذا: getActiveWilaya() فsupport/seedFixtures.ts يتطلب صفًا واحدًا
       # على الأقل فوجود بمشروع Supabase تجريبي جديد فارغ تمامًا. الزرع idempotent (upsert) —
       # آمن التكرار كل تشغيلة.
