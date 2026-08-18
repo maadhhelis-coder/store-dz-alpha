@@ -67,10 +67,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # baseline لا يوجد بلا هذا: playwright.config.ts's webServer يشغّل فقط "npm run build"
-      # (prisma migrate deploy) — لا يزرع بيانات. getActiveWilaya() فsupport/seedFixtures.ts
-      # يتطلب صفًا واحدًا على الأقل فوجود بمشروع Supabase تجريبي جديد فارغ تمامًا. الزرع
-      # idempotent (upsert) — آمن التكرار كل تشغيلة.
+      # الترحيل يجب أن يُطبَّق هنا صراحة قبل الزرع — playwright.config.ts's webServer يشغّل
+      # "npm run build" (الذي يتضمن prisma migrate deploy) لاحقًا فقط عند بدء اختبارات
+      # E2E فعليًا، فمشروع Supabase تجريبي جديد فارغ تمامًا لا يملك حتى الجداول بعد فهذه
+      # المرحلة. اكتُشف فعليًا: خطوة الزرع فشلت بـ"The table public.categories does not
+      # exist" لأنها سبقت أي ترحيل.
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+
+      # baseline لا يوجد بلا هذا: getActiveWilaya() فsupport/seedFixtures.ts يتطلب صفًا واحدًا
+      # على الأقل فوجود بمشروع Supabase تجريبي جديد فارغ تمامًا. الزرع idempotent (upsert) —
+      # آمن التكرار كل تشغيلة.
       - name: Seed baseline data (wilayas/categories)
         run: node --import tsx prisma/seed.ts
 
