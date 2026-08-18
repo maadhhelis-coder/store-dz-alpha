@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/auth/supabaseServerClient";
 import { findAdminByAuthUserId } from "@/server/repositories/adminUsersRepository";
 import type { AdminUser } from "@prisma/client";
@@ -28,6 +29,13 @@ export async function requireAdmin(): Promise<AdminUser> {
     const result = await supabase.auth.getUser();
     user = result.data.user;
   } catch (error) {
+    // إشارات Next.js الداخلية الخاصة (مثل "Dynamic server usage" التي يرميها cookies()
+    // فسياق التوليد الساكن ليُعلِم Next.js أن هذه الصفحة يجب أن تُصنَّف ديناميكية) ليست
+    // أخطاء حقيقية — يجب أن تُرمى ثانيةً كما هي لا أن تُبتلَع هنا. اكتُشف فعليًا: بلا هذا
+    // السطر، بناء الإنتاج (next build) كان يفشل فعليًا لأن Next.js لم يعد يكتشف صفحات
+    // /admin كديناميكية، فحاول توليدها ساكنة واصطدم باتصال DB غير متاح وقت البناء.
+    unstable_rethrow(error);
+
     console.error(
       JSON.stringify({
         event: "auth_check_failed",
