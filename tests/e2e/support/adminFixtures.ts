@@ -33,10 +33,21 @@ async function ensureAdminFixture(email: string, password: string, role: "owner"
   // {"users":[],"aud":"authenticated"} — بصرف النظر عن SDK أو fetch خام. إزالة
   // email_confirm من جسم الإنشاء ينجح فورًا (يُرجع مستخدمًا حقيقيًا بمعرّف)، ثم نُأكّد
   // البريد فخطوة PUT منفصلة (updateUserById) تعمل بشكل طبيعي تمامًا.
-  const { data: created, error: createError } = await supabase.auth.admin.createUser({
-    email,
-    password,
-  });
+  //
+  // اكتُشف فعليًا أيضًا: حتى بلا email_confirm، هذا الاستدعاء تحديدًا (POST إنشاء) متذبذب
+  // (Flaky) على مستوى خادم Supabase نفسه — نفس الطلب بالضبط فشل مرة (بلا data ولا error)
+  // ونجح فورًا فمحاولة يدوية لاحقة بلا أي تغيير فالطلب. إعادة محاولة قصيرة هنا تتعامل مع
+  // هذا التذبذب دون إخفاء فشل حقيقي — لو استمر الفشل بعد كل المحاولات، fallback البحث
+  // بالأسفل (listUsers) يبقى شبكة الأمان الأخيرة كما كان.
+  let created: Awaited<ReturnType<typeof supabase.auth.admin.createUser>>["data"] | undefined;
+  let createError: Awaited<ReturnType<typeof supabase.auth.admin.createUser>>["error"] | undefined;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await supabase.auth.admin.createUser({ email, password });
+    created = result.data;
+    createError = result.error;
+    if (created?.user?.id) break;
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+  }
 
   let authUserId = created?.user?.id;
   if (createError || !authUserId) {
