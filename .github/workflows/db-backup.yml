@@ -66,6 +66,33 @@ jobs:
             exit 1
           fi
 
+      # إثبات فعلي أن النسخة قابلة للاستعادة، لا الاكتفاء بنجاح pg_dump — راجع القاعدة
+      # الأصلية: "لا تقل Backup موجود إذا لم تتحقق من إمكانية Restore فعليًا". يستعيد نفس
+      # ملف /tmp/backup.dump الحقيقي إلى خادم Postgres 17 مؤقّت محلي على هذا الـrunner نفسه
+      # (لا يلمس الإنتاج إطلاقًا)، ثم يتحقق من وجود بيانات حقيقية بعد الاستعادة.
+      - name: Verify the backup actually restores
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y postgresql-17
+          sudo systemctl start postgresql@17-main
+          sudo -u postgres /usr/lib/postgresql/17/bin/pg_isready
+          sudo -u postgres /usr/lib/postgresql/17/bin/psql -c "CREATE DATABASE restore_check;"
+          sudo -u postgres /usr/lib/postgresql/17/bin/pg_restore --no-owner --no-privileges -d restore_check /tmp/backup.dump
+          TABLE_COUNT=$(sudo -u postgres /usr/lib/postgresql/17/bin/psql -d restore_check -t -c \
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';" | tr -d '[:space:]')
+          echo "restored table count: ${TABLE_COUNT}"
+          if [ "$TABLE_COUNT" -lt 10 ]; then
+            echo "::error::restore produced suspiciously few tables — backup may not be truly restorable"
+            exit 1
+          fi
+          ORDER_COLUMNS=$(sudo -u postgres /usr/lib/postgresql/17/bin/psql -d restore_check -t -c \
+            "SELECT COUNT(*) FROM information_schema.columns WHERE table_name='orders';" | tr -d '[:space:]')
+          echo "restored 'orders' table column count: ${ORDER_COLUMNS}"
+          if [ "$ORDER_COLUMNS" -lt 1 ]; then
+            echo "::error::restored database is missing the orders table — restore did not actually work"
+            exit 1
+          fi
+
       - name: Upload backup artifact (private repo only)
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
