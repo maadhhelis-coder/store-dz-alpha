@@ -64,6 +64,27 @@ jobs:
             exit 1
           fi
 
+      # تشخيص مؤقت — يُزال بعد تحديد السبب: signInWithPassword فتطبيقنا يفشل باستمرار
+      # بـ"Unexpected end of JSON input" فتشغيلات CI حقيقية (راجع authService.ts)، بينما نفس
+      # الطلب عبر curl مباشر من هذه الآلة المحلية نجح مرارًا. هذه الخطوة تختبر نفس نقطة
+      # النهاية بـcurl خام مباشرة من شبكة GitHub Actions نفسها (بلا Next.js/undici/gotrue-js
+      # فالمنتصف إطلاقًا) لتحديد: هل المشكلة فشبكة/خادم Supabase من هذه البيئة تحديدًا، أم
+      # فطبقة تطبيقنا فقط؟
+      - name: DIAGNOSTIC — raw curl to Supabase Auth token endpoint (5x)
+        run: |
+          for i in 1 2 3 4 5; do
+            echo "--- attempt $i ---"
+            curl -sS -o /tmp/resp_$i.json -w "HTTP_STATUS:%{http_code} SIZE_BYTES:%{size_download} TIME:%{time_total}s\n" \
+              -X POST "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/token?grant_type=password" \
+              -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{"email":"e2e-owner@storedz-test.invalid","password":"E2E-Owner-Test-Pw-9f3a7c!"}' \
+              || echo "curl exit code: $?"
+            echo "body byte count: $(wc -c < /tmp/resp_$i.json)"
+            head -c 200 /tmp/resp_$i.json | tr -d '\n'
+            echo
+          done
+
       - name: Install dependencies
         run: npm ci
 
