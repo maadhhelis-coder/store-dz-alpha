@@ -1,0 +1,62 @@
+name: Database Backup
+
+# نسخ احتياطي حقيقي يومي لقاعدة بيانات الإنتاج — راجع Deployment Audit HIGH-01: مشروع
+# Supabase الحالي على خطة Free (تحقّقنا فعليًا عبر Management API: pitr_enabled=false،
+# backups=[] فارغة تمامًا) فلا يوجد أي نسخ احتياطي تلقائي من Supabase نفسها. هذا الـworkflow
+# يعوّض ذلك بـpg_dump يومي حقيقي، يُرفَع كـartifact في هذا المستودع الخاص فقط.
+#
+# حارس على مستوى الـjob (github.repository) مقصود ومهم: نفس ملفات هذا المشروع تُدفَع لكلا
+# المستودعين (store-dz-e2e-verify الخاص، وstore-dz-alpha العام المتصل بـVercel). لو عمل هذا
+# الـworkflow على المستودع العام لأصبحت نسخة قاعدة بيانات حقيقية (بيانات عملاء: أسماء،
+# هواتف، عناوين) قابلة للتحميل من أي شخص على الإنترنت. الحارس يضمن توقف الـjob فورًا إن شغّله
+# GitHub خطأً على مستودع غير هذا، حتى لو أُضيف الـsecret هناك بالغلط مستقبلًا.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC يوميًا
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: github.repository == 'maadhhelis-coder/store-dz-e2e-verify'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require production database secret
+        run: |
+          if [ -z "${{ secrets.PROD_DATABASE_DIRECT_URL }}" ]; then
+            echo "::error::PROD_DATABASE_DIRECT_URL secret is not configured — cannot take a real backup. See Deployment Audit HIGH-01."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client (pg_dump)
+        run: sudo apt-get update -y && sudo apt-get install -y postgresql-client
+
+      - name: Dump production database
+        env:
+          DIRECT_URL: ${{ secrets.PROD_DATABASE_DIRECT_URL }}
+        run: |
+          set -euo pipefail
+          timestamp=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "DUMP_NAME=db-backup-${timestamp}" >> "$GITHUB_ENV"
+          pg_dump "$DIRECT_URL" --format=custom --no-owner --no-privileges --file="/tmp/backup.dump"
+          size=$(stat -c%s /tmp/backup.dump)
+          echo "backup size: ${size} bytes"
+          if [ "$size" -lt 1000 ]; then
+            echo "::error::backup file suspiciously small — pg_dump likely failed silently"
+            exit 1
+          fi
+
+      - name: Upload backup artifact (private repo only)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.DUMP_NAME }}
+          path: /tmp/backup.dump
+          retention-days: 30
