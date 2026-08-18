@@ -58,7 +58,13 @@ jobs:
           # المسار الصريح مقصود — راجع اكتشاف فعلي: /usr/bin/pg_dump على صور ubuntu-latest يبقى
           # مربوطًا بالإصدار 16 المثبَّت مسبقًا حتى بعد تثبيت postgresql-client-17 (لا يستبدله
           # update-alternatives تلقائيًا هنا)، فيفشل بـ"aborting because of server version mismatch".
-          /usr/lib/postgresql/17/bin/pg_dump "$DIRECT_URL" --format=custom --no-owner --no-privileges --file="/tmp/backup.dump"
+          # --schema=public مقصود أيضًا — راجع اكتشاف فعلي: نسخة كاملة بلا هذا القيد تضم مخططات
+          # Supabase الداخلية (vault، extensions...) التي تعتمد على إضافات خاصة بصورة Postgres
+          # المُدارة من Supabase نفسها ولا يمكن استعادتها على خادم عادي (فشل فعلي: "extension
+          # supabase_vault is not available"). ما يهمّنا فعليًا للتعافي من كارثة هو بيانات
+          # المتجر الحقيقية (طلبات، منتجات، عملاء...) التي يديرها Prisma كلها داخل public فقط —
+          # بنية auth/vault/realtime تبقى مسؤولية Supabase المُدارة نفسها، لا هذا النسخ الاحتياطي.
+          /usr/lib/postgresql/17/bin/pg_dump "$DIRECT_URL" --schema=public --format=custom --no-owner --no-privileges --file="/tmp/backup.dump"
           size=$(stat -c%s /tmp/backup.dump)
           echo "backup size: ${size} bytes"
           if [ "$size" -lt 1000 ]; then
