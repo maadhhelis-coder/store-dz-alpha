@@ -213,7 +213,10 @@ jobs:
 
       - name: "Test 6 — Application (Prisma client) actually works normally against the post-rollback database"
         run: |
-          cat > /tmp/verify_prisma_client.cjs <<'EOF'
+          # الملف يُكتَب داخل مجلد المشروع لا /tmp — Node يحل require("@prisma/client")
+          # بالصعود من مسار الملف نفسه بحثًا عن node_modules، و/tmp خارج هذه الشجرة تمامًا
+          # (اكتُشف فعليًا: "Error: Cannot find module '@prisma/client'" لأول محاولة).
+          cat > verify_prisma_client.cjs <<'EOF'
           const { PrismaClient } = require("@prisma/client");
           const { PrismaPg } = require("@prisma/adapter-pg");
           const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -224,4 +227,5 @@ jobs:
             return prisma.$disconnect();
           }).catch((e) => { console.error(e); process.exit(1); });
           EOF
-          node /tmp/verify_prisma_client.cjs
+          node verify_prisma_client.cjs
+          rm -f verify_prisma_client.cjs
