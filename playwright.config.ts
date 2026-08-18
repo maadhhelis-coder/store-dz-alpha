@@ -74,6 +74,11 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: false,
     timeout: 180_000,
+    // pipe (بدل الإهمال الافتراضي): بدونه console.error فخادم Next (مثل سبب فشل دخول حقيقي
+    // فauthService.ts) لا يظهر إطلاقًا فسجلات CI — اكتُشف فعليًا أن هذا كان يُخفي السبب
+    // الحقيقي وراء فشل اختبارات الدخول أكثر من مرة.
+    stdout: "pipe",
+    stderr: "pipe",
     env: {
       ...process.env,
       E2E_TEST_RUN: "1",

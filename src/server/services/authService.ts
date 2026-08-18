@@ -18,6 +18,10 @@ export async function loginAdmin(input: LoginInput) {
   });
 
   if (error || !data.user) {
+    // نسجّل السبب الحقيقي من Supabase Auth (بيانات دخول فعلًا خاطئة، أم خطأ/حد معدّل داخلي
+    // لدى Supabase نفسه) — الرسالة المعروضة للمستخدم تبقى عامة عمدًا (لا تُسرّب أي تفاصيل)،
+    // لكن ابتلاع الخطأ الحقيقي بصمت هنا كان يمنع تشخيص أي فشل دخول حقيقي غير متوقع.
+    console.error("loginAdmin: signInWithPassword failed", error?.message ?? "no data.user returned");
     throw new InvalidCredentialsError();
   }
 
