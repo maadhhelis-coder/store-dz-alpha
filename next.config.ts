@@ -4,10 +4,17 @@ const nextConfig: NextConfig = {
   // output: "standalone" مطلوب لصورة Docker إنتاجية سليمة: يولّد .next/standalone (server.js
   // مستقل يحمل فقط node_modules الفعليًا المُستعملة) بدل نسخ node_modules كاملة، ويسمح بتشغيل
   // "node server.js" مباشرة كـPID 1 (بدل "next start" عبر مضيف Node)، فتصل إشارات
-  // SIGTERM/SIGINT مباشرة للعملية بلا وسيط يبتلعها — هذا ما يجعل Graceful Shutdown ممكنًا
-  // فعليًا داخل حاوية. آمن مع Vercel: موثَّق رسميًا أن Vercel يتجاهل output عند النشر (يستعمل
-  // خط أنابيب البناء الخاص به دائمًا) — راجع https://nextjs.org/docs/app/api-reference/config/next-config-js/output
-  output: "standalone",
+  // SIGTERM/SIGINT مباشرة للعملية بلا وسيط يبتلعها — هذا ما يجعل Graceful Shutdown ممكنًا فعليًا
+  // داخل حاوية.
+  //
+  // اكتُشف فعليًا (من Build Logs حقيقية على Vercel، وليس افتراضًا): الادعاء السابق هنا بأن
+  // "Vercel يتجاهل output عند النشر" كان خاطئًا — output: "standalone" كسر فعليًا خط أنابيب
+  // Vercel الخاص بتتبّع الملفات (file tracing) بعد نجاح البناء نفسه تمامًا (compile/typecheck/
+  // توليد الصفحات كلها نجحت): "Error: ENOENT: no such file or directory, open
+  // '.next/next-server.js.nft.json'" — Vercel يتوقّع بنية إخراج قياسية (غير standalone)
+  // لبناء دوال serverless الخاصة به. process.env.VERCEL يُضبَط تلقائيًا فبيئة بناء Vercel نفسها
+  // فقط (Docker/E2E المحليان لا يضبطانه أبدًا) — نُعطّل standalone تحديدًا هناك.
+  output: process.env.VERCEL ? undefined : "standalone",
   trailingSlash: true,
   images: {
     formats: ["image/avif", "image/webp"],
