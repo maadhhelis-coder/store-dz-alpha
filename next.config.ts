@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+// استيراد نسبي مقصود هنا — next.config.ts يُحمَّل مباشرة عبر Node قبل تطبيق مسارات tsconfig
+// (@/...) الخاصة بباقي التطبيق، فاستعمال المسار المستعار قد يفشل عند بدء تشغيل Next.js.
+import { SITE_URL } from "./src/data/site";
 
 const nextConfig: NextConfig = {
   // output: "standalone" مطلوب لصورة Docker إنتاجية سليمة: يولّد .next/standalone (server.js
@@ -41,6 +44,20 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
           { key: "Permissions-Policy", value: "geolocation=(), microphone=(), camera=()" },
+        ],
+      },
+      {
+        // Deployment Audit MED-05: لا CORS محدَّد صراحةً على أي مسار API — السلوك الفعلي
+        // (same-origin فقط) كان آمنًا أصلًا كافتراضي ضمني، لكن غير مُوثَّق ولا مقصود بوضوح.
+        // هذا يجعله صريحًا: يسمح فقط بأصل الموقع نفسه (SITE_URL)، لا "*" — لا يوجد حاليًا أي
+        // تكامل خارجي (تطبيق جوال، Webhook مستهلك...) يحتاج وصولًا من أصل مختلف؛ حين يظهر
+        // احتياج فعلي مستقبلًا تُضاف أصوله هنا صراحةً بدل فتح API للجميع بلا داعٍ.
+        source: "/api/:path*",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: SITE_URL },
+          { key: "Access-Control-Allow-Methods", value: "GET, POST, PATCH, DELETE, OPTIONS" },
+          { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, x-api-key" },
+          { key: "Vary", value: "Origin" },
         ],
       },
     ];
