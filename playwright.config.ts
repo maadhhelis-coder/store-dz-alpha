@@ -69,8 +69,11 @@ export default defineConfig({
     // مفقودة: msvcp140_1.dll) — قيد بيئة أضعف من قيد WebKit، وغير مؤكَّد النجاح حتى على Linux.
     { name: "webkit-desktop", use: { ...devices["Desktop Safari"] }, grepInvert: /@desktop-only/ },
   ],
+  // "npm run start" (next start) لا يعمل بشكل سليم مع output: "standalone" — Next.js نفسه
+  // يحذّر من هذا فسجلات التشغيل. نبني ثم نشغّل خادم standalone الحقيقي مباشرة (نفس ما يُشحَن
+  // فعليًا عبر Docker)، بدل الاعتماد على "next start" فبيئة اختبار لا تعكس الإنتاج الفعلي.
   webServer: {
-    command: "npm run build && npm run start -- -p " + PORT,
+    command: "npm run build && node scripts/start-e2e-server.mjs",
     url: BASE_URL,
     reuseExistingServer: false,
     timeout: 180_000,
