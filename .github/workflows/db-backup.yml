@@ -91,7 +91,11 @@ jobs:
           echo "cluster port: ${PGPORT}"
           sudo -u postgres /usr/lib/postgresql/17/bin/pg_isready -p "$PGPORT"
           sudo -u postgres /usr/lib/postgresql/17/bin/psql -p "$PGPORT" -c "CREATE DATABASE restore_check;"
-          sudo -u postgres /usr/lib/postgresql/17/bin/pg_restore -p "$PGPORT" --no-owner --no-privileges -d restore_check /tmp/backup.dump
+          # --clean --if-exists مقصود — راجع اكتشاف فعلي: بلا هذا الخيار يفشل pg_restore بـ
+          # "schema public already exists" لأن أي قاعدة بيانات جديدة تُنشأ بمخطط public جاهز
+          # أصلًا، فيتعارض مع أمر CREATE SCHEMA public داخل النسخة. هذا سلوك pg_restore معروف
+          # عند الاستعادة لقاعدة جديدة، لا خللًا فالنسخة نفسها.
+          sudo -u postgres /usr/lib/postgresql/17/bin/pg_restore -p "$PGPORT" --clean --if-exists --no-owner --no-privileges -d restore_check /tmp/backup.dump
           TABLE_COUNT=$(sudo -u postgres /usr/lib/postgresql/17/bin/psql -p "$PGPORT" -d restore_check -t -c \
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';" | tr -d '[:space:]')
           echo "restored table count: ${TABLE_COUNT}"
