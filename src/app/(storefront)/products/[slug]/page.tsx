@@ -15,14 +15,13 @@ type ProductPageProps = {
   params: Promise<{ slug: string }>;
 };
 
-// [] عمدًا: (storefront)/layout.tsx يقرأ headers() (Dynamic API)، فكل صفحة تحت هذا الـlayout
-// تُصبح dynamic rendering إجباريًا بصرف النظر عمّا تُعيده هذه الدالة — أي HTML ثابت تولّده هنا
-// لن يُخدَّم فعليًا فالإنتاج أبدًا. تعداد المنتجات هنا كان يستدعي قاعدة البيانات وقت البناء
-// بلا أي فائدة تشغيلية فعلية، ويمنع بناء صور Docker مستقلة عن قاعدة بيانات حيّة. dynamicParams
-// الافتراضي (true) يبقي أي slug يعمل طبيعيًا وقت الطلب — لا تغيير فالسلوك الفعلي.
-export async function generateStaticParams() {
-  return [];
-}
+// ملاحظة سابقة كانت هنا تفترض أن مجرد وجود generateStaticParams (حتى بإرجاع []) غير مؤثر لأن
+// headers() فـ(storefront)/layout.tsx "يفرض" dynamic rendering على أي حال — هذا الافتراض خاطئ
+// فعليًا: اكتُشف عبر E2E حقيقي أن /products/[slug] يبقى مصنَّفًا ● (SSG) فمخرجات البناء رغم
+// ذلك، وأي طلب فعلي لصفحة منتج (بما فيها 404) كان يفشل بخطأ Server Components حقيقي
+// (digest: DYNAMIC_SERVER_USAGE) لأن مجرد وجود الدالة يُفعّل مسار التوليد الساكن عند الطلب.
+// إزالتها كليًا (بدل إرجاع []) هي الإصلاح الصحيح — dynamicParams الافتراضي (true) يبقي أي
+// slug يعمل طبيعيًا وقت الطلب دون أي مسار توليد ساكن يُحاوَل إطلاقًا.
 
 export async function generateMetadata({
   params,
