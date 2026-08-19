@@ -1,0 +1,59 @@
+name: Production Health Monitor
+
+# مراقبة حقيقية دورية للإنتاج — لم يكن يوجد أي شيء يُنبِّه فعليًا عند تعطّل الموقع أو تدهور
+# /api/health سوى فحص يدوي عرضي. هذا الـworkflow يفحص الإنتاج الحقيقي كل 15 دقيقة، ويفشل
+# بوضوح (##[error]) عند أي عطل — GitHub يُرسل بريدًا فوريًا لمُشرفي/مُراقبي المستودع تلقائيًا
+# عند فشل أي workflow مجدوَل (Settings → Notifications)، بلا حاجة لأي webhook/سر إضافي.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # كل 15 دقيقة
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health-monitor
+  cancel-in-progress: true
+
+env:
+  PROD_URL: https://store-dz-alpha.vercel.app
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: "Check 1 — /api/health returns 200 with real status:ok"
+        run: |
+          BODY_FILE=$(mktemp)
+          CODE=$(curl -sL -o "$BODY_FILE" -w "%{http_code}" --max-time 15 "$PROD_URL/api/health/")
+          echo "status: $CODE"
+          cat "$BODY_FILE"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::production /api/health returned $CODE instead of 200"
+            exit 1
+          fi
+          grep -q '"status":"ok"' "$BODY_FILE" || {
+            echo "::error::production /api/health returned 200 but body did not contain status:ok"
+            exit 1
+          }
+
+      - name: "Check 2 — homepage actually renders (real storefront page, not just health endpoint)"
+        run: |
+          CODE=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 15 "$PROD_URL/")
+          echo "homepage status: $CODE"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::production homepage returned $CODE instead of 200"
+            exit 1
+          fi
+
+      - name: "Check 3 — admin login page renders (protected-area entry point still reachable)"
+        run: |
+          CODE=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 15 "$PROD_URL/admin/login/")
+          echo "admin login status: $CODE"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::production admin login page returned $CODE instead of 200"
+            exit 1
+          fi

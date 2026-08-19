@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Ratelimit } from "@upstash/ratelimit";
@@ -9,16 +10,21 @@ import { isE2ETestRun } from "@/lib/e2eGuard";
 // حد بسيط ضد تخمين أكواد الكوبونات (brute-force) — يسمح بمحاولات كافية لتصحيح خطأ كتابة
 // بشري عادي بدون فتح الباب لفحص آلاف الأكواد.
 //
-// أثناء E2E فقط: السقف يُرفَع لـ200 بدل 15 — اكتُشف فعليًا (تشغيلة CI حقيقية فشلت بـ3
-// اختبارات كوبون شرعية على mobile-chrome/webkit-desktop بعد نجاحها على chromium-desktop
-// فنفس التشغيلة) أن مشاريع المتصفح الثلاثة تتشارك IP واحد (عامل CI نفسه)، فتراكم طلبات
-// كوبون شرعية عبر checkout.spec.ts وcheckout-negative.spec.ts وrace-conditions.spec.ts
-// يتجاوز 15 خلال نافذة 10 دقائق بسهولة — وهذا غير مرتبط بإغراق rate-limit-429.spec.ts
-// المتعمَّد (يعمل منفصلًا وأخيرًا أصلًا). tests/e2e/rate-limit-429.spec.ts عُدِّل ليُغرق
-// 202 طلب بدل 17 ليتجاوز هذا السقف الأعلى فعليًا ويبقى يثبت سلوك 429 الحقيقي.
+// أثناء E2E: بدل رفع السقف لرقم أعلى (200 سابقًا)، نُفتاح المحدِّد بمعرِّف عشوائي لعملية
+// الخادم نفسها بدل IP الحقيقي المشترك. راجع اكتشاف فعلي أوسع من الأول: رفع السقف لـ200 كان
+// كافيًا لتشغيلة CI واحدة، لكن Upstash يحتفظ بحالة المحدِّد فـRedis الحقيقي **عبر تشغيلات CI
+// مختلفة** (وليس فقط داخل التشغيلة الواحدة) — وتراكم عشرات تشغيلات E2E المتكررة فنفس الجلسة
+// (كل تشغيلة على عامل CI جديد لكن قد يتشارك نطاق IP قريبًا مع تشغيلات سابقة) أعاد استنفاد
+// حتى السقف المرفوع، فأخفق حتى chromium-desktop الذي كان ينجح دومًا سابقًا. معرِّف عشوائي
+// جديد لكل بدء خادم (توليد وحيد وقت تحميل الوحدة، مستقر طوال عمر العملية) يضمن أن كل تشغيلة
+// CI طازجة تبدأ بحصة فارغة تمامًا، بلا أي أثر متراكم من أي تشغيلة سابقة مهما تكرّرت. الاختبار
+// المتعمَّد (rate-limit-429.spec.ts، 202 طلب) يبقى يعمل بلا تغيير — كل طلباته داخل نفس عملية
+// الخادم تتشارك نفس المعرِّف العشوائي، فيبقى قادرًا على استنفاد حصته الخاصة فعليًا ويثبت 429.
+const couponValidateRateLimitKey = isE2ETestRun() ? `e2e-${randomUUID()}` : null;
+
 const couponValidateRateLimit = new Ratelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(isE2ETestRun() ? 200 : 15, "10 m"),
+  limiter: Ratelimit.slidingWindow(15, "10 m"),
   prefix: "ratelimit:coupon:validate",
 });
 
@@ -30,7 +36,7 @@ const bodySchema = z.object({
 // عام (بلا مصادقة) — للتحقق الفوري من كود الخصم في نموذج الطلب قبل الإرسال. لا يزيد
 // عداد الاستخدام (usedCount) هنا، فقط يتحقق ويرجع قيمة الخصم إن كان صالحًا.
 export async function POST(request: Request) {
-  const ip = getClientIp(request);
+  const ip = couponValidateRateLimitKey ?? getClientIp(request);
   // فشل مفتوح: عطل عابر بـ Upstash Redis لا يجب أن يمنع التحقق من كوبون صالح فعليًا —
   // نفس مبدأ safeRateLimit فـ rateLimitService.ts، لكن هذا المحدِّد محلي لهذا المسار فقط.
   try {
