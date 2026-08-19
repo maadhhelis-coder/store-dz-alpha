@@ -37,7 +37,29 @@ async function attachConsoleGuard(page: Page) {
 // جذريًا بدل الاعتماد على توقيت الشبكة العرضي.
 export async function selectOrderWilaya(page: Page, wilayaCode: number) {
   const select = page.getByTestId("order-wilaya");
-  await select.locator(`option[value="${wilayaCode}"]`).waitFor({ state: "attached", timeout: 15_000 });
+  try {
+    await select.locator(`option[value="${wilayaCode}"]`).waitFor({ state: "attached", timeout: 15_000 });
+  } catch (waitError) {
+    // فشل نادر هنا كان صعب التشخيص سابقًا (السبب الحقيقي غير مؤكد: بيانات API فعلية وقت
+    // الفشل لم تكن مسجَّلة). نلتقط هنا فعليًا ماذا يُرجعه /api/wilayas مباشرة من نفس صفحة
+    // المتصفح فلحظة الفشل (وليس افتراضًا) قبل رمي الخطأ الأصلي، ليظهر الدليل فسجلات CI.
+    const liveApiResult = await page
+      .evaluate(async () => {
+        try {
+          const res = await fetch("/api/wilayas");
+          const body = await res.text();
+          return { status: res.status, body: body.slice(0, 2000) };
+        } catch (fetchError) {
+          return { fetchError: fetchError instanceof Error ? fetchError.message : String(fetchError) };
+        }
+      })
+      .catch((evalError) => ({ evalError: evalError instanceof Error ? evalError.message : String(evalError) }));
+    const selectOptionsHtml = await select.evaluate((el) => el.outerHTML).catch(() => "<تعذّر القراءة>");
+    console.error(
+      `[selectOrderWilaya] فشل انتظار option[value="${wilayaCode}"]. حالة /api/wilayas الحية وقت الفشل: ${JSON.stringify(liveApiResult)}. محتوى <select> الفعلي: ${selectOptionsHtml}`,
+    );
+    throw waitError;
+  }
   await select.selectOption(String(wilayaCode));
 }
 
