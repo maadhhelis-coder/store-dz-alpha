@@ -26,6 +26,7 @@ export const productCreateSchema = z.object({
   categoryId: z.string().uuid("اختر تصنيفًا"),
   priceDzd: z.number().int().min(1),
   oldPriceDzd: z.number().int().min(0).optional().nullable(),
+  costDzd: z.number().int().min(0).optional().nullable(),
   shortDescription: z.string().trim().min(1).max(300),
   longDescriptionHtml: z.string().trim().min(1),
   howToUse: z.array(z.string().trim().min(1)).default([]),

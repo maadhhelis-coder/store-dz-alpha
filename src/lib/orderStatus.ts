@@ -12,6 +12,7 @@ export const ORDER_STATUS_META: Record<OrderStatus, { label: string; color: stri
   cancelled: { label: "إلغاء الطلب", color: "#ea9999" },
   shipped: { label: "تم الشحن", color: "#76a5af" },
   delivered: { label: "تم التسليم", color: "#6aa84f" },
+  returned: { label: "مرتجع", color: "#a64d79" },
 };
 
 export const ORDER_STATUS_OPTIONS = Object.entries(ORDER_STATUS_META).map(([value, meta]) => ({

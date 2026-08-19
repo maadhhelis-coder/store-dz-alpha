@@ -6,14 +6,18 @@ import { cn } from "@/lib/utils";
 type AnalyticsTabsProps = {
   overview: React.ReactNode;
   creativeAnalytics: React.ReactNode;
+  master: React.ReactNode;
 };
 
-export default function AnalyticsTabs({ overview, creativeAnalytics }: AnalyticsTabsProps) {
-  const [active, setActive] = useState<"overview" | "creative">("overview");
+export default function AnalyticsTabs({ overview, creativeAnalytics, master }: AnalyticsTabsProps) {
+  const [active, setActive] = useState<"overview" | "creative" | "master">("master");
 
   return (
     <div>
       <div className="flex gap-2 mb-6 border-b border-gold/15">
+        <TabButton active={active === "master"} onClick={() => setActive("master")}>
+          لوحة الأداء الشاملة
+        </TabButton>
         <TabButton active={active === "overview"} onClick={() => setActive("overview")}>
           نظرة عامة
         </TabButton>
@@ -21,7 +25,9 @@ export default function AnalyticsTabs({ overview, creativeAnalytics }: Analytics
           تحليل الإعلانات
         </TabButton>
       </div>
-      {active === "overview" ? overview : creativeAnalytics}
+      {active === "master" && master}
+      {active === "overview" && overview}
+      {active === "creative" && creativeAnalytics}
     </div>
   );
 }
