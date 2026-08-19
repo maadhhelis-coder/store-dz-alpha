@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/prisma";
-import type { AnalyticsRange, DateWindow } from "@/server/repositories/analyticsRepository";
-import { getKpis, rangeToWindow } from "@/server/repositories/analyticsRepository";
+import type { AnalyticsRange, DateWindow, MasterFilters } from "@/server/repositories/analyticsRepository";
+import { getKpis, orderFiltersWhere, rangeToWindow } from "@/server/repositories/analyticsRepository";
 
 const REVENUE_STATUSES = ["confirmed", "shipped", "delivered"] as const;
 
@@ -50,23 +50,68 @@ export type ProfitMetrics = {
   itemsMissingCost: number;
 };
 
-export async function getProfitMetrics(window: DateWindow): Promise<ProfitMetrics> {
+// عمود ولاية اختياري إضافي على استعلامات هذا الملف (عدا dateFilterSql الخاص بالتاريخ) —
+// دائمًا Prisma.sql بقيمة مُعامَلة (parameterized)، لا تسلسل نصي خام، فلا حاجة لـallowlist.
+function wilayaFilterSql(filters: MasterFilters | undefined, column: "o.wilaya_code" | "wilaya_code") {
+  return filters?.wilayaCode ? Prisma.sql`AND ${Prisma.raw(column)} = ${filters.wilayaCode}` : Prisma.empty;
+}
+
+export async function getProfitMetrics(window: DateWindow, filters?: MasterFilters): Promise<ProfitMetrics> {
+  // فلتر منتج نشط: الخصم مرتبط بالطلب كاملًا لا بند واحد، فلا يمكن توزيعه بأمانة على منتج
+  // محدَّد وسط طلب متعدد المنتجات (مثلاً عرض إضافي Upsell) — نتحوّل هنا لحساب الإيراد على
+  // مستوى البند نفسه (line_total_dzd لهذا المنتج فقط) بلا خصم الطلب، بدل احتساب اشتراك خاطئ
+  // لإيراد منتجات أخرى ضمن نفس الطلب. موثَّق فـالواجهة عند تفعيل فلتر منتج.
+  if (filters?.productSlug) {
+    const dateFilter = dateFilterSql(window, "o.delivered_at");
+    const wilayaFilter = wilayaFilterSql(filters, "o.wilaya_code");
+
+    const [row] = await prisma.$queryRaw<
+      { deliveredOrders: bigint; productRevenueDzd: bigint | null; knownCogsDzd: bigint | null; itemsMissingCost: bigint }[]
+    >`
+      SELECT COUNT(DISTINCT oi.order_id)::bigint AS "deliveredOrders",
+             COALESCE(SUM(oi.line_total_dzd), 0)::bigint AS "productRevenueDzd",
+             COALESCE(SUM(oi.unit_cost_dzd * oi.quantity), 0)::bigint AS "knownCogsDzd",
+             COUNT(*) FILTER (WHERE oi.unit_cost_dzd IS NULL)::bigint AS "itemsMissingCost"
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      WHERE o.status = 'delivered' AND oi.product_slug_snapshot = ${filters.productSlug} ${dateFilter} ${wilayaFilter}
+    `;
+
+    const deliveredOrders = Number(row?.deliveredOrders ?? 0);
+    const productRevenueDzd = Number(row?.productRevenueDzd ?? 0);
+    const knownCogsDzd = Number(row?.knownCogsDzd ?? 0);
+    const itemsMissingCost = Number(row?.itemsMissingCost ?? 0);
+    const grossProfitDzd = productRevenueDzd - knownCogsDzd;
+
+    return {
+      deliveredOrders,
+      productRevenueDzd,
+      knownCogsDzd,
+      grossProfitDzd,
+      profitPerDeliveredOrderDzd: deliveredOrders > 0 ? Math.round(grossProfitDzd / deliveredOrders) : null,
+      hasIncompleteCostData: itemsMissingCost > 0,
+      itemsMissingCost,
+    };
+  }
+
   const orderDateFilter = dateFilterSql(window, "delivered_at");
   const itemDateFilter = dateFilterSql(window, "o.delivered_at");
+  const orderWilayaFilter = wilayaFilterSql(filters, "wilaya_code");
+  const itemWilayaFilter = wilayaFilterSql(filters, "o.wilaya_code");
 
   const [orderAgg, itemAgg] = await Promise.all([
     prisma.$queryRaw<{ deliveredOrders: bigint; productRevenueDzd: bigint | null }[]>`
       SELECT COUNT(*)::bigint AS "deliveredOrders",
              COALESCE(SUM(items_subtotal_dzd - discount_dzd), 0)::bigint AS "productRevenueDzd"
       FROM orders
-      WHERE status = 'delivered' ${orderDateFilter}
+      WHERE status = 'delivered' ${orderDateFilter} ${orderWilayaFilter}
     `,
     prisma.$queryRaw<{ knownCogsDzd: bigint | null; itemsMissingCost: bigint }[]>`
       SELECT COALESCE(SUM(oi.unit_cost_dzd * oi.quantity), 0)::bigint AS "knownCogsDzd",
              COUNT(*) FILTER (WHERE oi.unit_cost_dzd IS NULL)::bigint AS "itemsMissingCost"
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE o.status = 'delivered' ${itemDateFilter}
+      WHERE o.status = 'delivered' ${itemDateFilter} ${itemWilayaFilter}
     `,
   ]);
 
@@ -91,10 +136,14 @@ export async function getProfitMetrics(window: DateWindow): Promise<ProfitMetric
 //
 // كل من "المُسلَّم" و"المُرجَع" يُعَدّان بحدث حقيقي حصل فعليًا خلال الفترة المختارة
 // (deliveredAt/returnedAt) — لا بتاريخ إنشاء الطلب، الذي قد يسبق التسليم/الإرجاع بأيام.
-export async function getReturnRate(window: DateWindow): Promise<{ delivered: number; returned: number; rate: number }> {
+export async function getReturnRate(
+  window: DateWindow,
+  filters?: MasterFilters,
+): Promise<{ delivered: number; returned: number; rate: number }> {
+  const filterWhere = orderFiltersWhere(filters);
   const [delivered, returned] = await Promise.all([
-    prisma.order.count({ where: { status: "delivered", ...windowToWhere(window, "deliveredAt") } }),
-    prisma.order.count({ where: { status: "returned", ...windowToWhere(window, "returnedAt") } }),
+    prisma.order.count({ where: { status: "delivered", ...windowToWhere(window, "deliveredAt"), ...filterWhere } }),
+    prisma.order.count({ where: { status: "returned", ...windowToWhere(window, "returnedAt"), ...filterWhere } }),
   ]);
   return { delivered, returned, rate: pct(returned, delivered + returned) };
 }
@@ -106,10 +155,14 @@ export async function getReturnRate(window: DateWindow): Promise<{ delivered: nu
 // لا متداخلتَين.
 export async function getCancellationRate(
   window: DateWindow,
+  filters?: MasterFilters,
 ): Promise<{ confirmed: number; cancelled: number; rate: number }> {
+  const filterWhere = orderFiltersWhere(filters);
   const [confirmed, cancelled] = await Promise.all([
-    prisma.order.count({ where: { confirmedAt: { not: null }, ...windowToWhere(window, "confirmedAt") } }),
-    prisma.order.count({ where: { status: "cancelled", ...windowToWhere(window, "cancelledAt") } }),
+    prisma.order.count({
+      where: { confirmedAt: { not: null }, ...windowToWhere(window, "confirmedAt"), ...filterWhere },
+    }),
+    prisma.order.count({ where: { status: "cancelled", ...windowToWhere(window, "cancelledAt"), ...filterWhere } }),
   ]);
   return { confirmed, cancelled, rate: pct(cancelled, confirmed + cancelled) };
 }
@@ -176,9 +229,16 @@ type ProductOrdersRow = {
 
 type ProductVisitsRow = { slug: string; visits: bigint };
 
-export async function getProductPerformanceTable(window: DateWindow): Promise<ProductPerformanceRow[]> {
+export async function getProductPerformanceTable(
+  window: DateWindow,
+  filters?: MasterFilters,
+): Promise<ProductPerformanceRow[]> {
   const orderDateFilter = dateFilterSql(window, "o.created_at");
   const visitDateFilter = dateFilterSql(window, "created_at");
+  // فلتر ولاية فقط هنا (لا منتج) — الجدول نفسه مقسَّم بالفعل حسب كل منتج، فتحديد منتج معيّن
+  // فـفلتر اللوحة يعني عمليًا "أرِني هذا الصف فقط"، وهذا متروك للواجهة (تمييز/تعتيم الصفوف
+  // الأخرى) بدل استعلام SQL منفصل يُعيد صفًا واحدًا فقط.
+  const orderWilayaFilter = wilayaFilterSql(filters, "o.wilaya_code");
 
   const [products, orderRows, visitRows] = await Promise.all([
     prisma.product.findMany({ select: { slug: true, name: true } }),
@@ -192,7 +252,7 @@ export async function getProductPerformanceTable(window: DateWindow): Promise<Pr
              COALESCE(SUM(oi.line_total_dzd) FILTER (WHERE o.status IN ('confirmed','shipped','delivered')), 0)::bigint AS "revenueDzd"
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE 1=1 ${orderDateFilter}
+      WHERE 1=1 ${orderDateFilter} ${orderWilayaFilter}
       GROUP BY oi.product_slug_snapshot
     `,
     prisma.$queryRaw<ProductVisitsRow[]>`

@@ -48,6 +48,7 @@ type Alert = { severity: "critical" | "warning"; metric: string; message: string
 
 type MasterDashboardData = {
   range: AnalyticsRange;
+  filters: { productSlug?: string; wilayaCode?: number };
   kpis: {
     totalRevenueDzd: number;
     totalOrders: number;
@@ -84,6 +85,9 @@ const RANGE_OPTIONS: { value: AnalyticsRange; label: string }[] = [
   { value: "30d", label: "30 يومًا" },
   { value: "all", label: "كل الفترة" },
 ];
+
+type ProductOption = { slug: string; name: string };
+type WilayaOption = { code: number; name: string };
 
 // عتبات Core Web Vitals الرسمية القياسية (web.dev) — نفس التصنيف الذي تعتمده أدوات Google
 // نفسها، لا تصنيفًا مُخترعًا هنا.
@@ -152,14 +156,23 @@ function KpiCard({
 
 export default function MasterDashboard() {
   const [range, setRange] = useState<AnalyticsRange>("7d");
+  const [wilayaCode, setWilayaCode] = useState<number | "">("");
+  const [productSlug, setProductSlug] = useState("");
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const [wilayaOptions, setWilayaOptions] = useState<WilayaOption[]>([]);
   const [data, setData] = useState<MasterDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [productFilter, setProductFilter] = useState("");
 
-  const fetchData = useCallback(async (r: AnalyticsRange) => {
+  const hasFilter = wilayaCode !== "" || productSlug !== "";
+
+  const fetchData = useCallback(async (r: AnalyticsRange, slug: string, wilaya: number | "") => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/master-dashboard?range=${r}`);
+      const params = new URLSearchParams({ range: r });
+      if (slug) params.set("productSlug", slug);
+      if (wilaya !== "") params.set("wilayaCode", String(wilaya));
+      const res = await fetch(`/api/admin/master-dashboard?${params.toString()}`);
       const json = await res.json();
       setData(json);
     } finally {
@@ -169,8 +182,25 @@ export default function MasterDashboard() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchData(range);
-  }, [range, fetchData]);
+    fetchData(range, productSlug, wilayaCode);
+  }, [range, productSlug, wilayaCode, fetchData]);
+
+  useEffect(() => {
+    fetch("/api/admin/products?pageSize=100")
+      .then((res) => res.json())
+      .then((json) => {
+        const items = (json.items ?? []) as { slug: string; name: string }[];
+        setProductOptions(items.map((p) => ({ slug: p.slug, name: p.name })));
+      })
+      .catch(() => {});
+    fetch("/api/wilayas")
+      .then((res) => res.json())
+      .then((json) => {
+        const wilayas = (json.wilayas ?? []) as { code: number; name: string }[];
+        setWilayaOptions(wilayas.map((w) => ({ code: w.code, name: w.name })));
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!data) return [];
@@ -182,7 +212,7 @@ export default function MasterDashboard() {
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {RANGE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -198,6 +228,30 @@ export default function MasterDashboard() {
               {opt.label}
             </button>
           ))}
+          <select
+            value={productSlug}
+            onChange={(e) => setProductSlug(e.target.value)}
+            className="text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gold/20 text-cream focus:outline-none focus:border-gold/50"
+          >
+            <option value="">كل المنتجات</option>
+            {productOptions.map((p) => (
+              <option key={p.slug} value={p.slug}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={wilayaCode}
+            onChange={(e) => setWilayaCode(e.target.value ? Number(e.target.value) : "")}
+            className="text-sm px-3 py-1.5 rounded-lg bg-black/40 border border-gold/20 text-cream focus:outline-none focus:border-gold/50"
+          >
+            <option value="">كل الولايات</option>
+            {wilayaOptions.map((w) => (
+              <option key={w.code} value={w.code}>
+                {w.name}
+              </option>
+            ))}
+          </select>
         </div>
         {loading && <Loader2 className="w-4 h-4 animate-spin text-gold" />}
       </div>
@@ -254,15 +308,22 @@ export default function MasterDashboard() {
             <KpiCard icon={Wallet2} label="متوسط قيمة الطلب" value={formatPrice(data.kpis.avgOrderValueDzd)} />
             <KpiCard
               icon={Gauge}
-              label="تكلفة اكتساب الطلب (30 يوم)"
+              label={hasFilter ? "تكلفة اكتساب الطلب (30 يوم، كل المتجر)" : "تكلفة اكتساب الطلب (30 يوم)"}
               value={data.cpa.cpaDzd !== null ? formatPrice(data.cpa.cpaDzd) : "—"}
             />
           </div>
 
+          {hasFilter && (
+            <p className="text-xs text-cream-dim/80 mb-4">
+              ⚠️ تكلفة الاكتساب وROAS لا يملكان بُعد منتج/ولاية فـبيانات الإعلانات (AdSpendEntry) — يبقيان رقمًا
+              شاملًا للمتجر كله حتى مع الفلتر المفعَّل حاليًا.
+            </p>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <KpiCard
               icon={TrendingUp}
-              label="ROAS (30 يوم)"
+              label={hasFilter ? "ROAS (30 يوم، كل المتجر)" : "ROAS (30 يوم)"}
               value={data.roas.roas !== null ? `×${data.roas.roas}` : "—"}
             />
             <KpiCard

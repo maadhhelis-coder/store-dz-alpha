@@ -13,7 +13,16 @@ export async function GET(request: Request) {
     const rangeParam = searchParams.get("range");
     const range = VALID_RANGES.includes(rangeParam as AnalyticsRange) ? (rangeParam as AnalyticsRange) : "30d";
 
-    const dashboard = await getMasterDashboard(range);
+    const productSlugParam = searchParams.get("productSlug");
+    const productSlug =
+      productSlugParam && /^[a-z0-9-]{1,200}$/.test(productSlugParam) ? productSlugParam : undefined;
+
+    const wilayaCodeParam = searchParams.get("wilayaCode");
+    const wilayaCodeNum = wilayaCodeParam ? Number(wilayaCodeParam) : NaN;
+    const wilayaCode =
+      Number.isInteger(wilayaCodeNum) && wilayaCodeNum >= 1 && wilayaCodeNum <= 58 ? wilayaCodeNum : undefined;
+
+    const dashboard = await getMasterDashboard(range, { productSlug, wilayaCode });
     return NextResponse.json(dashboard);
   } catch (error) {
     if (error instanceof UnauthorizedError) {

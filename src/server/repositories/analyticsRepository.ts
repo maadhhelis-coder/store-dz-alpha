@@ -41,6 +41,27 @@ function createdAtWhere(window: DateWindow) {
   };
 }
 
+// فلتر منتج/ولاية شامل (لوحة الأداء الشاملة) — منتج عبر علاقة items (طلب واحد قد يحتوي أكثر
+// من منتج، مثلاً عرض إضافي Upsell؛ "يحتوي هذا المنتج" وليس "هذا المنتج فقط") وولاية عبر عمود
+// مباشر على Order نفسه.
+export type MasterFilters = { productSlug?: string; wilayaCode?: number };
+
+export function orderFiltersWhere(filters?: MasterFilters): Prisma.OrderWhereInput {
+  if (!filters) return {};
+  return {
+    ...(filters.wilayaCode ? { wilayaCode: filters.wilayaCode } : {}),
+    ...(filters.productSlug ? { items: { some: { productSlugSnapshot: filters.productSlug } } } : {}),
+  };
+}
+
+export function leadFiltersWhere(filters?: MasterFilters): Prisma.LeadWhereInput {
+  if (!filters) return {};
+  return {
+    ...(filters.wilayaCode ? { wilayaCode: filters.wilayaCode } : {}),
+    ...(filters.productSlug ? { productSlug: filters.productSlug } : {}),
+  };
+}
+
 // كل مستدعيات هذه الدالة حاليًا تمرر نصًا حرفيًا ثابتًا (لا قيمة من الطلب) — لكن Prisma.raw
 // لا يُهرِّب شيئًا بنفسه، فهي آمنة فقط بانضباط المستدعي. هذا Allowlist دفاع إضافي: حتى لو
 // استُهلكت الدالة مستقبلًا بقيمة column ديناميكية بالخطأ، تُرفض فورًا بدل الوصول لـPrisma.raw.
@@ -56,11 +77,16 @@ function dateFilterSql(window: DateWindow, column: string) {
   return parts.length ? Prisma.join(parts, " ") : Prisma.empty;
 }
 
-export async function getKpis(window: DateWindow) {
-  const where = createdAtWhere(window);
+export async function getKpis(window: DateWindow, filters?: MasterFilters) {
+  const where = { ...createdAtWhere(window), ...orderFiltersWhere(filters) };
+  const leadWhere = { ...createdAtWhere(window), ...leadFiltersWhere(filters) };
 
   // ست استعلامات مستقلة تمامًا — بالتوازي الآن (راجع مذكرة pooler، آمن بعد التحول لـ
   // transaction pooler)، بدل الانتظار التسلسلي القديم.
+  //
+  // totalTraffic (page_views) بلا فلتر منتج/ولاية عمدًا — الجدول لا يملك أي عمود منتج أو
+  // ولاية (زيارة مجهولة الهوية قبل أي بيانات عميل)، فيبقى رقمًا شاملًا للموقع كله حتى مع
+  // فلتر نشط، موثَّق فـالواجهة.
   const [revenueAgg, totalOrders, confirmedOrders, newLeads, totalTraffic, deliveredOrders] = await Promise.all([
     prisma.order.aggregate({
       where: { status: { in: [...REVENUE_STATUSES] }, ...where },
@@ -68,7 +94,7 @@ export async function getKpis(window: DateWindow) {
     }),
     prisma.order.count({ where }),
     prisma.order.count({ where: { status: { in: [...REVENUE_STATUSES] }, ...where } }),
-    prisma.lead.count({ where }),
+    prisma.lead.count({ where: leadWhere }),
     countPageViews(window.start, window.end),
     prisma.order.count({ where: { status: "delivered", ...where } }),
   ]);

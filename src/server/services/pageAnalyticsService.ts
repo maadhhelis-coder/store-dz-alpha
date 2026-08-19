@@ -1,5 +1,17 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { listEventsForScope } from "@/server/repositories/trackingEventsRepository";
+import type { DateWindow } from "@/server/repositories/analyticsRepository";
+
+// عمود ثابت معروف مسبقًا (لا قيمة ديناميكية من المستخدم) — لا حاجة لـallowlist هنا كما فـ
+// masterDashboardRepository، فقط بناء شرط SQL جزئي حسب توفّر start/end.
+function orderCreatedAtFilterSql(window: DateWindow | undefined) {
+  if (!window?.start && !window?.end) return Prisma.empty;
+  const parts: Prisma.Sql[] = [];
+  if (window?.start) parts.push(Prisma.sql`AND o.created_at >= ${window.start}`);
+  if (window?.end) parts.push(Prisma.sql`AND o.created_at < ${window.end}`);
+  return Prisma.join(parts, " ");
+}
 
 const PLATFORMS = ["facebook", "instagram", "tiktok"] as const;
 type Platform = (typeof PLATFORMS)[number];
@@ -39,9 +51,10 @@ type ProductOrderAggRow = { platform: string; slug: string; ordersCount: bigint;
 // عدد الطلبات (COUNT DISTINCT) والإيراد لكل (platform, product) يُحسبان داخل Postgres عبر
 // JOIN + GROUP BY بدل جلب كل صفوف order_items عبر Prisma وتصفيتها/عدّها فـJS — order_items
 // جدول ينمو مع كل طلب، وكان هذا يعني نقل الجدول كاملاً فـكل تحميل للوحة التحكم.
-export async function getProductPageAnalytics(): Promise<PlatformProductAnalytics[]> {
+export async function getProductPageAnalytics(window?: DateWindow): Promise<PlatformProductAnalytics[]> {
+  const orderDateFilter = orderCreatedAtFilterSql(window);
   const [events, orderAggRows, products] = await Promise.all([
-    listEventsForScope({ pageKind: "product" }),
+    listEventsForScope({ pageKind: "product", window }),
     prisma.$queryRaw<ProductOrderAggRow[]>`
       SELECT o.platform AS platform,
              oi.product_slug_snapshot AS slug,
@@ -49,7 +62,7 @@ export async function getProductPageAnalytics(): Promise<PlatformProductAnalytic
              SUM(oi.line_total_dzd)::bigint AS "revenueDzd"
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE o.platform IS NOT NULL
+      WHERE o.platform IS NOT NULL ${orderDateFilter}
       GROUP BY o.platform, oi.product_slug_snapshot
     `,
     prisma.product.findMany({ select: { slug: true, name: true } }),
@@ -130,9 +143,10 @@ type FunnelOrderAggRow = { platform: string; slug: string; ordersCount: bigint; 
 //
 // نفس أسلوب الدفع لـPostgres أعلاه، لكن مقيّد بحالات الطلب المؤكَّدة فقط (confirmed/shipped/
 // delivered) — مطابق تمامًا للتصفية السابقة عبر CONFIRMED_STATUSES.has(o.status) فـJS.
-export async function getLandingPageAnalytics(): Promise<PlatformLandingAnalytics[]> {
+export async function getLandingPageAnalytics(window?: DateWindow): Promise<PlatformLandingAnalytics[]> {
+  const orderDateFilter = orderCreatedAtFilterSql(window);
   const [events, orderAggRows, funnels] = await Promise.all([
-    listEventsForScope({ pageKind: "landing" }),
+    listEventsForScope({ pageKind: "landing", window }),
     prisma.$queryRaw<FunnelOrderAggRow[]>`
       SELECT o.platform AS platform,
              oi.product_slug_snapshot AS slug,
@@ -140,7 +154,7 @@ export async function getLandingPageAnalytics(): Promise<PlatformLandingAnalytic
              SUM(oi.line_total_dzd)::bigint AS "revenueDzd"
       FROM order_items oi
       JOIN orders o ON o.id = oi.order_id
-      WHERE o.platform IS NOT NULL AND o.status IN ('confirmed', 'shipped', 'delivered')
+      WHERE o.platform IS NOT NULL AND o.status IN ('confirmed', 'shipped', 'delivered') ${orderDateFilter}
       GROUP BY o.platform, oi.product_slug_snapshot
     `,
     prisma.funnel.findMany({

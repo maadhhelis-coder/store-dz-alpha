@@ -1,5 +1,16 @@
 import { prisma } from "@/server/db/prisma";
-import type { OrderStatus } from "@prisma/client";
+import type { OrderStatus, Prisma } from "@prisma/client";
+import type { DateWindow } from "@/server/repositories/analyticsRepository";
+
+function createdAtWhere(window: DateWindow | undefined): Prisma.OrderWhereInput {
+  if (!window?.start && !window?.end) return {};
+  return {
+    createdAt: {
+      ...(window?.start ? { gte: window.start } : {}),
+      ...(window?.end ? { lt: window.end } : {}),
+    },
+  };
+}
 
 const CONFIRMED_STATUSES: OrderStatus[] = ["confirmed", "shipped", "delivered"];
 const PLATFORMS = ["facebook", "instagram", "tiktok"] as const;
@@ -50,11 +61,12 @@ export type StoreWideRates = {
 // العدّ عبر count() (يُنفَّذ داخل Postgres) بدل جلب كل صفوف الطلبات لعدّها فـJS — الفرق
 // النهائي صفر (نفس الأرقام تمامًا)، لكن الأول ينقل 3 أرقام فقط عبر الشبكة مهما كبر
 // جدول Order، بينما الثاني كان ينقل كل الجدول فـكل تحميل للوحة التحكم.
-export async function getStoreWideRates(): Promise<StoreWideRates> {
+export async function getStoreWideRates(window?: DateWindow): Promise<StoreWideRates> {
+  const dateWhere = createdAtWhere(window);
   const [totalOrders, confirmedOrders, deliveredOrders] = await Promise.all([
-    prisma.order.count(),
-    prisma.order.count({ where: { status: { in: CONFIRMED_STATUSES } } }),
-    prisma.order.count({ where: { status: "delivered" } }),
+    prisma.order.count({ where: dateWhere }),
+    prisma.order.count({ where: { status: { in: CONFIRMED_STATUSES }, ...dateWhere } }),
+    prisma.order.count({ where: { status: "delivered", ...dateWhere } }),
   ]);
 
   return {
@@ -73,24 +85,28 @@ export async function getStoreWideRates(): Promise<StoreWideRates> {
 // العد والمجموع عبر groupBy (3 استعلامات صغيرة، كل واحد يُرجع صفًا واحدًا فقط لكل
 // (platform, creativeName) — أي بعدد الكرياتيفات الفعلية لا بعدد الطلبات) بدل جلب كل
 // صفوف الطلبات وتصفيتها/جمعها فـJS. النتيجة النهائية مطابقة رياضيًا للنسخة السابقة.
-export async function getCreativeAnalytics(): Promise<PlatformCreativeAnalytics[]> {
+export async function getCreativeAnalytics(window?: DateWindow): Promise<PlatformCreativeAnalytics[]> {
+  const dateWhere = createdAtWhere(window);
   const [totalGroups, confirmedGroups, deliveredGroups, spendEntries] = await Promise.all([
     prisma.order.groupBy({
       by: ["platform", "creativeName"],
-      where: { platform: { not: null } },
+      where: { platform: { not: null }, ...dateWhere },
       _count: { _all: true },
     }),
     prisma.order.groupBy({
       by: ["platform", "creativeName"],
-      where: { platform: { not: null }, status: { in: CONFIRMED_STATUSES } },
+      where: { platform: { not: null }, status: { in: CONFIRMED_STATUSES }, ...dateWhere },
       _count: { _all: true },
       _sum: { totalDzd: true },
     }),
     prisma.order.groupBy({
       by: ["platform", "creativeName"],
-      where: { platform: { not: null }, status: "delivered" },
+      where: { platform: { not: null }, status: "delivered", ...dateWhere },
       _count: { _all: true },
     }),
+    // AdSpendEntry بلا عمود تاريخ لكل صف (رقم متدحرج لآخر 30 يومًا دائمًا — راجع
+    // adsSyncService/getRoasLast30Days) — يبقى غير مفلتَر بالفترة المختارة عمدًا، موثَّق فـ
+    // الواجهة (ROAS مثبَّت على 30 يومًا بصرف النظر عن الفلتر).
     prisma.adSpendEntry.findMany(),
   ]);
 
