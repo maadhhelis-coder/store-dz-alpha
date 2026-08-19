@@ -86,6 +86,16 @@ export default defineConfig({
       ...process.env,
       E2E_TEST_RUN: "1",
       PORT: String(PORT),
+      // Docker يضبط HOSTNAME=<container-id> تلقائيًا داخل أي حاوية (راجع "container:" فـ
+      // e2e.yml) — و...process.env أعلاه يمرّره كما هو لخادم standalone. قالب Next.js
+      // القياسي (.next/standalone/server.js) يستمع فعليًا على `process.env.HOSTNAME ||
+      // "0.0.0.0"`، فبدل الاستماع على كل الواجهات يستمع تحديدًا على اسم مضيف الحاوية —
+      // الذي يُحلّ لعنوان الشبكة الجسرية الداخلي لها وليس 127.0.0.1/localhost. النتيجة
+      // الفعلية المُلاحَظة: الخادم يطبع "✓ Ready" فعليًا لكن فحص الجهوزية هنا (BASE_URL على
+      // localhost) لا يصل إليه أبدًا فيُنتظر حتى انتهاء المهلة (180 ثانية). الإصلاح: نتجاوز
+      // القيمة الموروثة من Docker صراحةً بعد الانتشار (spread) أعلاه ليستمع على كل الواجهات
+      // كما كان يحدث دائمًا خارج حاوية Docker (حيث HOSTNAME لا يشير لعنوان شبكة داخلي مماثل).
+      HOSTNAME: "0.0.0.0",
     } as Record<string, string>,
   },
 });
