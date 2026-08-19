@@ -153,11 +153,29 @@ jobs:
           grep -q "$OWNER_EMAIL" /tmp/login-response.json
 
           # إثبات أن الجلسة الحقيقية تفتح فعليًا مسارًا إداريًا محميًا (200).
-          PROTECTED_CODE=$(curl -sL -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
-            "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
-          echo "protected route WITH session: $PROTECTED_CODE"
+          #
+          # requireAdmin() (راجع src/lib/auth/requireAdmin.ts) يستدعي supabase.auth.getUser()
+          # عمدًا بدل الاكتفاء بقراءة الكوكيز محليًا — هذا نداء شبكي حقيقي لخادم Supabase Auth
+          # الخارجي الفعلي لإعادة التحقق من الجلسة من الخادم لا الوثوق بكوكي محلي فقط (تصميم
+          # أمني صحيح ومتعمَّد، موثَّق فالكود نفسه: أي فشل فهذا النداء — انقطاع عابر، أو أي
+          # سبب آخر — يُعامَل "غير مصرح" (fail closed) بدل خطأ خادم 500). اكتُشف فعليًا (تشغيلة
+          # CI حقيقية واحدة من ٨) فشل 401 عابر هنا تحديدًا، ونجحت 6 تشغيلات لاحقة متتالية بلا
+          # أي تعديل كود — نمط متّسق مع عطل شبكي عابر حقيقي بالوصول لخادم Supabase الخارجي من
+          # شبكة عامل CI، وليس علّة فمنطق الجلسة/الكوكيز (اختُبر ذلك تجريبيًا وأُستبعِد). إعادة
+          # محاولة قصيرة هنا تتحمّل هذا العطل العابر الحقيقي بلا إضعاف requireAdmin() نفسها —
+          # فشل حقيقي متكرر (بيانات جلسة فعلاً خاطئة) سيبقى يفشل عبر كل المحاولات الثلاث أيضًا.
+          PROTECTED_CODE=""
+          for attempt in 1 2 3; do
+            PROTECTED_CODE=$(curl -sL -o /dev/null -w "%{http_code}" -b /tmp/owner-cookies.txt \
+              "http://localhost:3000/api/admin/orders?page=1&pageSize=5")
+            echo "protected route WITH session (attempt $attempt): $PROTECTED_CODE"
+            if [ "$PROTECTED_CODE" = "200" ]; then
+              break
+            fi
+            sleep 2
+          done
           if [ "$PROTECTED_CODE" != "200" ]; then
-            echo "::error::authenticated request to a protected admin route did not return 200"
+            echo "::error::authenticated request to a protected admin route did not return 200 after 3 attempts"
             exit 1
           fi
 
