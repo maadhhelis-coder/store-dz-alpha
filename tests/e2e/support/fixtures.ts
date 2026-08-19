@@ -28,6 +28,19 @@ async function attachConsoleGuard(page: Page) {
   return unexpected;
 }
 
+// قائمة الولاية بنموذج الطلب تُملأ عبر جلب عميل غير متزامن (useDeliveryWilayas → GET
+// /api/wilayas) بعد mount — عنصر <select> نفسه يصبح تفاعليًا فورًا (لا يمنعه Playwright's
+// actionability check)، لكن بلا أي <option> بعد حتى يكتمل الجلب. selectOption("code")
+// الخام كان يفشل أحيانًا (اكتُشف فعليًا فتشغيلة CI حقيقية: TimeoutError على locator
+// resolved بنجاح لكن بلا الخيار المطلوب بعد) — ينتظر Playwright جهوزية العنصر نفسه فقط، لا
+// وجود قيمة <option> معيّنة بداخله. الانتظار الصريح هنا على <option> الهدف يزيل هذا التسابق
+// جذريًا بدل الاعتماد على توقيت الشبكة العرضي.
+export async function selectOrderWilaya(page: Page, wilayaCode: number) {
+  const select = page.getByTestId("order-wilaya");
+  await select.locator(`option[value="${wilayaCode}"]`).waitFor({ state: "attached", timeout: 15_000 });
+  await select.selectOption(String(wilayaCode));
+}
+
 async function login(page: Page, email: string, password: string) {
   await page.goto("/admin/login");
   await page.getByTestId("login-email").fill(email);

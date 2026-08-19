@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone } from "./support/testData";
 import { getActiveWilaya, createTestProduct } from "./support/seedFixtures";
@@ -35,7 +35,7 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });

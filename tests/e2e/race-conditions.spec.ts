@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone, e2eVisitorId } from "./support/testData";
 import { getActiveWilaya, createTestProduct, createTestCoupon } from "./support/seedFixtures";
@@ -21,7 +21,7 @@ test.describe("سباقات التزامن عبر الواجهة", () => {
       await page.getByTestId("order-first-name").fill("زبون");
       await page.getByTestId("order-last-name").fill(e2eLastName());
       await page.getByTestId("order-phone").fill(e2ePhone());
-      await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+      await selectOrderWilaya(page, wilaya.code);
       const communeEl = page.getByTestId("order-commune");
       if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
         await communeEl.selectOption({ index: 1 });

@@ -287,7 +287,7 @@ export default function MasterDashboard() {
             />
             <KpiCard
               icon={Wallet}
-              label="الإيرادات"
+              label="الإيرادات (شامل التوصيل)"
               value={formatPrice(data.kpis.totalRevenueDzd)}
               delta={data.periodComparison.deltaPct.totalRevenueDzd}
             />
@@ -390,7 +390,7 @@ export default function MasterDashboard() {
                     <th scope="col" className="p-2 text-start">التأكيد</th>
                     <th scope="col" className="p-2 text-start">التسليم</th>
                     <th scope="col" className="p-2 text-start">الإلغاء</th>
-                    <th scope="col" className="p-2 text-start">الإيرادات</th>
+                    <th scope="col" className="p-2 text-start">إيرادات المنتج (بلا توصيل)</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2ePhone, e2eLastName } from "./support/testData";
 import {
@@ -31,7 +31,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     await page.getByTestId("order-commune").fill("بلدية اختبار").catch(() => {});
     // البلدية قد تكون select أو input حسب توفر بيانات الولاية — نتعامل مع الحالتين.
     const communeEl = page.getByTestId("order-commune");
@@ -80,7 +80,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });
@@ -123,7 +123,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });
@@ -157,7 +157,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });
