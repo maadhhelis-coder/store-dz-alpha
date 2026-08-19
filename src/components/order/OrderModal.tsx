@@ -109,6 +109,9 @@ export default function OrderModal({
   // (بمصفوفة اعتماديات فارغة)، بغض النظر عن أي تعديل لاحق في الكمية أو المتغيّر المختار.
   useEffect(() => {
     trackInitiateCheckout({ contentId: product.slug, contentName: product.name, value: unitPrice });
+    // نفس منطق form_submit (راجع أسفل) لكن عند فتح النافذة فعليًا — يعطي "معدل بدء تعبئة
+    // الاستمارة" حقيقيًا ومنفصلًا عن "معدل إكمالها"، بدل الاكتفاء بالإرسال النهائي فقط.
+    trackCreativeEvent("form_start", pageKind, pathname, product.slug);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,6 +1,6 @@
 export type AdPlatformValue = "facebook" | "instagram" | "tiktok";
 export type PageKindValue = "product" | "landing";
-export type TrackingEventTypeValue = "page_view" | "cta_click" | "form_submit";
+export type TrackingEventTypeValue = "page_view" | "cta_click" | "form_start" | "form_submit";
 
 const VISITOR_ID_KEY = "sdz_visitor_id";
 const ATTRIBUTION_KEY = "sdz_attribution";

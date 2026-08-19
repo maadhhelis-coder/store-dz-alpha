@@ -3,6 +3,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import AnnouncementBar from "@/components/layout/AnnouncementBar";
 import PageViewTracker from "@/components/layout/PageViewTracker";
+import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
 import WhatsAppFloatingButton from "@/components/layout/WhatsAppFloatingButton";
 import OrderModalProvider from "@/components/order/OrderModalProvider";
@@ -38,6 +39,7 @@ export default async function StorefrontLayout({
       </a>
       <JsonLd data={organizationJsonLd()} />
       <PageViewTracker />
+      <WebVitalsReporter />
       <TrackingPixels
         metaPixelId={settings.metaPixelId}
         tiktokPixelId={settings.tiktokPixelId}

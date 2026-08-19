@@ -37,6 +37,9 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
   const [oldPriceDzd, setOldPriceDzd] = useState(
     initialProduct?.oldPriceDzd ? String(initialProduct.oldPriceDzd) : "",
   );
+  const [costDzd, setCostDzd] = useState(
+    initialProduct?.costDzd != null ? String(initialProduct.costDzd) : "",
+  );
   const [shortDescription, setShortDescription] = useState(initialProduct?.shortDescription ?? "");
   const [longDescriptionHtml, setLongDescriptionHtml] = useState(initialProduct?.longDescriptionHtml ?? "");
   const [howToUse, setHowToUse] = useState<string[]>(
@@ -100,6 +103,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
       categoryId,
       priceDzd: Number(priceDzd),
       oldPriceDzd: oldPriceDzd ? Number(oldPriceDzd) : null,
+      costDzd: costDzd ? Number(costDzd) : null,
       shortDescription,
       longDescriptionHtml,
       howToUse: howToUse.filter((s) => s.trim().length > 0),
@@ -176,7 +180,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <Field label="التصنيف">
               <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={inputClass}>
                 {categories.map((c) => (
@@ -196,6 +200,9 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
                 className={inputClass}
               />
             </Field>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <Field label="السعر قبل التخفيض (اختياري)">
               <input
                 type="number"
@@ -203,6 +210,16 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
                 value={oldPriceDzd}
                 onChange={(e) => setOldPriceDzd(e.target.value)}
                 className={inputClass}
+              />
+            </Field>
+            <Field label="تكلفة الوحدة (دج) — اختياري">
+              <input
+                type="number"
+                min={0}
+                value={costDzd}
+                onChange={(e) => setCostDzd(e.target.value)}
+                className={inputClass}
+                placeholder="لحساب الربح في لوحة الأداء"
               />
             </Field>
           </div>

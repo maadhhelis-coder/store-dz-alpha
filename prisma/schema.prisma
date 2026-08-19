@@ -34,6 +34,7 @@ enum OrderStatus {
   cancelled
   shipped
   delivered
+  returned
 }
 
 enum OrderSource {
@@ -56,6 +57,7 @@ enum AdPlatform {
 enum TrackingEventType {
   page_view
   cta_click
+  form_start
   form_submit
 }
 
@@ -119,6 +121,9 @@ model Product {
   category             Category      @relation(fields: [categoryId], references: [id])
   priceDzd             Int           @map("price_dzd")
   oldPriceDzd          Int?          @map("old_price_dzd")
+  // تكلفة الوحدة (COGS) — اختيارية ونصّها فارغة لكل المنتجات الحالية عمدًا (لا نفترض رقمًا
+  // غير موجود فعليًا). تُستعمل فحساب الربح الحقيقي؛ راجع OrderItem.unitCostDzd للقطة وقت الطلب.
+  costDzd              Int?          @map("cost_dzd")
   shortDescription     String        @map("short_description")
   longDescriptionHtml  String        @map("long_description_html")
   howToUse             Json          @default("[]") @map("how_to_use")
@@ -215,6 +220,12 @@ model Order {
   userAgent           String?        @map("user_agent")
   deviceFingerprint   String?        @map("device_fingerprint")
   confirmedAt         DateTime?      @map("confirmed_at")
+  // نفس منطق confirmedAt تمامًا — تُسجَّل عند أول وصول لهذه الحالة، تُستعمل لحساب مقاييس
+  // الأداء حسب الفترة الزمنية الفعلية (اليوم/أمس/7 أيام) بدل الاعتماد على createdAt الذي قد
+  // يعكس تاريخ إنشاء الطلب لا تاريخ تسليمه/إلغائه/إرجاعه الفعلي.
+  deliveredAt         DateTime?      @map("delivered_at")
+  cancelledAt         DateTime?      @map("cancelled_at")
+  returnedAt          DateTime?      @map("returned_at")
   offerId             String?        @map("offer_id")
   offer               Offer?         @relation(fields: [offerId], references: [id])
   couponCode          String?        @map("coupon_code")
@@ -252,6 +263,9 @@ model OrderItem {
   variant               ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
   variantLabelSnapshot  String?         @map("variant_label_snapshot")
   unitPriceDzd          Int             @map("unit_price_dzd")
+  // لقطة تكلفة الوحدة وقت إنشاء الطلب (قد تكون null لطلبات قديمة أو منتجات بلا costDzd مضبوط)
+  // — نفس سبب unitPriceDzd: تعديل تكلفة المنتج لاحقًا يجب ألا يغيّر بأثر رجعي ربح طلب قديم.
+  unitCostDzd           Int?            @map("unit_cost_dzd")
   quantity              Int
   lineTotalDzd          Int             @map("line_total_dzd")
 
@@ -548,4 +562,25 @@ model SystemAlert {
   @@index([type, createdAt])
   @@index([resolvedAt])
   @@map("system_alerts")
+}
+
+// مقاييس Core Web Vitals حقيقية من زوّار حقيقيين (RUM) — لا يوجد أي بديل تركيبي/صناعي هنا؛
+// الجدول يبقى فارغًا حتى يزور المتجر زوّار حقيقيون بعد نشر هذا التتبّع، وهذا مقصود ومعروض
+// صراحةً فلوحة التحكم (بدل اختلاق بيانات تاريخية غير موجودة فعليًا).
+model WebVitalMetric {
+  id        String   @id @default(uuid())
+  // LCP | INP | CLS | TTFB | FCP — القيم القياسية لمكتبة web-vitals نفسها.
+  name      String
+  value     Float
+  // good | needs-improvement | poor — تُحسَب من مكتبة web-vitals على المتصفح مباشرة حسب
+  // العتبات القياسية الرسمية لكل مقياس، لا نعيد حسابها هنا.
+  rating    String
+  path      String
+  visitorId String   @map("visitor_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([name, createdAt])
+  @@index([path])
+  @@map("web_vital_metrics")
 }

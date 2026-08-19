@@ -111,6 +111,10 @@ async function createOrderTransaction(
         variantId: variant?.id,
         variantLabelSnapshot: variant ? `${variant.name}: ${variant.value}` : undefined,
         unitPriceDzd,
+        // لقطة تكلفة الوحدة وقت الطلب — راجع Product.costDzd/OrderItem.unitCostDzd فـschema.
+        // undefined صراحةً (لا 0) لو المنتج بلا تكلفة مضبوطة، حتى لا يُحسَب ربح كامل السعر
+        // خطأً على منتج تكلفته غير معروفة فعليًا.
+        unitCostDzd: product.costDzd ?? undefined,
         quantity: input.quantity,
         lineTotalDzd: baseLineTotalDzd,
       },
@@ -140,6 +144,7 @@ async function createOrderTransaction(
           productNameSnapshot: offer.offerProduct.name,
           productSlugSnapshot: offer.offerProduct.slug,
           unitPriceDzd: offer.offerPriceDzd,
+          unitCostDzd: offer.offerProduct.costDzd ?? undefined,
           quantity: 1,
           lineTotalDzd: offer.offerPriceDzd,
         });
@@ -315,7 +320,10 @@ export async function getOrder(id: string) {
 // وإلا فكل طلب يُلغى/يُكتشف مكررًا/وهميًا يُنقِص المخزون الظاهر للأبد بلا أي بيع فعلي —
 // مع نسب الإلغاء المعتادة فتجارة الدفع عند الاستلام هذا يُصغِّر المخزون المتاح تدريجيًا
 // حتى يظهر المنتج "نافد" رغم توفره فعليًا.
-const STOCK_RELEASING_STATUSES: OrderStatus[] = ["cancelled", "fake", "duplicate", "wrong_number"];
+// returned مضافة هنا (لا فقط cancelled/fake/duplicate/wrong_number) — الطلب المُرجَع يعني
+// عودة القطعة فعليًا للمخزون المتاح، تمامًا كطلب مُلغى، بعكس shipped/delivered العاديين
+// حيث تبقى القطعة "خارج الباب" فعلًا.
+const STOCK_RELEASING_STATUSES: OrderStatus[] = ["cancelled", "fake", "duplicate", "wrong_number", "returned"];
 
 function isStockReleasingStatus(status: OrderStatus): boolean {
   return STOCK_RELEASING_STATUSES.includes(status);
@@ -395,6 +403,9 @@ export async function updateOrderStatus(
           status,
           ...(notes !== undefined ? { notes } : {}),
           ...ordersRepository.confirmedAtUpdate(status),
+          ...ordersRepository.deliveredAtUpdate(status),
+          ...ordersRepository.cancelledAtUpdate(status),
+          ...ordersRepository.returnedAtUpdate(status),
           ...ordersRepository.callAttemptsUpdate(status),
         },
       });

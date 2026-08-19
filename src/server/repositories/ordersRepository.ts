@@ -123,10 +123,11 @@ export function findOrderById(id: string) {
   return prisma.order.findUnique({ where: { id }, ...orderWithItems });
 }
 
-// confirmedAt يُسجَّل عند التأكيد، ويبقى محفوظًا عبر التقدّم الطبيعي بعدها (shipped/delivered)
+// confirmedAt يُسجَّل عند التأكيد، ويبقى محفوظًا عبر التقدّم الطبيعي بعدها (shipped/delivered/
+// returned — طلب أُرجِع كان بالضرورة مؤكَّدًا ومُسلَّمًا قبل ذلك، فهي حقيقة تاريخية لا تُمحى)
 // لأنه يمثّل "متى تأكد الطلب فعليًا" — لكن يُصفَّر عند رجوع الحالة فعليًا عن التأكيد (مثلاً
 // إلغاء طلب كان مؤكَّدًا)، وإلا يبقى تحليل "زمن التأكيد" مشوّهًا بتواريخ قديمة غير صحيحة.
-const DOWNSTREAM_OF_CONFIRMED: OrderStatus[] = ["confirmed", "shipped", "delivered"];
+const DOWNSTREAM_OF_CONFIRMED: OrderStatus[] = ["confirmed", "shipped", "delivered", "returned"];
 
 // مُصدَّرة أيضًا لأن ordersService.ts تحتاجها عند بناء تحديث الحالة يدويًا داخل معاملة
 // (Transaction) خاصة بتعديل المخزون — بدل تكرار نفس المنطق فمكانين قد ينحرفان لاحقًا.
@@ -134,6 +135,31 @@ export function confirmedAtUpdate(status: OrderStatus) {
   if (status === "confirmed") return { confirmedAt: new Date() };
   if (DOWNSTREAM_OF_CONFIRMED.includes(status)) return {};
   return { confirmedAt: null };
+}
+
+// نفس منطق confirmedAt أعلاه لكل من deliveredAt/cancelledAt/returnedAt — تُستعمل لمقاييس
+// الأداء الحقيقية حسب الفترة الزمنية الفعلية (لوحة الأداء الشاملة) بدل الاعتماد على createdAt
+// وحده الذي قد يعكس تاريخ إنشاء الطلب لا تاريخ تسليمه/إلغائه/إرجاعه الفعلي.
+//
+// deliveredAt يبقى محفوظًا عند الانتقال لاحقًا إلى returned (الطلب "تم تسليمه فعليًا" ثم
+// أُرجِع — حقيقة تاريخية منفصلة عن كونه مُرجَعًا الآن)، تمامًا كمنطق confirmedAt مع shipped/
+// delivered أعلاه.
+const DOWNSTREAM_OF_DELIVERED: OrderStatus[] = ["delivered", "returned"];
+
+export function deliveredAtUpdate(status: OrderStatus) {
+  if (status === "delivered") return { deliveredAt: new Date() };
+  if (DOWNSTREAM_OF_DELIVERED.includes(status)) return {};
+  return { deliveredAt: null };
+}
+
+export function cancelledAtUpdate(status: OrderStatus) {
+  if (status === "cancelled") return { cancelledAt: new Date() };
+  return { cancelledAt: null };
+}
+
+export function returnedAtUpdate(status: OrderStatus) {
+  if (status === "returned") return { returnedAt: new Date() };
+  return { returnedAt: null };
 }
 
 // حالات "يحتاج إعادة اتصال" — كل مرة يتحول الطلب لإحداها تُزاد callAttempts تلقائيًا،
@@ -151,6 +177,9 @@ export function updateOrderStatus(id: string, status: OrderStatus, notes?: strin
       status,
       ...(notes !== undefined ? { notes } : {}),
       ...confirmedAtUpdate(status),
+      ...deliveredAtUpdate(status),
+      ...cancelledAtUpdate(status),
+      ...returnedAtUpdate(status),
       ...callAttemptsUpdate(status),
     },
     ...orderWithItems,

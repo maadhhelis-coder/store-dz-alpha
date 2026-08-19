@@ -34,6 +34,7 @@ export const orderStatusSchema = z.object({
     "cancelled",
     "shipped",
     "delivered",
+    "returned",
   ]),
   notes: z.string().max(2000).optional(),
 });
