@@ -30,6 +30,17 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # يشغّل الخطوات داخل صورة Playwright الرسمية (متصفحات Chromium/WebKit ومتطلبات نظام
+    # التشغيل مُثبَّتة مسبقًا داخل الصورة نفسها) بدل "npx playwright install --with-deps"
+    # فخطوة منفصلة تعتمد على مرآة حزم أوبنتو (apt-get) — اكتُشف فعليًا عبر عدة تشغيلات CI
+    # حقيقية أن تلك الخطوة قد تتعثّر لعشرات الدقائق (تنزيل حزم نظام كثيرة لـWebKit تحديدًا)
+    # حتى تنتهي المهلة (45 دقيقة) قبل تنفيذ أي اختبار فعليًا. صورة Playwright تُسحَب من
+    # Microsoft Container Registry (سجل مختلف تمامًا عن مرايا أوبنتو)، فتُزيل الاعتماد على
+    # apt-get تمامًا بدل مجرد إعادة المحاولة على نفس المرآة غير الموثوقة. الإصدار (v1.62.1)
+    # يجب أن يطابق "@playwright/test" فpackage.json تمامًا (راجع توثيق Playwright — أي عدم
+    # تطابق يمنع العثور على ملفات المتصفح التنفيذية).
+    container:
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
     env:
       CI: "true"
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -81,7 +92,10 @@ jobs:
       - name: Seed baseline data (wilayas/categories)
         run: node --import tsx prisma/seed.ts
 
-      - name: Install Playwright browsers
+      # صافي (لا شيء يُنزَّل فعليًا): المتصفحات ومتطلبات النظام مثبَّتة مسبقًا داخل صورة
+      # Playwright نفسها (راجع "container:" أعلى الملف) — هذه الخطوة تبقى فقط كتحقق سريع
+      # وشبكة أمان (تكتشف فورًا أي متصفح مفقود بدل فشل غامض لاحقًا)، وليست تثبيتًا فعليًا.
+      - name: Verify Playwright browsers are present
         run: npx playwright install --with-deps chromium webkit
 
       # متطلب #20: بناء إنتاجي حقيقي (build + start)، وليس dev server — playwright.config.ts

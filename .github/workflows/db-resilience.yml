@@ -52,8 +52,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install postgresql-client (pg_dump/psql)
-        run: sudo apt-get update -y && sudo apt-get install -y postgresql-client
+      # بدل "apt-get install postgresql-client": اكتُشف فعليًا عبر تشغيلة CI حقيقية أن هذه
+      # الخطوة قد تتعثّر لعشرات الدقائق على مرآة حزم أوبنتو حتى الإلغاء بانتهاء مهلة الوظيفة
+      # (20 دقيقة) قبل أي اختبار فعلي. البديل هنا: أدوات ظِلّية (shim) صغيرة لـpsql/pg_dump
+      # تُمرِّر الاستدعاء فعليًا لحاوية Docker مؤقتة من نفس صورة "postgres:16-alpine" المُستخدَمة
+      # أصلًا لخدمة قاعدة البيانات أعلاه — وهي مسحوبة محليًا سلفًا (GitHub Actions يسحب صور
+      # services: قبل أي steps:)، فلا حاجة لأي سحب/تنزيل إضافي هنا، ولا اعتماد على apt-get
+      # إطلاقًا. مزية إضافية حقيقية: نسخة العميل تُطابق نسخة الخادم (16) تمامًا بدل نسخة عامة
+      # عشوائية توفّرها أوبنتو. --network host يصل لمنفذ الخدمة المنشور على المضيف (5432)،
+      # و-v /tmp:/tmp يُبقي ملفات pg_dump/psql -f (النسخ الاحتياطي/الاستعادة) قابلة للقراءة من
+      # كلا الجانبين دون تغيير أي استدعاء لاحق فهذا الملف.
+      - name: Provide psql/pg_dump via Docker (avoids apt-get mirror flakiness)
+        run: |
+          sudo tee /usr/local/bin/psql > /dev/null <<'SCRIPT'
+          #!/bin/sh
+          exec docker run --rm --network host -v /tmp:/tmp -e PGPASSWORD postgres:16-alpine psql "$@"
+          SCRIPT
+          sudo tee /usr/local/bin/pg_dump > /dev/null <<'SCRIPT'
+          #!/bin/sh
+          exec docker run --rm --network host -v /tmp:/tmp -e PGPASSWORD postgres:16-alpine pg_dump "$@"
+          SCRIPT
+          sudo chmod +x /usr/local/bin/psql /usr/local/bin/pg_dump
+          psql --version
+          pg_dump --version
 
       - name: "Test 1 — Migration succeeds against a fresh database (proves migrations apply cleanly)"
         run: npx prisma migrate deploy

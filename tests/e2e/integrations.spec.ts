@@ -1,4 +1,4 @@
-import { test, expect } from "./support/fixtures";
+import { test, expect, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone } from "./support/testData";
 import { getActiveWilaya, createTestProduct } from "./support/seedFixtures";
@@ -19,13 +19,6 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     const product = await createTestProduct({ inventoryCount: 5, priceDzd: 1900 });
 
     let capturedBody: Record<string, unknown> | null = null;
-    await page.route("https://script.google.com/**", async (route) => {
-      const request = route.request();
-      capturedBody = JSON.parse(request.postData() ?? "{}");
-      // نُجيب بردّ مُقلَّد (Mock) بدل تمرير الطلب فعليًا للشيت الحقيقي — يمنع تلويث بيانات
-      // حقيقية بينما يُثبت أن المتصفح حاول الإرسال بالشكل الصحيح فعليًا (وليس مجرد فحص كود).
-      await route.fulfill({ status: 200, body: "OK" });
-    });
 
     await page.goto(`/products/${product.slug}`);
     await page.getByTestId("order-now-button").first().click();
@@ -35,7 +28,7 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     await page.getByTestId("order-first-name").fill("زبون");
     await page.getByTestId("order-last-name").fill(lastName);
     await page.getByTestId("order-phone").fill(phone);
-    await page.getByTestId("order-wilaya").selectOption(String(wilaya.code));
+    await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });
@@ -46,6 +39,21 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");
     }
+
+    // الاعتراض الشبكي يُسجَّل هنا فقط (قبل الإرسال مباشرة)، وليس قبل page.goto() كما كان
+    // سابقًا — اكتُشف فعليًا (عبر تشخيص حي فتشغيلة CI حقيقية) أن جلب /api/wilayas الخاص
+    // بالنموذج كان يعلَق بلا استجابة لعشرات الثوانٍ تحديدًا فهذا الاختبار وحده من بين كل
+    // اختبارات تدفّق الطلب المماثلة — الفارق البنيوي الوحيد كان اعتراضًا شبكيًا (page.route)
+    // مُفعَّلًا طوال تحميل الصفحة وملء النموذج كاملًا رغم عدم الحاجة إليه إلا لحظة الإرسال
+    // فعليًا (Google Sheets يُستدعى فقط بعد تأكيد الطلب). تفعيل الاعتراض بأقرب وقت ممكن
+    // للحاجة الفعلية إليه فقط يُزيل احتمال تعارضه مع نداءات الصفحة المبكرة الأخرى.
+    await page.route("https://script.google.com/**", async (route) => {
+      const request = route.request();
+      capturedBody = JSON.parse(request.postData() ?? "{}");
+      // نُجيب بردّ مُقلَّد (Mock) بدل تمرير الطلب فعليًا للشيت الحقيقي — يمنع تلويث بيانات
+      // حقيقية بينما يُثبت أن المتصفح حاول الإرسال بالشكل الصحيح فعليًا (وليس مجرد فحص كود).
+      await route.fulfill({ status: 200, body: "OK" });
+    });
 
     await page.getByTestId("order-submit").click();
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
