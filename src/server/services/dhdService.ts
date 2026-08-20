@@ -81,6 +81,20 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
 // المعلومة المعروضة للمسؤول من حالة حقيقية إلى "غير معروفة" بسبب رد عابر فارغ).
 const PENDING_DHD_STATUS = "لم تُسجَّل حالة الشحنة بعد عند DHD";
 
+// منطق مشترك بين المزامنة الدورية (cron) واستقبال الـwebhook — يحدّث courierStatus
+// فقط إن تغيّرت القيمة فعليًا وبدون التراجع لحالة "لم تُسجَّل بعد" المؤقتة إن كانت لدينا
+// أصلًا حالة حقيقية سابقة (نفس حماية syncAllDhdOrderStatuses أدناه).
+async function applyDhdCourierStatusUpdate(
+  order: { id: string; courierStatus: string | null },
+  newStatus: string,
+): Promise<boolean> {
+  const isRegressionToPending =
+    newStatus === PENDING_DHD_STATUS && !!order.courierStatus && order.courierStatus !== PENDING_DHD_STATUS;
+  if (newStatus === order.courierStatus || isRegressionToPending) return false;
+  await prisma.order.update({ where: { id: order.id }, data: { courierStatus: newStatus } });
+  return true;
+}
+
 export type DhdStatusSyncResult = {
   checked: number;
   updated: number;
@@ -109,12 +123,7 @@ export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
   for (const order of orders) {
     try {
       const result = await fetchDhdOrderStatus(order.courierTrackingId!);
-      const isRegressionToPending =
-        result.status === PENDING_DHD_STATUS &&
-        !!order.courierStatus &&
-        order.courierStatus !== PENDING_DHD_STATUS;
-      if (result.status !== order.courierStatus && !isRegressionToPending) {
-        await prisma.order.update({ where: { id: order.id }, data: { courierStatus: result.status } });
+      if (await applyDhdCourierStatusUpdate(order, result.status)) {
         updated += 1;
       }
     } catch (error) {
@@ -123,6 +132,59 @@ export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
   }
 
   return { checked: orders.length, updated, errors };
+}
+
+export type DhdWebhookResult =
+  | { outcome: "no_tracking_in_payload" }
+  | { outcome: "no_status_in_payload"; tracking: string }
+  | { outcome: "order_not_found"; tracking: string }
+  | { outcome: "updated" | "unchanged"; tracking: string; orderNumber: string; status: string };
+
+// يستقبل تحديثًا فوريًا (push) من DHD إن وُجد خيار Webhook فلوحة تحكم حسابك عندهم —
+// شكل الحمولة الحقيقي **غير موثَّق علنًا** (بحثنا فعليًا فوثائق EcoTrack/DHD العامة ولم
+// نجد مواصفة webhook منشورة)، لذا نحاول عدة أسماء حقول محتملة لرقم التتبع والحالة (نفس
+// المرشّحين المستعملين فـfetchDhdOrderStatus أعلاه لاستجابة الـpull، لأن كليهما غالبًا
+// من نفس منصة EcoTrack). أي حمولة لا نتعرّف عليها تُسجَّل كاملة فـconsole.error حتى تكشف
+// أول استدعاء حقيقي الشكل الفعلي الدقيق، فنُحكم هذه القراءة لاحقًا بدل التخمين المستمر.
+export async function processDhdWebhookPayload(payload: unknown): Promise<DhdWebhookResult> {
+  const body = (payload ?? {}) as Record<string, unknown>;
+
+  const tracking =
+    (body.tracking as string | undefined) ??
+    (body.order_tracking as string | undefined) ??
+    (body.code as string | undefined) ??
+    (body.trackingId as string | undefined) ??
+    (body.colis as string | undefined);
+
+  if (!tracking) {
+    console.error("dhd webhook: no recognizable tracking field", JSON.stringify(body).slice(0, 500));
+    return { outcome: "no_tracking_in_payload" };
+  }
+
+  const status =
+    (body.status as string | undefined) ??
+    (body.order_status as string | undefined) ??
+    (body.etat as string | undefined) ??
+    (body.new_status as string | undefined) ??
+    (body.state as string | undefined);
+
+  if (!status) {
+    console.error("dhd webhook: no recognizable status field", JSON.stringify(body).slice(0, 500));
+    return { outcome: "no_status_in_payload", tracking };
+  }
+
+  const order = await prisma.order.findFirst({
+    where: { courierProvider: "DHD", courierTrackingId: tracking },
+    select: { id: true, orderNumber: true, courierStatus: true },
+  });
+
+  if (!order) {
+    console.error("dhd webhook: no matching order for tracking", tracking);
+    return { outcome: "order_not_found", tracking };
+  }
+
+  const updated = await applyDhdCourierStatusUpdate(order, status);
+  return { outcome: updated ? "updated" : "unchanged", tracking, orderNumber: order.orderNumber, status };
 }
 
 export class DhdValidationError extends Error {
