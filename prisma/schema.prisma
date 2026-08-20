@@ -465,6 +465,17 @@ model AdSpendEntry {
   isActive     Boolean    @default(true) @map("is_active")
   isAutoSynced Boolean    @default(false) @map("is_auto_synced")
 
+  // حقول أداء إضافية حقيقية من Meta/TikTok Marketing API — تُملأ فقط عبر المزامنة التلقائية
+  // (isAutoSynced=true)؛ تبقى null لأي صف أُدخل يدويًا (لا تتوفر هذه الأرقام يدويًا بمصداقية).
+  impressions  Int?    @map("impressions")
+  ctrPercent   Float?  @map("ctr_percent")
+  cpcDzd       Int?    @map("cpc_dzd")
+  cpmDzd       Int?    @map("cpm_dzd")
+  campaignId   String? @map("campaign_id")
+  campaignName String? @map("campaign_name")
+  adId         String? @map("ad_id")
+  adSetId      String? @map("ad_set_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

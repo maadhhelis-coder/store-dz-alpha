@@ -2,6 +2,7 @@ import { findCourierIntegrationByProvider } from "@/server/repositories/courierI
 import { getCommuneLatinName, getCommuneArabicName } from "@/data/communes";
 import { decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
+import { prisma } from "@/server/db/prisma";
 
 const DHD_BASE_URL = "https://platform.dhd-dz.com/api/v1";
 
@@ -30,8 +31,12 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
   }
   const token = decryptSecret(integration.apiToken);
 
-  const params = new URLSearchParams({ status: "all" });
-  params.append("trackings[]", trackingId);
+  // اكتُشف فعليًا (اختبار مباشر بمفتاح حقيقي ورقم تتبّع حقيقي فالإنتاج): صيغة المصفوفة
+  // "trackings[]" التي كانت مُستعمَلة هنا تُسقِط خادم DHD دائمًا بخطأ 500 عام، بغض النظر
+  // عن صحة رقم التتبّع. الصيغة الصحيحة الوحيدة التي أعادت 200 فعليًا هي معامل نصّي بسيط
+  // "trackings" (بلا أقواس)، وليس مصفوفة — راجع أيضًا محاولات أخرى فُحصت وفشلت: status[]،
+  // POST (405 — GET فقط مدعوم)، tracking= المفرد (422 "Aucun tracking soumis").
+  const params = new URLSearchParams({ status: "all", trackings: trackingId });
 
   const res = await fetch(`${DHD_BASE_URL}/get/orders/status?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -59,6 +64,46 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
   }
 
   return { tracking: trackingId, status };
+}
+
+export type DhdStatusSyncResult = {
+  checked: number;
+  updated: number;
+  errors: { orderNumber: string; error: string }[];
+};
+
+// يمرّ على كل الطلبات النشطة (لم تصل لحالة نهائية بعد) التي أُرسلت فعليًا لـDHD ولديها رقم
+// تتبّع، ويحدّث حقل courierStatus (الحقل المعلوماتي الخام فقط) تلقائيًا لكل واحدة. **لا
+// يُغيّر حالة الطلب نفسها (status) تلقائيًا عمدًا** — نفس مبدأ fetchDhdOrderStatus أعلاه
+// (لا نترجم/نخمّن حالة DHD الخام لحالة نهائية فمتجرنا بلا مفردات DHD الحقيقية مؤكَّدة أولًا)؛
+// هذا يُبقي courierStatus محدَّثًا للمسؤول ليقرر بنفسه، بدل تغيير تلقائي قد يكون خاطئًا على
+// طلب حقيقي. يُشغَّل عبر cron (راجع vercel.json) وأيضًا يدويًا إن لزم.
+export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
+  const orders = await prisma.order.findMany({
+    where: {
+      courierProvider: "DHD",
+      courierTrackingId: { not: null },
+      status: { notIn: ["delivered", "returned", "cancelled"] },
+    },
+    select: { id: true, orderNumber: true, courierTrackingId: true, courierStatus: true },
+  });
+
+  const errors: { orderNumber: string; error: string }[] = [];
+  let updated = 0;
+
+  for (const order of orders) {
+    try {
+      const result = await fetchDhdOrderStatus(order.courierTrackingId!);
+      if (result.status !== order.courierStatus) {
+        await prisma.order.update({ where: { id: order.id }, data: { courierStatus: result.status } });
+        updated += 1;
+      }
+    } catch (error) {
+      errors.push({ orderNumber: order.orderNumber, error: error instanceof Error ? error.message : "خطأ غير معروف" });
+    }
+  }
+
+  return { checked: orders.length, updated, errors };
 }
 
 export class DhdValidationError extends Error {
