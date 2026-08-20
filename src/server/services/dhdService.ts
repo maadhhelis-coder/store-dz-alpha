@@ -48,6 +48,15 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
 
   const data = await res.json();
   const rows: Record<string, unknown>[] = Array.isArray(data) ? data : (data?.data ?? [data]);
+
+  // مصفوفة فارغة (`{"data":[]}`) رد حقيقي وشائع من DHD نفسها — يعني ببساطة أنها لم
+  // تُسجّل بعد أي بيانات حالة لرقم التتبع هذا (شحنة جديدة لم يلتقطها المندوب بعد
+  // عادةً)، وليس عطلًا فطلبنا. رسالة واضحة للمسؤول (تُعرَض مباشرة فواجهة الإدارة)
+  // بدل تفريغ رد JSON خام غير مفهوم.
+  if (rows.length === 0) {
+    return { tracking: trackingId, status: "لم تُسجَّل حالة الشحنة بعد عند DHD" };
+  }
+
   const row =
     rows.find((r) => r.tracking === trackingId || r.order_tracking === trackingId || r.code === trackingId) ??
     rows[0];
@@ -60,11 +69,17 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
     (row?.etat as string | undefined);
 
   if (!status) {
-    return { tracking: trackingId, status: `غير معروف — رد الخادم: ${JSON.stringify(data).slice(0, 200)}` };
+    return { tracking: trackingId, status: `شكل رد غير متوقّع من DHD: ${JSON.stringify(data).slice(0, 200)}` };
   }
 
   return { tracking: trackingId, status };
 }
+
+// حالة "لم تُسجَّل بعد" مؤقتة بطبيعتها (تعكس أن DHD لم تُحدِّث الشحنة بعد، وليس أن
+// حالتنا المخزَّنة خاطئة) — إن كانت لدينا بالفعل حالة حقيقية سابقة مختلفة، لا نستبدلها
+// بهذه الرسالة المؤقتة عند مزامنة لاحقة تُرجع نفس الرد الفارغ مجددًا (يمنع تراجع
+// المعلومة المعروضة للمسؤول من حالة حقيقية إلى "غير معروفة" بسبب رد عابر فارغ).
+const PENDING_DHD_STATUS = "لم تُسجَّل حالة الشحنة بعد عند DHD";
 
 export type DhdStatusSyncResult = {
   checked: number;
@@ -94,7 +109,11 @@ export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
   for (const order of orders) {
     try {
       const result = await fetchDhdOrderStatus(order.courierTrackingId!);
-      if (result.status !== order.courierStatus) {
+      const isRegressionToPending =
+        result.status === PENDING_DHD_STATUS &&
+        !!order.courierStatus &&
+        order.courierStatus !== PENDING_DHD_STATUS;
+      if (result.status !== order.courierStatus && !isRegressionToPending) {
         await prisma.order.update({ where: { id: order.id }, data: { courierStatus: result.status } });
         updated += 1;
       }
