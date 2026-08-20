@@ -1,6 +1,6 @@
 import { test, expect, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
-import { e2ePhone, e2eLastName } from "./support/testData";
+import { e2ePhone, e2eLastName, e2eVisitorId } from "./support/testData";
 import {
   getActiveWilaya,
   createTestProduct,
@@ -144,40 +144,34 @@ test.describe("رحلة الشراء الأساسية", () => {
     expect(order!.customerLastName).toBe(lastName);
   });
 
-  test("كوبون خصم صالح: يُطبَّق فعليًا ويُخفِّض المجموع فقاعدة البيانات", async ({ page }) => {
+  // خانة كود الخصم حُذفت من نافذة الطلب فالواجهة (لم تعد جزءًا من رحلة الزبون العادية)،
+  // لكن /api/orders لا يزال يقبل couponCode فعليًا (قد يُستعمل من قنوات أخرى مستقبلًا،
+  // مثل طلب يدوي عبر واتساب) — لذا يبقى هذا الاختبار على مستوى API مباشرة بدل الواجهة.
+  test("كوبون خصم صالح عبر API: يُطبَّق فعليًا ويُخفِّض المجموع فقاعدة البيانات", async ({ request }) => {
     const wilaya = await getActiveWilaya();
     const product = await createTestProduct({ inventoryCount: 10, priceDzd: 4000 });
     const coupon = await createTestCoupon({ type: "fixed", value: 500 });
 
-    await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
+    const res = await request.post("/api/orders", {
+      data: {
+        firstName: "زبون",
+        lastName: e2eLastName(),
+        phone: e2ePhone(),
+        wilayaCode: wilaya.code,
+        commune: "بلدية اختبار",
+        deliveryOption: "home",
+        address: "شارع الاختبار، رقم 1",
+        productSlug: product.slug,
+        quantity: 1,
+        couponCode: coupon.code,
+        visitorId: e2eVisitorId(),
+      },
+    });
 
-    const lastName = e2eLastName();
-    const phone = e2ePhone();
-    await page.getByTestId("order-first-name").fill("زبون");
-    await page.getByTestId("order-last-name").fill(lastName);
-    await page.getByTestId("order-phone").fill(phone);
-    await selectOrderWilaya(page, wilaya.code);
-    const communeEl = page.getByTestId("order-commune");
-    if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
-      await communeEl.selectOption({ index: 1 });
-    } else {
-      await communeEl.fill("بلدية اختبار");
-    }
-    const addressField = page.getByTestId("order-address");
-    if (await addressField.isVisible().catch(() => false)) {
-      await addressField.fill("شارع الاختبار، رقم 1");
-    }
+    expect(res.status()).toBe(201);
+    const body = await res.json();
 
-    await page.getByTestId("order-coupon-input").fill(coupon.code);
-    await page.getByTestId("order-coupon-apply").click();
-    await expect(page.getByText("تم تطبيق كود الخصم بنجاح")).toBeVisible({ timeout: 10_000 });
-
-    await page.getByTestId("order-submit").click();
-    await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
-
-    const orderNumberText = (await page.getByTestId("order-number").textContent())!.trim();
-    const order = await testPrisma.order.findFirstOrThrow({ where: { orderNumber: orderNumberText } });
+    const order = await testPrisma.order.findFirstOrThrow({ where: { orderNumber: body.orderNumber } });
     expect(order.couponCode).toBe(coupon.code);
     expect(order.discountDzd).toBe(500);
     expect(order.totalDzd).toBe(order.itemsSubtotalDzd + order.deliveryPriceDzd - 500);

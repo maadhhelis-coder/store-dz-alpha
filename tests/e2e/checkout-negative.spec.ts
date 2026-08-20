@@ -17,36 +17,32 @@ test.describe("رفض الطلبات غير الصحيحة", () => {
     await expect(page.getByText("نفذ من المخزون").first()).toBeVisible();
   });
 
-  test("كود خصم غير موجود: يُرفض بوضوح ولا يُطبَّق على المجموع", async ({ page }) => {
-    const product = await createTestProduct({ inventoryCount: 5, priceDzd: 3000 });
+  // خانة كود الخصم حُذفت من نافذة الطلب فالواجهة، لكن /api/coupons/validate يبقى مسارًا
+  // عامًا حقيقيًا (قد يُستدعى من قنوات أخرى مستقبلًا) — لذا يبقى الاختبار على مستوى API.
+  test("كود خصم غير موجود عبر API: يُرفض بوضوح ولا يُعتبر صالحًا", async ({ request }) => {
+    const res = await request.post("/api/coupons/validate", {
+      data: { code: "CODE-GHAIR-MAWJOUD-999", subtotalDzd: 3000 },
+    });
 
-    await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
-    await page.getByTestId("order-coupon-input").fill("CODE-GHAIR-MAWJOUD-999");
-    await page.getByTestId("order-coupon-apply").click();
-
-    await expect(page.getByText("كود الخصم غير صالح")).toBeVisible({ timeout: 10_000 });
-
-    // لا نُكمل الطلب هنا (خارج نطاق هذا الاختبار) — الهدف إثبات أن كود خصم غير موجود
-    // لا يُقبَل صامتًا، فقط ذلك.
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(false);
   });
 
-  test("كود خصم منتهي الصلاحية: يُرفض ولا يُخصَم شيء لو استُعمل الطلب رغم ذلك", async ({ page }) => {
-    const product = await createTestProduct({ inventoryCount: 5, priceDzd: 3000 });
+  test("كود خصم منتهي الصلاحية عبر API: يُرفض ولا يُخصَم شيء ولا يُستهلك", async ({ request }) => {
     const expiredCoupon = await createTestCoupon({
       type: "fixed",
       value: 500,
       expiresAt: new Date(Date.now() - 24 * 60 * 60 * 1000), // بالأمس
     });
 
-    await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
-    await page.getByTestId("order-coupon-input").fill(expiredCoupon.code);
-    await page.getByTestId("order-coupon-apply").click();
+    const res = await request.post("/api/coupons/validate", {
+      data: { code: expiredCoupon.code, subtotalDzd: 3000 },
+    });
 
-    await expect(page.locator('[data-testid="order-coupon-input"]').locator("..").getByText(/./)).toBeVisible();
-    // رسالة الخطأ يجب أن تظهر (وليس "تم تطبيق الخصم بنجاح")
-    await expect(page.getByText("تم تطبيق كود الخصم بنجاح")).not.toBeVisible();
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.valid).toBe(false);
 
     const couponAfter = await testPrisma.coupon.findUniqueOrThrow({ where: { id: expiredCoupon.id } });
     expect(couponAfter.usedCount).toBe(0);

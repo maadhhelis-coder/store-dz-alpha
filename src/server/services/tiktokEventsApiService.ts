@@ -32,9 +32,16 @@ async function sendTikTokEvent(eventName: string, order: TikTokEventOrderContext
     if (!settings.tiktokPixelId || !settings.tiktokEventsApiAccessToken) return;
     const accessToken = decryptSecret(settings.tiktokEventsApiAccessToken);
 
+    // TIKTOK_EVENTS_TEST_CODE: يُضبط مؤقتًا فمتغيرات البيئة فقط أثناء التحقق عبر صفحة
+    // Test Events فتيك توك — تيك توك يستثني أي حدث يحمل هذا الحقل من التحسين الحقيقي
+    // للحملات، فتثبيته بشكل دائم فالكود يُعطّل صامتًا تحسين الإعلانات الفعلي. يجب حذف
+    // هذا المتغيّر من الإنتاج فور نجاح التحقق فصفحة Test Events.
+    const testEventCode = process.env.TIKTOK_EVENTS_TEST_CODE || undefined;
+
     const payload = {
       event_source: "web",
       event_source_id: settings.tiktokPixelId,
+      ...(testEventCode ? { test_event_code: testEventCode } : {}),
       data: [
         {
           event: eventName,
