@@ -31,7 +31,8 @@ async function runInBatches<T>(items: T[], batchSize: number, run: (item: T) => 
 }
 
 // يجلب أداء كل إعلان حقيقي من Meta Marketing API (Facebook + Instagram معًا عبر
-// breakdowns=publisher_platform) — clicks + spend لكل ad_name، ويحفظها في AdSpendEntry.
+// breakdowns=publisher_platform) — clicks + spend + impressions/CTR/CPC/CPM ومعرّفات
+// الحملة/المجموعة الإعلانية/الإعلان لكل ad_name، ويحفظها فـAdSpendEntry.
 async function syncMetaAds(): Promise<{ synced: number; error: string | null }> {
   const settings = await getSiteSettings();
   if (!settings.metaAdAccountId || !settings.metaAdsInsightsAccessToken) {
@@ -43,7 +44,8 @@ async function syncMetaAds(): Promise<{ synced: number; error: string | null }> 
     const accountId = settings.metaAdAccountId.replace(/^act_/, "");
     const params = new URLSearchParams({
       level: "ad",
-      fields: "ad_name,spend,clicks",
+      fields:
+        "ad_name,ad_id,adset_id,campaign_id,campaign_name,spend,clicks,impressions,ctr,cpc,cpm",
       breakdowns: "publisher_platform",
       time_range: JSON.stringify({ since, until }),
       access_token: decryptSecret(settings.metaAdsInsightsAccessToken),
@@ -57,21 +59,40 @@ async function syncMetaAds(): Promise<{ synced: number; error: string | null }> 
       return { synced: 0, error: data?.error?.message ?? `Meta API error (${res.status})` };
     }
 
-    const rows: { ad_name?: string; spend?: string; clicks?: string; publisher_platform?: string }[] =
-      data.data ?? [];
+    type MetaInsightRow = {
+      ad_name?: string;
+      ad_id?: string;
+      adset_id?: string;
+      campaign_id?: string;
+      campaign_name?: string;
+      spend?: string;
+      clicks?: string;
+      impressions?: string;
+      ctr?: string;
+      cpc?: string;
+      cpm?: string;
+      publisher_platform?: string;
+    };
+    const rows: MetaInsightRow[] = data.data ?? [];
 
     const validRows = rows.filter(
-      (row): row is typeof row & { ad_name: string; publisher_platform: "facebook" | "instagram" } =>
+      (row): row is MetaInsightRow & { ad_name: string; publisher_platform: "facebook" | "instagram" } =>
         (row.publisher_platform === "facebook" || row.publisher_platform === "instagram") && !!row.ad_name,
     );
 
     await runInBatches(validRows, SYNC_BATCH_SIZE, (row) =>
-      upsertSyncedAdSpend(
-        row.publisher_platform,
-        row.ad_name,
-        Math.round(Number(row.clicks ?? 0)),
-        Math.round(Number(row.spend ?? 0)),
-      ).then(() => undefined),
+      upsertSyncedAdSpend(row.publisher_platform, row.ad_name, {
+        clicks: Math.round(Number(row.clicks ?? 0)),
+        spendDzd: Math.round(Number(row.spend ?? 0)),
+        impressions: row.impressions !== undefined ? Math.round(Number(row.impressions)) : undefined,
+        ctrPercent: row.ctr !== undefined ? Number(row.ctr) : undefined,
+        cpcDzd: row.cpc !== undefined ? Math.round(Number(row.cpc)) : undefined,
+        cpmDzd: row.cpm !== undefined ? Math.round(Number(row.cpm)) : undefined,
+        campaignId: row.campaign_id,
+        campaignName: row.campaign_name,
+        adId: row.ad_id,
+        adSetId: row.adset_id,
+      }).then(() => undefined),
     );
 
     return { synced: validRows.length, error: null };
@@ -80,8 +101,8 @@ async function syncMetaAds(): Promise<{ synced: number; error: string | null }> 
   }
 }
 
-// يجلب أداء كل إعلان حقيقي من TikTok Marketing API — clicks + spend لكل ad_name،
-// ويحفظها في AdSpendEntry.
+// يجلب أداء كل إعلان حقيقي من TikTok Marketing API — clicks + spend + impressions/CTR/CPC/CPM
+// ومعرّفات الحملة/المجموعة الإعلانية لكل ad_name، ويحفظها فـAdSpendEntry.
 async function syncTikTokAds(): Promise<{ synced: number; error: string | null }> {
   const settings = await getSiteSettings();
   if (!settings.tiktokAdvertiserId || !settings.tiktokAdsReportAccessToken) {
@@ -101,7 +122,18 @@ async function syncTikTokAds(): Promise<{ synced: number; error: string | null }
         report_type: "BASIC",
         data_level: "AUCTION_AD",
         dimensions: ["ad_id"],
-        metrics: ["ad_name", "spend", "clicks"],
+        metrics: [
+          "ad_name",
+          "spend",
+          "clicks",
+          "impressions",
+          "ctr",
+          "cpc",
+          "cpm",
+          "campaign_id",
+          "campaign_name",
+          "adgroup_id",
+        ],
         start_date: since,
         end_date: until,
         page: 1,
@@ -114,17 +146,38 @@ async function syncTikTokAds(): Promise<{ synced: number; error: string | null }
       return { synced: 0, error: data?.message ?? `TikTok API error (${res.status})` };
     }
 
-    const rows: { metrics?: { ad_name?: string; spend?: string; clicks?: string } }[] = data.data?.list ?? [];
+    type TikTokReportRow = {
+      metrics?: {
+        ad_name?: string;
+        spend?: string;
+        clicks?: string;
+        impressions?: string;
+        ctr?: string;
+        cpc?: string;
+        cpm?: string;
+        campaign_id?: string;
+        campaign_name?: string;
+        adgroup_id?: string;
+      };
+    };
+    const rows: TikTokReportRow[] = data.data?.list ?? [];
 
-    const validRows = rows.filter((row): row is typeof row & { metrics: { ad_name: string } } => !!row.metrics?.ad_name);
+    const validRows = rows.filter(
+      (row): row is TikTokReportRow & { metrics: { ad_name: string } } => !!row.metrics?.ad_name,
+    );
 
     await runInBatches(validRows, SYNC_BATCH_SIZE, (row) =>
-      upsertSyncedAdSpend(
-        "tiktok",
-        row.metrics.ad_name,
-        Math.round(Number(row.metrics?.clicks ?? 0)),
-        Math.round(Number(row.metrics?.spend ?? 0)),
-      ).then(() => undefined),
+      upsertSyncedAdSpend("tiktok", row.metrics.ad_name, {
+        clicks: Math.round(Number(row.metrics?.clicks ?? 0)),
+        spendDzd: Math.round(Number(row.metrics?.spend ?? 0)),
+        impressions: row.metrics?.impressions !== undefined ? Math.round(Number(row.metrics.impressions)) : undefined,
+        ctrPercent: row.metrics?.ctr !== undefined ? Number(row.metrics.ctr) : undefined,
+        cpcDzd: row.metrics?.cpc !== undefined ? Math.round(Number(row.metrics.cpc)) : undefined,
+        cpmDzd: row.metrics?.cpm !== undefined ? Math.round(Number(row.metrics.cpm)) : undefined,
+        campaignId: row.metrics?.campaign_id,
+        campaignName: row.metrics?.campaign_name,
+        adSetId: row.metrics?.adgroup_id,
+      }).then(() => undefined),
     );
 
     return { synced: validRows.length, error: null };
