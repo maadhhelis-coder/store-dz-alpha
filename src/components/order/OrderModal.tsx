@@ -23,7 +23,6 @@ import {
 } from "@/lib/orders";
 import { useProductOffer } from "@/hooks/useProductOffer";
 import { useDeliveryWilayas } from "@/hooks/useDeliveryWilayas";
-import { useCouponValidation } from "@/hooks/useCouponValidation";
 
 type OrderModalProps = {
   product: Product;
@@ -200,12 +199,7 @@ export default function OrderModal({
   const productLineTotal = unitPrice * quantity;
   const offerApplied = offerAccepted && offer ? offer.offerPriceDzd : 0;
 
-  const { couponInput, setCouponInput, coupon, setCoupon, validateCoupon } = useCouponValidation(
-    `${productLineTotal}:${offerApplied}`,
-  );
-
-  const discountDzd = coupon.status === "valid" ? coupon.discountDzd : 0;
-  const total = Math.max(0, productLineTotal + (deliveryPrice ?? 0) + offerApplied - discountDzd);
+  const total = Math.max(0, productLineTotal + (deliveryPrice ?? 0) + offerApplied);
 
   function updateField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
@@ -272,7 +266,6 @@ export default function OrderModal({
       ...(offerAccepted && offer
         ? { offerProductName: offer.offerProduct.name, offerPriceDzd: offer.offerPriceDzd }
         : {}),
-      ...(coupon.status === "valid" ? { couponCode: coupon.code, discountDzd: coupon.discountDzd } : {}),
     };
 
     setLastOrder(order);
@@ -296,7 +289,6 @@ export default function OrderModal({
         ...(selectedVariantId ? { variantId: selectedVariantId } : {}),
         quantity: order.quantity,
         ...(offerAccepted && offer ? { offerId: offer.id } : {}),
-        ...(coupon.status === "valid" ? { couponCode: coupon.code } : {}),
         ...(attribution.platform ? { platform: attribution.platform } : {}),
         ...(attribution.creativeName ? { creativeName: attribution.creativeName } : {}),
         visitorId: getOrCreateVisitorId(),
@@ -307,8 +299,6 @@ export default function OrderModal({
         ...order,
         deliveryPrice: result.deliveryPriceDzd,
         totalPrice: result.totalDzd,
-        discountDzd: result.discountDzd,
-        couponCode: result.couponCode ?? undefined,
         // السيرفر هو المصدر الموثوق: لو تجاهل العرض بصمت (محذوف/معطّل/نافد المخزون بين
         // لحظة الفتح ولحظة الإرسال) لا نعرض منتجًا لن يُشحَن أبدًا فشاشة التأكيد.
         ...(!result.offerIncluded ? { offerProductName: undefined, offerPriceDzd: undefined } : {}),
@@ -533,9 +523,9 @@ export default function OrderModal({
                         type="button"
                         onClick={() => updateField("quantity", String(Math.max(1, quantity - 1)))}
                         aria-label="إنقاص الكمية"
-                        className="w-10 h-10 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors"
+                        className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors"
                       >
-                        <Minus className="w-4 h-4" />
+                        <Minus className="w-5 h-5" />
                       </button>
                       <input
                         type="number"
@@ -550,7 +540,7 @@ export default function OrderModal({
                               : raw;
                           updateField("quantity", capped);
                         }}
-                        className={inputClass(!!errors.quantity) + " text-center"}
+                        className={inputClass(!!errors.quantity) + " h-12 text-center text-xl font-bold"}
                         data-testid="order-quantity"
                       />
                       <button
@@ -563,9 +553,9 @@ export default function OrderModal({
                         }
                         disabled={maxQuantity !== undefined && quantity >= maxQuantity}
                         aria-label="زيادة الكمية"
-                        className="w-10 h-10 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors disabled:opacity-60 disabled:hover:border-gold/25"
+                        className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors disabled:opacity-60 disabled:hover:border-gold/25"
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-5 h-5" />
                       </button>
                     </div>
                     {maxQuantity !== undefined && (
@@ -641,38 +631,6 @@ export default function OrderModal({
                 </label>
               )}
 
-              <Field label="كود الخصم (اختياري)">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={couponInput}
-                    onChange={(e) => {
-                      setCouponInput(e.target.value);
-                      if (coupon.status !== "idle") setCoupon({ status: "idle" });
-                    }}
-                    placeholder="مثال: RAJI3-200"
-                    className={inputClass(coupon.status === "invalid") + " text-right"}
-                    dir="ltr"
-                    data-testid="order-coupon-input"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => validateCoupon(couponInput, productLineTotal + offerApplied)}
-                    disabled={!couponInput.trim() || coupon.status === "checking"}
-                    className="shrink-0 rounded-lg border border-gold/40 text-gold px-4 text-sm font-semibold hover:bg-gold/10 transition-colors disabled:opacity-60"
-                    data-testid="order-coupon-apply"
-                  >
-                    {coupon.status === "checking" ? "..." : "تحقق"}
-                  </button>
-                </div>
-                {coupon.status === "valid" && (
-                  <p className="text-[11px] text-green-400 mt-1">تم تطبيق كود الخصم بنجاح ✓</p>
-                )}
-                {coupon.status === "invalid" && (
-                  <p className="text-[11px] text-red-400 mt-1">{coupon.message}</p>
-                )}
-              </Field>
-
               <div className="rounded-xl gold-border bg-black/40 p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-cream-dim">
                   <span>سعر المنتج {quantity > 1 ? `× ${quantity}` : ""}</span>
@@ -688,12 +646,6 @@ export default function OrderModal({
                   <span>سعر التوصيل</span>
                   <span>{deliveryPrice !== null ? formatPrice(deliveryPrice) : "—"}</span>
                 </div>
-                {discountDzd > 0 && (
-                  <div className="flex justify-between text-green-400">
-                    <span>الخصم</span>
-                    <span>-{formatPrice(discountDzd)}</span>
-                  </div>
-                )}
                 <div className="flex justify-between font-bold text-gold pt-2 border-t border-gold/15">
                   <span>المجموع</span>
                   <span>{formatPrice(total)}</span>
@@ -769,11 +721,6 @@ export default function OrderModal({
                 {lastOrder.wilayaName} — {lastOrder.commune}
                 {lastOrder.address ? ` — ${lastOrder.address}` : ""}
               </p>
-              {!!lastOrder.discountDzd && (
-                <p className="text-green-400">
-                  الخصم ({lastOrder.couponCode}): -{formatPrice(lastOrder.discountDzd)}
-                </p>
-              )}
               <p className="text-gold font-bold">{formatPrice(lastOrder.totalPrice)}</p>
             </div>
 
