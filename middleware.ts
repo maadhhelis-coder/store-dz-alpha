@@ -35,7 +35,14 @@ function buildCspHeader(nonce: string): string {
     // فقط: كل طلب حقيقي منذ تفعيل nonce-based CSP لم يكن يصل لـSheets إطلاقًا، رغم أن
     // الطلب نفسه كان يُحفظ بنجاح فقاعدة البيانات. النطاق الثاني (googleusercontent.com)
     // مطلوب لأن Apps Script Web Apps يُعيد توجيه (302) استجابة fetch الفعلية إليه.
-    "connect-src 'self' https://*.facebook.com https://www.google-analytics.com https://analytics.google.com https://analytics.tiktok.com https://tr.snapchat.com https://sc-static.net https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com",
+    //
+    // https://*.tiktokw.us: نفس الفئة من الأعطال بالضبط، اكتُشفت فعليًا الآن (متصفح حقيقي
+    // فالإنتاج + فحص Console مباشرة، وليس تخمينًا): حزمة TikTok Pixel (events.js، محمَّلة من
+    // analytics.tiktok.com المُدرَج أصلًا) تستدعي داخليًا نطاقًا مختلفًا تمامًا
+    // (analytics-ipv6.tiktokw.us) لإثراء معلومات IP — كان محجوبًا صامتًا برسالة CSP حقيقية
+    // فConsole ("violates... connect-src... blocked")، فتظهر صفحة "Test Events" فتيك توك
+    // فارغة تمامًا رغم أن البكسل نفسه مُهيَّأ بمعرّفه الصحيح (window.ttq موجود فعليًا).
+    "connect-src 'self' https://*.facebook.com https://www.google-analytics.com https://analytics.google.com https://analytics.tiktok.com https://*.tiktokw.us https://tr.snapchat.com https://sc-static.net https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
