@@ -501,69 +501,67 @@ export default function OrderModal({
                 </Field>
               </div>
 
-              <div className={cn("grid gap-3", form.deliveryOption === "home" ? "grid-cols-3" : "grid-cols-1")}>
-                {form.deliveryOption === "home" && (
-                  <div className="col-span-2">
-                    <Field label="العنوان بالتفصيل" error={errors.address}>
-                      <input
-                        type="text"
-                        value={form.address}
-                        onChange={(e) => updateField("address", e.target.value)}
-                        placeholder="الحي، الشارع، رقم المنزل..."
-                        className={inputClass(!!errors.address)}
-                        data-testid="order-address"
-                      />
-                    </Field>
-                  </div>
-                )}
-                <div className={form.deliveryOption === "home" ? "" : "max-w-[180px]"}>
-                  <Field label="الكمية" error={errors.quantity}>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateField("quantity", String(Math.max(1, quantity - 1)))}
-                        aria-label="إنقاص الكمية"
-                        className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors"
-                      >
-                        <Minus className="w-5 h-5" />
-                      </button>
-                      <input
-                        type="number"
-                        min={1}
-                        max={maxQuantity}
-                        value={form.quantity}
-                        onChange={(e) => {
-                          const raw = e.target.value;
-                          const capped =
-                            maxQuantity !== undefined && Number(raw) > maxQuantity
-                              ? String(maxQuantity)
-                              : raw;
-                          updateField("quantity", capped);
-                        }}
-                        className={inputClass(!!errors.quantity) + " h-12 text-center text-xl font-bold"}
-                        data-testid="order-quantity"
-                      />
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateField(
-                            "quantity",
-                            String(maxQuantity !== undefined ? Math.min(maxQuantity, quantity + 1) : quantity + 1),
-                          )
-                        }
-                        disabled={maxQuantity !== undefined && quantity >= maxQuantity}
-                        aria-label="زيادة الكمية"
-                        className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors disabled:opacity-60 disabled:hover:border-gold/25"
-                      >
-                        <Plus className="w-5 h-5" />
-                      </button>
-                    </div>
-                    {maxQuantity !== undefined && (
-                      <p className="text-xs text-cream-dim/80 mt-1">الكمية المتوفرة: {maxQuantity} فقط</p>
-                    )}
-                  </Field>
+              {form.deliveryOption === "home" && (
+                <Field label="العنوان بالتفصيل" error={errors.address}>
+                  <input
+                    type="text"
+                    value={form.address}
+                    onChange={(e) => updateField("address", e.target.value)}
+                    placeholder="الحي، الشارع، رقم المنزل..."
+                    className={inputClass(!!errors.address)}
+                    data-testid="order-address"
+                  />
+                </Field>
+              )}
+
+              <Field label="الكمية" error={errors.quantity}>
+                {/* صف مستقل بعرضه الكامل (وليس عمودًا داخل شبكة مع العنوان) — كان الحقل
+                    يُضغَط لعرض ضئيل جدًا (26px فعليًا) عند مشاركته صفًا مع العنوان، فيختفي
+                    الرقم عمليًا رغم وجوده فالـDOM. راجع أيضًا min-w على الحقل نفسه أسفله. */}
+                <div className="flex items-center gap-2 max-w-[240px]">
+                  <button
+                    type="button"
+                    onClick={() => updateField("quantity", String(Math.max(1, quantity - 1)))}
+                    aria-label="إنقاص الكمية"
+                    className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={maxQuantity}
+                    value={form.quantity}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      const capped =
+                        maxQuantity !== undefined && Number(raw) > maxQuantity
+                          ? String(maxQuantity)
+                          : raw;
+                      updateField("quantity", capped);
+                    }}
+                    className={inputClass(!!errors.quantity) + " h-12 min-w-[64px] text-center text-xl font-bold"}
+                    data-testid="order-quantity"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateField(
+                        "quantity",
+                        String(maxQuantity !== undefined ? Math.min(maxQuantity, quantity + 1) : quantity + 1),
+                      )
+                    }
+                    disabled={maxQuantity !== undefined && quantity >= maxQuantity}
+                    aria-label="زيادة الكمية"
+                    className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors disabled:opacity-60 disabled:hover:border-gold/25"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
                 </div>
-              </div>
+                {maxQuantity !== undefined && (
+                  <p className="text-xs text-cream-dim/80 mt-1">الكمية المتوفرة: {maxQuantity} فقط</p>
+                )}
+              </Field>
 
               <fieldset>
                 <legend className="text-xs text-cream-dim mb-2">نوع التوصيل</legend>
