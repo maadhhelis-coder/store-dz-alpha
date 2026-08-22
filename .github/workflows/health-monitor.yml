@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PROD_URL: https://store-dz-alpha.vercel.app
+  PROD_URL: https://storedz.one
 
 jobs:
   check:
