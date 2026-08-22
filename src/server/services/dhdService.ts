@@ -135,52 +135,55 @@ export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
 }
 
 export type DhdWebhookResult =
-  | { outcome: "no_tracking_in_payload" }
-  | { outcome: "no_status_in_payload"; tracking: string }
-  | { outcome: "order_not_found"; tracking: string }
+  | { outcome: "invalid_payload" }
+  | { outcome: "order_not_found"; tracking: string; reference: string | null }
   | { outcome: "updated" | "unchanged"; tracking: string; orderNumber: string; status: string };
 
-// يستقبل تحديثًا فوريًا (push) من DHD إن وُجد خيار Webhook فلوحة تحكم حسابك عندهم —
-// شكل الحمولة الحقيقي **غير موثَّق علنًا** (بحثنا فعليًا فوثائق EcoTrack/DHD العامة ولم
-// نجد مواصفة webhook منشورة)، لذا نحاول عدة أسماء حقول محتملة لرقم التتبع والحالة (نفس
-// المرشّحين المستعملين فـfetchDhdOrderStatus أعلاه لاستجابة الـpull، لأن كليهما غالبًا
-// من نفس منصة EcoTrack). أي حمولة لا نتعرّف عليها تُسجَّل كاملة فـconsole.error حتى تكشف
-// أول استدعاء حقيقي الشكل الفعلي الدقيق، فنُحكم هذه القراءة لاحقًا بدل التخمين المستمر.
+// شكل الحمولة والتوقيع موثَّقان رسميًا الآن (صفحة "Lire la documentation" فلوحة DHD،
+// منصة EcoTrack) — event بصيغة "order.{action}"، وdata.state.{id,code,title,title_en}،
+// وdata.tracking/data.reference. نستعمل title (الاسم الفرنسي المقروء) كحقل courierStatus
+// المعلوماتي، نفس ما كان يُعرَض سابقًا كنص خام للمسؤول.
+//
+// المطابقة: أولًا بـcourierTrackingId (data.tracking، مصدرها نفس رقم التتبّع الذي أعادته
+// DHD عند إنشاء الشحنة). احتياطيًا بـorderNumber (data.reference) — نُرسله نحن كـ"reference"
+// عند إنشاء كل شحنة (راجع createDhdShipment)، فيُفترض تطابقه دائمًا مع courierTrackingId
+// المحفوظ أصلًا؛ يبقى احتياطًا فقط لحالة نادرة (مثلاً حُفظ tracking خاطئ يدويًا).
+//
+// لا حاجة لقفل idempotency منفصل رغم توصية التوثيق (retries قد تُعيد نفس الحدث): التحديث
+// نفسه idempotent فعليًا — نفس القيمة الواردة مرتين تُعطي "unchanged" فكلتا المرتين
+// (applyDhdCourierStatusUpdate)، بلا أي أثر جانبي إضافي لتكرار نفس الحدث.
 export async function processDhdWebhookPayload(payload: unknown): Promise<DhdWebhookResult> {
-  const body = (payload ?? {}) as Record<string, unknown>;
+  const body = payload as {
+    data?: {
+      tracking?: string;
+      reference?: string;
+      state?: { title?: string };
+    };
+  } | null;
 
-  const tracking =
-    (body.tracking as string | undefined) ??
-    (body.order_tracking as string | undefined) ??
-    (body.code as string | undefined) ??
-    (body.trackingId as string | undefined) ??
-    (body.colis as string | undefined);
-
-  if (!tracking) {
-    console.error("dhd webhook: no recognizable tracking field", JSON.stringify(body).slice(0, 500));
-    return { outcome: "no_tracking_in_payload" };
+  const tracking = body?.data?.tracking;
+  const status = body?.data?.state?.title;
+  if (!tracking || !status) {
+    console.error("dhd webhook: unexpected payload shape", JSON.stringify(payload).slice(0, 500));
+    return { outcome: "invalid_payload" };
   }
+  const reference = body?.data?.reference ?? null;
 
-  const status =
-    (body.status as string | undefined) ??
-    (body.order_status as string | undefined) ??
-    (body.etat as string | undefined) ??
-    (body.new_status as string | undefined) ??
-    (body.state as string | undefined);
-
-  if (!status) {
-    console.error("dhd webhook: no recognizable status field", JSON.stringify(body).slice(0, 500));
-    return { outcome: "no_status_in_payload", tracking };
-  }
-
-  const order = await prisma.order.findFirst({
-    where: { courierProvider: "DHD", courierTrackingId: tracking },
-    select: { id: true, orderNumber: true, courierStatus: true },
-  });
+  const order =
+    (await prisma.order.findFirst({
+      where: { courierProvider: "DHD", courierTrackingId: tracking },
+      select: { id: true, orderNumber: true, courierStatus: true },
+    })) ??
+    (reference
+      ? await prisma.order.findFirst({
+          where: { courierProvider: "DHD", orderNumber: reference },
+          select: { id: true, orderNumber: true, courierStatus: true },
+        })
+      : null);
 
   if (!order) {
-    console.error("dhd webhook: no matching order for tracking", tracking);
-    return { outcome: "order_not_found", tracking };
+    console.error("dhd webhook: no matching order for tracking/reference", tracking, reference);
+    return { outcome: "order_not_found", tracking, reference };
   }
 
   const updated = await applyDhdCourierStatusUpdate(order, status);
