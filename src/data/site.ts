@@ -1,7 +1,7 @@
 export const SITE_NAME = "Store DZ";
 // يُقرأ من NEXT_PUBLIC_SITE_URL — بمجرد شراء دومين نهائي وتعيين المتغير على Vercel، يتحول
 // الموقع بالكامل (sitemap، JsonLd، روابط canonical...) للدومين الجديد بلا أي تعديل كود.
-export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://store-dz-alpha.vercel.app";
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://storedz.one";
 export const SITE_TAGLINE = "منتجات أصلية بضمان حقيقي، توصيل لكل ولايات الجزائر";
 
 export const WHATSAPP_NUMBER = "213562848812";
