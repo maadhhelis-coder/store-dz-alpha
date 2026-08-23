@@ -3,7 +3,6 @@ import Link from "next/link";
 import Hero from "@/components/home/Hero";
 import CategoryTeasers from "@/components/home/CategoryTeasers";
 import FeaturedProducts from "@/components/home/FeaturedProducts";
-import BlogTeaser from "@/components/home/BlogTeaser";
 import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
 import GuaranteeCard from "@/components/trust/GuaranteeCard";
 import SectionHeading from "@/components/shared/SectionHeading";
@@ -53,8 +52,6 @@ export default function Home() {
       {/* قسم الشهادات مُعطَّل مؤقتًا — كانت مراجعات مُلفَّقة بأسماء وتواريخ وهمية على متجر
           بلا زبائن حقيقيين بعد؛ يُعاد تفعيله (Testimonials from "@/components/social-proof/Testimonials")
           فور توفر تقييمات موثقة فعلية من زبائن حقيقيين. */}
-
-      <BlogTeaser />
 
       <section className="container-page py-14 md:py-20">
         <SectionHeading
