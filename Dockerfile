@@ -56,7 +56,12 @@ RUN apk upgrade --no-cache
 # للإصلاح عبر overrides لأنها ليست جزءًا من شجرة تبعيات هذا المشروع. حذفها كليًا من صورة
 # التشغيل (بدل محاولة ترقيعها) يزيل الثغرة فعليًا ويقلّل حجم الصورة أيضًا — لا فائدة تشغيلية
 # من وجود npm فحاوية إنتاجية أصلًا.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+# اكتُشف فعليًا (مراجعة docker-patterns، فحص تقرير Trivy الحقيقي لهذه الصورة بالذات): السطر
+# السابق كان يحذف رابط corepack الرمزي (/usr/local/bin/corepack) فقط، ويترك مجلد الحزمة
+# الفعلي (/usr/local/lib/node_modules/corepack) كاملاً فالصورة النهائية — Trivy مسحه فعليًا
+# ضمن الصورة رغم أن التعليق أعلاه ينص صراحة على إزالة corepack "كليًا". صفر ثغرات فيه حاليًا،
+# لكنه وزن ميت لا فائدة تشغيلية منه (نفس منطق npm/npx تمامًا) ولا يطابق النية الموثَّقة أعلاه.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -1,0 +1,14 @@
+# تراكب تطوير اختياري (dev-only) — يكشف منفذ Postgres على المضيف للوصول المحلي بأدوات خارج
+# الحاويات (مثل "npx prisma studio" أو أي عميل psql محلي). غير مقصود للإنتاج ولا للـCI إطلاقًا
+# (docker-verify.yml لا يستعمله) — راجع التعليق فـdocker-compose.yml (service "db") الذي
+# يوثّق هذا الاستعمال بالضبط:
+#   docker compose -f docker-compose.yml -f docker-compose.override.dev.yml up
+#
+# اكتُشف فعليًا (مراجعة docker-patterns): هذا الملف كان مُشارًا إليه بذلك التعليق منذ البداية
+# لكنه لم يُنشأ فعليًا قط — أي مطوّر يتّبع التعليق حرفيًا يصطدم بخطأ "file not found" من
+# docker compose نفسه.
+
+services:
+  db:
+    ports:
+      - "127.0.0.1:5432:5432"
