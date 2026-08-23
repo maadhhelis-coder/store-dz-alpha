@@ -1,0 +1,51 @@
+name: TEMP Override Dev Verify
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Bring up db with the dev override applied
+        run: docker compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d db
+
+      - name: Wait for db to be healthy
+        run: |
+          for i in $(seq 1 20); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-db-1 2>/dev/null || echo starting)
+            echo "attempt $i: db health = $status"
+            if [ "$status" = "healthy" ]; then exit 0; fi
+            sleep 3
+          done
+          echo "::error::db never became healthy"
+          docker compose logs db
+          exit 1
+
+      - name: Confirm the host can actually reach Postgres on 127.0.0.1:5432 (the whole point of the override)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+          PGPASSWORD=storedz psql -h 127.0.0.1 -p 5432 -U storedz -d storedz -c "SELECT 1;"
+
+      - name: Confirm it is NOT reachable without the override (sanity check the override is doing something)
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.override.dev.yml down --remove-orphans
+          docker compose -f docker-compose.yml up -d db
+          for i in $(seq 1 20); do
+            status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-db-1 2>/dev/null || echo starting)
+            if [ "$status" = "healthy" ]; then break; fi
+            sleep 3
+          done
+          if PGPASSWORD=storedz psql -h 127.0.0.1 -p 5432 -U storedz -d storedz -c "SELECT 1;" 2>/tmp/no-override-attempt.log; then
+            echo "::error::db was reachable from the host WITHOUT the override applied — the base docker-compose.yml is leaking the port, or the override isn't the thing making it reachable"
+            exit 1
+          fi
+          echo "confirmed: without the override, host cannot reach db (as expected) —"
+          cat /tmp/no-override-attempt.log
+
+      - name: Cleanup
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.dev.yml down -v --remove-orphans || true
