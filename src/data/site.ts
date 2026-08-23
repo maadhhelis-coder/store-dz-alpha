@@ -16,8 +16,6 @@ export const WILAYA_COUNT = 58;
 export const NAV_LINKS = [
   { href: "/", label: "الرئيسية" },
   { href: "/products", label: "المنتجات" },
-  { href: "/blog", label: "المدونة" },
-  { href: "/about", label: "من نحن" },
   { href: "/faq", label: "الأسئلة الشائعة" },
   { href: "/contact", label: "تواصل معنا" },
 ] as const;

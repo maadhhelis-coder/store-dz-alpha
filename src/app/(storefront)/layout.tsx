@@ -5,7 +5,6 @@ import AnnouncementBar from "@/components/layout/AnnouncementBar";
 import PageViewTracker from "@/components/layout/PageViewTracker";
 import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
-import WhatsAppFloatingButton from "@/components/layout/WhatsAppFloatingButton";
 import OrderModalProvider from "@/components/order/OrderModalProvider";
 import JsonLd from "@/components/shared/JsonLd";
 import { organizationJsonLd } from "@/lib/seo";
@@ -63,7 +62,6 @@ export default async function StorefrontLayout({
         facebookUrl={settings.facebookUrl}
         tiktokUrl={settings.tiktokUrl}
       />
-      <WhatsAppFloatingButton />
     </OrderModalProvider>
   );
 }

@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/data/site";
 import { getPublishedProducts, getCategories } from "@/lib/storefrontData";
-import { getAllBlogPosts } from "@/lib/blog";
 import { prisma } from "@/server/db/prisma";
 
 // force-dynamic بدل revalidate الثابت: sitemap.ts (خلافًا لصفحات (storefront) العادية) مسار
@@ -27,8 +26,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: "weekly", priority: 1 },
     { url: `${SITE_URL}/products`, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${SITE_URL}/blog`, changeFrequency: "weekly", priority: 0.7 },
-    { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE_URL}/faq`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE_URL}/privacy-policy`, changeFrequency: "yearly", priority: 0.2 },
@@ -49,12 +46,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  const blogRoutes: MetadataRoute.Sitemap = getAllBlogPosts().map((post) => ({
-    url: `${SITE_URL}/blog/${post.slug}`,
-    lastModified: post.updatedDate ?? post.publishedDate,
-    changeFrequency: "monthly",
-    priority: 0.6,
-  }));
-
-  return [...staticRoutes, ...productRoutes, ...categoryRoutes, ...blogRoutes];
+  return [...staticRoutes, ...productRoutes, ...categoryRoutes];
 }

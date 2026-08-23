@@ -9,7 +9,6 @@ import {
   WHATSAPP_NUMBER,
 } from "@/data/site";
 import type { Product } from "@/data/products";
-import type { BlogFrontmatter } from "@/lib/blog";
 
 type BuildMetadataInput = {
   title: string;
@@ -59,7 +58,6 @@ export function organizationJsonLd() {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
-    logo: `${SITE_URL}/images/brand/logo-on-black.png`,
     description: SITE_TAGLINE,
     telephone: WHATSAPP_DISPLAY,
     contactPoint: {
@@ -105,30 +103,6 @@ export function productJsonLd(product: Product) {
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
       url: `${SITE_URL}/products/${product.slug}`,
-    },
-  };
-}
-
-export function articleJsonLd(post: BlogFrontmatter) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: post.title,
-    description: post.metaDescription,
-    image: `${SITE_URL}${post.coverImage}`,
-    datePublished: post.publishedDate,
-    dateModified: post.updatedDate ?? post.publishedDate,
-    author: {
-      "@type": "Organization",
-      name: post.author,
-    },
-    publisher: {
-      "@type": "Organization",
-      name: SITE_NAME,
-      logo: {
-        "@type": "ImageObject",
-        url: `${SITE_URL}/images/brand/logo-on-black.png`,
-      },
     },
   };
 }
