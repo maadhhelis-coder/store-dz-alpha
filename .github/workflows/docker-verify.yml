@@ -74,6 +74,14 @@ jobs:
       - name: Step 2 — Build every image from scratch (no cache)
         run: docker compose build --no-cache
 
+      - name: Step 2b — Record final production image size (regression signal, not a hard limit)
+        run: |
+          docker images store-dz-app:latest --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}"
+          SIZE_BYTES=$(docker inspect store-dz-app:latest --format='{{.Size}}')
+          SIZE_MB=$((SIZE_BYTES / 1024 / 1024))
+          echo "store-dz-app:latest size: ${SIZE_MB} MB (${SIZE_BYTES} bytes)"
+          echo "IMAGE_SIZE_MB=${SIZE_MB}" >> "$GITHUB_ENV"
+
       - name: Step 3 — Bring the full stack up (db + redis + redis-http + migrate + app)
         run: docker compose up -d
 
@@ -229,6 +237,57 @@ jobs:
           echo "::error::app did not become healthy again after restart/recreate"
           docker compose logs app
           exit 1
+
+      - name: "Step 6b — Resilience: app already running, DB becomes temporarily unavailable, then recovers"
+        run: |
+          # سيناريو حقيقي أشيع بكثير من "DB معطّلة وقت الإقلاع نفسه" (الذي يمنعه أصلاً
+          # depends_on: condition: service_healthy فdocker-compose.yml — app لا يبدأ إطلاقًا
+          # قبل db صحية): db تتعطّل مؤقتًا بينما app يعمل بالفعل — الأشيع فعليًا فأي نشر حقيقي
+          # (إعادة تشغيل DB، صيانة، انقطاع شبكي عابر).
+          echo "--- stopping db while app is already running and healthy ---"
+          docker compose stop db
+          sleep 3
+
+          echo "--- app container itself must stay Up (not crash/exit) despite DB being down ---"
+          APP_STATE=$(docker inspect --format='{{.State.Status}}' store-dz-app-1)
+          echo "app container state: $APP_STATE"
+          if [ "$APP_STATE" != "running" ]; then
+            echo "::error::app container crashed/exited just because DB became unavailable (state: $APP_STATE) — should stay running and report unhealthy instead"
+            docker compose logs app
+            exit 1
+          fi
+
+          echo "--- health endpoint must honestly report NOT ok while DB is down (no false-positive 200) ---"
+          HEALTH_CODE=$(curl -s -o /tmp/health-db-down.json -w "%{http_code}" http://localhost:3000/api/health)
+          cat /tmp/health-db-down.json
+          echo "health status while db is down: $HEALTH_CODE"
+          if [ "$HEALTH_CODE" = "200" ]; then
+            echo "::error::/api/health returned 200 while the database is actually down — false-positive readiness"
+            exit 1
+          fi
+
+          echo "--- bringing db back ---"
+          docker compose start db
+          for i in $(seq 1 20); do
+            db_status=$(docker inspect --format='{{.State.Health.Status}}' store-dz-db-1 2>/dev/null || echo starting)
+            if [ "$db_status" = "healthy" ]; then break; fi
+            sleep 3
+          done
+
+          echo "--- app must recover on its own (no restart needed) once db is back ---"
+          RECOVERED=0
+          for i in $(seq 1 15); do
+            HEALTH_CODE=$(curl -s -o /tmp/health-db-back.json -w "%{http_code}" http://localhost:3000/api/health)
+            if [ "$HEALTH_CODE" = "200" ]; then RECOVERED=1; break; fi
+            sleep 2
+          done
+          if [ "$RECOVERED" != "1" ]; then
+            echo "::error::app did not recover on its own after the database came back (last status: $HEALTH_CODE) — it may have needed a restart, meaning connections weren't retried"
+            cat /tmp/health-db-back.json
+            docker compose logs app
+            exit 1
+          fi
+          echo "app recovered on its own once db was healthy again — no restart required"
 
       - name: Step 7 — Confirm persistent data survives a full container teardown (volumes kept)
         run: |
