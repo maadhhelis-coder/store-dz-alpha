@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+
+// راجع نفس التعليق فـsrc/app/api/orders/route.ts — order_status_changed يمر بنفس مسار
+// إعادة المحاولة (~44 ثانية أقصى) لإيقاظ مستقبِل Webhook نائم على Render.
+export const maxDuration = 60;
 import { requireAdminOrApiKey } from "@/lib/auth/requireAdminOrApiKey";
 import { orderStatusSchema } from "@/lib/validation/orderSchema";
 import { updateOrderStatus, OrderNotFoundError, InsufficientStockError } from "@/server/services/ordersService";

@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import { orderCreateSchema } from "@/lib/validation/orderSchema";
+
+// اكتُشف فعليًا (إصلاح موثوقية Webhook تأكيد الطلب عبر واتساب): إرسال order_created
+// لبوت واتساب (بعد after() فـwebhooksService.ts) قد يصل لمحاولتين بمهلة 20 ثانية لكل
+// واحدة + تأخير 4 ثوانٍ بينهما (~44 ثانية أقصى) عند إيقاظ خدمة نائمة على Render — القيمة
+// الافتراضية (10 ثوانٍ) كانت ستقطع هذا العمل الخلفي قبل اكتماله.
+export const maxDuration = 60;
 import { checkOrderRateLimit } from "@/server/services/rateLimitService";
 import { getClientIp } from "@/lib/getClientIp";
 import { withIdempotency, IdempotencyConflictError, type IdempotentResult } from "@/lib/idempotency";
