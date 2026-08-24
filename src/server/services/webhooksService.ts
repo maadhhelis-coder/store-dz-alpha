@@ -127,6 +127,48 @@ export function verifyWebhookSignature(
   return timingSafeEqual(a, b);
 }
 
+const WEBHOOK_ATTEMPT_TIMEOUT_MS = 20_000;
+const WEBHOOK_RETRY_DELAY_MS = 4_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// محاولة إرسال واحدة (بلا إعادة محاولة) — تُستدعى مرتين كحد أقصى من الحلقة أدناه.
+async function attemptWebhookDelivery(
+  webhook: { url: string; secret: string },
+  event: WebhookEvent,
+  payload: Record<string, unknown>,
+): Promise<{ status: number; redirected: boolean }> {
+  // إعادة تحقق SSRF كاملة هنا (وليس فقط وقت التسجيل) — الحماية الحقيقية ضد DNS rebinding:
+  // الفحص وقت التسجيل لا يضمن شيئًا بعد ذلك بدقائق/أيام.
+  await assertPublicWebhookHost(webhook.url);
+
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const body = JSON.stringify({ event, data: payload, sentAt: new Date().toISOString() });
+  const rawSecret = decryptSecret(webhook.secret);
+  const signature = signPayload(rawSecret, timestamp, body);
+
+  const res = await fetch(webhook.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Webhook-Timestamp": timestamp,
+      "X-Webhook-Signature": `sha256=${signature}`,
+    },
+    body,
+    // اكتُشف فعليًا: مستقبِلات مستضافة على منصات Free Tier (مثل Render) تنام بعد فترة
+    // خمول وتحتاج 30-60 ثانية Cold Start عند أول طلب — 8 ثوانٍ (القيمة السابقة) كانت
+    // تفشل بشكل شبه مضمون فهذه الحالة (status=0 حقيقي فسجل الإرسال). 20 ثانية تكفي
+    // لمعظم حالات Cold Start الفعلية بلا إبقاء الاتصال مفتوحًا بلا داعٍ.
+    signal: AbortSignal.timeout(WEBHOOK_ATTEMPT_TIMEOUT_MS),
+    // لا نتبع أي redirect تلقائيًا — رابط عام يُحوّل (302) لعنوان داخلي كان سيتجاوز
+    // فحص SSRF أعلاه كليًا لو تُبع تلقائيًا. أي استجابة تحويل تُعامَل كفشل إرسال.
+    redirect: "manual",
+  });
+  return { status: res.status, redirected: res.status >= 300 && res.status < 400 };
+}
+
 async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string, unknown>) {
   if (isE2ETestRun()) {
     logE2ESkip(`webhook dispatch for event ${event}`);
@@ -137,38 +179,33 @@ async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string,
   await Promise.all(
     webhooks.map(async (webhook) => {
       let status = 0;
-      try {
-        // إعادة تحقق SSRF كاملة هنا (وليس فقط وقت التسجيل) — الحماية الحقيقية ضد
-        // DNS rebinding: الفحص وقت التسجيل لا يضمن شيئًا بعد ذلك بدقائق/أيام.
-        await assertPublicWebhookHost(webhook.url);
-
-        const timestamp = Math.floor(Date.now() / 1000).toString();
-        const body = JSON.stringify({ event, data: payload, sentAt: new Date().toISOString() });
-        const rawSecret = decryptSecret(webhook.secret);
-        const signature = signPayload(rawSecret, timestamp, body);
-
-        const res = await fetch(webhook.url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Webhook-Timestamp": timestamp,
-            "X-Webhook-Signature": `sha256=${signature}`,
-          },
-          body,
-          signal: AbortSignal.timeout(8000),
-          // لا نتبع أي redirect تلقائيًا — رابط عام يُحوّل (302) لعنوان داخلي كان سيتجاوز
-          // فحص SSRF أعلاه كليًا لو تُبع تلقائيًا. أي استجابة تحويل تُعامَل كفشل إرسال.
-          redirect: "manual",
-        });
-        status = res.status;
-        if (status >= 300 && status < 400) {
-          console.error(`webhook delivery to ${webhook.url} returned a redirect (${status}) — refused to follow`);
+      // محاولتان كحد أقصى (محاولة أولى + إعادة محاولة واحدة بعد تأخير قصير) — مصمَّمة
+      // خصيصًا لتغطية Cold Start مستقبِل نائم مؤقتًا (راجع تعليق WEBHOOK_ATTEMPT_TIMEOUT_MS
+      // أعلاه): لو فشلت المحاولة الأولى (Timeout أو خطأ اتصال أو 5xx)، المستقبِل غالبًا
+      // استيقظ فعليًا الآن، فالمحاولة الثانية بعد التأخير أرجح بكثير للنجاح. المستقبِل
+      // (store-dz-agent) مصمَّم ليكون آمنًا لإعادة الإرسال هذه: order_status_changed محمي
+      // عبر wasNotificationAlreadySent، وorder_created محمي عبر فحص storeOrderNumber
+      // الفريد فsendWebOrderConfirmationRequest — إعادة إرسال حقيقية لا تُرسِل رسالة واتساب
+      // مكررة للزبون حتى لو نجحت المحاولتان معًا فعليًا.
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          const result = await attemptWebhookDelivery(webhook, event, payload);
+          status = result.status;
+          if (result.redirected) {
+            console.error(`webhook delivery to ${webhook.url} returned a redirect (${status}) — refused to follow`);
+          }
+          if (status >= 200 && status < 300) break;
+          if (attempt === 1) {
+            console.error(`webhook delivery to ${webhook.url} failed (status ${status}), retrying once`);
+            await sleep(WEBHOOK_RETRY_DELAY_MS);
+          }
+        } catch (error) {
+          console.error(`webhook delivery attempt ${attempt} failed for ${webhook.url}`, error);
+          status = 0;
+          if (attempt === 1) await sleep(WEBHOOK_RETRY_DELAY_MS);
         }
-      } catch (error) {
-        console.error(`webhook delivery failed for ${webhook.url}`, error);
-      } finally {
-        await webhooksRepository.recordWebhookFireResult(webhook.id, status);
       }
+      await webhooksRepository.recordWebhookFireResult(webhook.id, status);
     }),
   );
 }

@@ -3,6 +3,11 @@ import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
 import { orderBulkStatusSchema } from "@/lib/validation/orderSchema";
 import { bulkUpdateOrderStatus } from "@/server/services/ordersService";
 
+// راجع نفس التعليق فـsrc/app/api/orders/route.ts — كل طلب فالدفعة يطلق order_status_changed
+// عبر نفس مسار إعادة المحاولة (~44 ثانية أقصى)، بالتوازي عبر Promise.all (زمن الدفعة
+// الكلي يبقى قريبًا من محاولة واحدة، وليس مجموع كل الطلبات).
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   try {
     await requireAdmin();
