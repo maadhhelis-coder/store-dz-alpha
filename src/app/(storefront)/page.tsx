@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Hero from "@/components/home/Hero";
-import CategoryTeasers from "@/components/home/CategoryTeasers";
-import FeaturedProducts from "@/components/home/FeaturedProducts";
+import BrandImage from "@/components/brand/BrandImage";
 import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
 import GuaranteeCard from "@/components/trust/GuaranteeCard";
 import SectionHeading from "@/components/shared/SectionHeading";
@@ -29,8 +28,18 @@ export default function Home() {
         <TrustBadgeStrip />
       </div>
 
-      <CategoryTeasers />
-      <FeaturedProducts />
+      <section className="container-page py-14 md:py-20">
+        <div className="max-w-md mx-auto rounded-2xl overflow-hidden gold-border">
+          <BrandImage
+            src="/images/badges/trust-info-card.png"
+            alt="ضمان حقيقي — استرداد الأموال، أمان المعلومات، وخدمة ما بعد البيع"
+            width={1122}
+            height={1500}
+            className="w-full h-auto"
+            sizes="(max-width: 768px) 90vw, 448px"
+          />
+        </div>
+      </section>
 
       <section className="container-page py-14 md:py-20 grid md:grid-cols-2 gap-8 items-start">
         <GuaranteeCard />

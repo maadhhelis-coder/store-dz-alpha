@@ -20,7 +20,7 @@ export default function Hero() {
           </p>
           <div className="flex flex-wrap items-center gap-4 mt-8">
             <Link
-              href="#best-sellers"
+              href="/products"
               className="gold-gradient text-ink font-bold px-6 py-3.5 rounded-xl hover:brightness-110 transition"
             >
               تصفح المنتجات
@@ -30,8 +30,8 @@ export default function Hero() {
 
         <div className="relative aspect-[16/10] rounded-2xl overflow-hidden gold-border">
           <BrandImage
-            src="/images/banners/hero-shop-now-banner.png"
-            alt="تسوق الآن من متجر Store DZ الإلكتروني"
+            src="/images/banners/delivery-coverage-hero.png"
+            alt="Store DZ — توصيل إلى 69 ولاية"
             fill
             priority
             className="object-cover"

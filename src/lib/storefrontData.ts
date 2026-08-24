@@ -79,28 +79,6 @@ export async function getPublishedProducts(): Promise<Product[]> {
   return rows.map(mapProduct);
 }
 
-// الصفحة الرئيسية تعرض 8 منتجات فقط — كانت تجلب الكتالوج كاملًا بكل الصور والمتغيّرات ثم
-// تُفلتر/تُقصّ فالذاكرة (FeaturedProducts.tsx)، فتُنفَّذ استعلامًا ضخمًا على كل تحميل صفحة
-// بعد إزالة الـISR الكامل. هنا الاستعلام محدود من قاعدة البيانات مباشرة، بنفس المنطق
-// الأصلي تمامًا (منتجات ذات badge أولًا، أو أول 8 منتجات عمومًا لو كانت أقل من 4 badge).
-export async function getFeaturedProducts(limit = 8): Promise<Product[]> {
-  const badged = await prisma.product.findMany({
-    where: { isPublished: true, badge: { not: null } },
-    ...productWithRelations,
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    take: limit,
-  });
-  if (badged.length >= 4) return badged.map(mapProduct);
-
-  const fallback = await prisma.product.findMany({
-    where: { isPublished: true },
-    ...productWithRelations,
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
-    take: limit,
-  });
-  return fallback.map(mapProduct);
-}
-
 export async function getPublishedProductBySlug(slug: string): Promise<Product | undefined> {
   const row = await prisma.product.findFirst({
     where: { slug, isPublished: true },
