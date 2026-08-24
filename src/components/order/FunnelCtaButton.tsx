@@ -42,7 +42,7 @@ export default function FunnelCtaButton({ product, ctaText, className }: FunnelC
       }}
       data-testid="order-now-button"
       className={cn(
-        "inline-flex items-center justify-center gap-2 gold-gradient text-ink font-bold px-6 py-4 rounded-xl text-base w-full hover:brightness-110 transition gold-glow",
+        "inline-flex items-center justify-center gap-2 gold-gradient text-ink font-bold px-6 py-4 rounded-xl text-base w-full hover:brightness-110 transition gold-glow cta-attention",
         className,
       )}
     >

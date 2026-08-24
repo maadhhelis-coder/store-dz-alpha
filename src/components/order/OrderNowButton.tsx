@@ -56,7 +56,7 @@ export default function OrderNowButton({
       }}
       data-testid="order-now-button"
       className={cn(
-        "inline-flex items-center justify-center gap-2",
+        "inline-flex items-center justify-center gap-2 cta-attention",
         VARIANT_STYLES[variant],
         className,
       )}

@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Hero from "@/components/home/Hero";
 import BrandImage from "@/components/brand/BrandImage";
-import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
-import GuaranteeCard from "@/components/trust/GuaranteeCard";
 import SectionHeading from "@/components/shared/SectionHeading";
 import FAQAccordion from "@/components/faq/FAQAccordion";
 import { faqItems } from "@/data/faq";
@@ -17,6 +15,13 @@ export const metadata: Metadata = buildMetadata({
   path: "/",
 });
 
+const HIGHLIGHT_BADGES = [
+  { src: "/images/badges/shipping-refund.png", alt: "الشحن — ضمان استعادة الأموال" },
+  { src: "/images/badges/real-guarantee.png", alt: "ضمان حقيقي" },
+  { src: "/images/badges/after-sales.png", alt: "خدمة ما بعد البيع" },
+  { src: "/images/badges/cash-on-delivery.png", alt: "الدفع عند الاستلام" },
+] as const;
+
 export default function Home() {
   const previewFaq = faqItems.slice(0, 6);
 
@@ -24,43 +29,33 @@ export default function Home() {
     <>
       <JsonLd data={websiteJsonLd()} />
       <Hero />
-      <div className="container-page">
-        <TrustBadgeStrip />
-      </div>
+
+      <section className="container-page py-10 text-center">
+        <Link
+          href="/products"
+          className="font-display text-2xl md:text-3xl font-extrabold text-cream hover:text-gold transition-colors"
+        >
+          المنتجات
+        </Link>
+      </section>
 
       <section className="container-page py-14 md:py-20">
-        <div className="max-w-md mx-auto rounded-2xl overflow-hidden gold-border">
-          <BrandImage
-            src="/images/badges/trust-info-card.png"
-            alt="ضمان حقيقي — استرداد الأموال، أمان المعلومات، وخدمة ما بعد البيع"
-            width={1122}
-            height={1500}
-            className="w-full h-auto"
-            sizes="(max-width: 768px) 90vw, 448px"
-          />
+        <SectionHeading eyebrow="لماذا Store DZ" title="ما يميزنا" align="center" />
+        <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-xl mx-auto">
+          {HIGHLIGHT_BADGES.map((badge) => (
+            <div key={badge.src} className="rounded-xl overflow-hidden gold-border">
+              <BrandImage
+                src={badge.src}
+                alt={badge.alt}
+                width={1080}
+                height={1440}
+                className="w-full h-auto"
+                sizes="(max-width: 768px) 45vw, 280px"
+              />
+            </div>
+          ))}
         </div>
       </section>
-
-      <section className="container-page py-14 md:py-20 grid md:grid-cols-2 gap-8 items-start">
-        <GuaranteeCard />
-        <div>
-          <SectionHeading
-            eyebrow="لماذا Store DZ"
-            title="تسوق بثقة تامة"
-            description="نحن لا نكتفي ببيع المنتجات، بل نبني علاقة ثقة مع كل زبون عبر ضمان حقيقي، خدمة سريعة، ودعم متواصل قبل وبعد الشراء."
-          />
-          <ul className="space-y-3 text-sm text-cream-dim leading-relaxed">
-            <li>✓ تواصل مباشر عبر واتساب مع فريقنا لأي استفسار قبل الشراء.</li>
-            <li>✓ دفع عند الاستلام في جميع الطلبات، بدون أي مخاطرة.</li>
-            <li>✓ توصيل يغطي كامل ولايات الجزائر.</li>
-            <li>✓ خدمة ما بعد البيع متوفرة لمساعدتك في أي وقت.</li>
-          </ul>
-        </div>
-      </section>
-
-      {/* قسم الشهادات مُعطَّل مؤقتًا — كانت مراجعات مُلفَّقة بأسماء وتواريخ وهمية على متجر
-          بلا زبائن حقيقيين بعد؛ يُعاد تفعيله (Testimonials from "@/components/social-proof/Testimonials")
-          فور توفر تقييمات موثقة فعلية من زبائن حقيقيين. */}
 
       <section className="container-page py-14 md:py-20">
         <SectionHeading

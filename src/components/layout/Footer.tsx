@@ -1,15 +1,7 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import { InstagramIcon, FacebookIcon, TiktokIcon, WhatsAppIcon } from "@/components/shared/SocialIcons";
-import {
-  FACEBOOK_URL,
-  INSTAGRAM_URL,
-  NAV_LINKS,
-  SITE_TAGLINE,
-  WHATSAPP_DISPLAY,
-  WILAYA_COUNT,
-} from "@/data/site";
-import { getCategories } from "@/lib/storefrontData";
+import { FACEBOOK_URL, INSTAGRAM_URL, NAV_LINKS, SITE_TAGLINE } from "@/data/site";
 import { buildGenericMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
 
 type FooterProps = {
@@ -19,15 +11,19 @@ type FooterProps = {
   tiktokUrl?: string | null;
 };
 
-export default async function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }: FooterProps = {}) {
-  const categories = await getCategories();
-  const year = new Date().getFullYear();
+// اكتُشف فعليًا (تصحيح صريح بعد طلب سابق): الشعار والتعريف والروابط الاجتماعية يجب أن
+// تبقى — الحذف السابق طال هذا العمود خطأً. "التصنيفات" و"معلومات التواصل" وشريط الحقوق
+// يبقون محذوفين كما طُلب. الفلترة هنا تستثني الأسئلة الشائعة من "روابط سريعة" تحديدًا
+// دون التأثير على NAV_LINKS نفسه (لا يزال يظهر كاملاً فقائمة الهيدر).
+const FOOTER_LINKS = NAV_LINKS.filter((link) => link.href !== "/faq");
+
+export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }: FooterProps = {}) {
   const igUrl = instagramUrl || INSTAGRAM_URL;
   const fbUrl = facebookUrl || FACEBOOK_URL;
 
   return (
     <footer className="border-t border-gold/15 bg-ink mt-16">
-      <div className="container-page py-12 grid gap-10 md:grid-cols-4">
+      <div className="container-page py-12 grid gap-10 md:grid-cols-2">
         <div>
           <Logo logoUrl={logoUrl} />
           <p className="text-sm text-cream-dim mt-4 leading-relaxed">
@@ -80,7 +76,7 @@ export default async function Footer({ logoUrl, instagramUrl, facebookUrl, tikto
             روابط سريعة
           </h3>
           <ul className="space-y-2">
-            {NAV_LINKS.map((link) => (
+            {FOOTER_LINKS.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
@@ -91,43 +87,6 @@ export default async function Footer({ logoUrl, instagramUrl, facebookUrl, tikto
               </li>
             ))}
           </ul>
-        </div>
-
-        <div>
-          <h3 className="font-display font-semibold text-gold mb-4">
-            التصنيفات
-          </h3>
-          <ul className="space-y-2">
-            {categories.map((category) => (
-              <li key={category.slug}>
-                <Link
-                  href={`/category/${category.slug}`}
-                  className="text-sm text-cream-dim hover:text-gold transition-colors"
-                >
-                  {category.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div>
-          <h3 className="font-display font-semibold text-gold mb-4">
-            معلومات التواصل
-          </h3>
-          <p className="text-sm text-cream-dim">واتساب: {WHATSAPP_DISPLAY}</p>
-          <p className="text-sm text-cream-dim mt-2">
-            توصيل سريع وآمن لـ {WILAYA_COUNT} ولاية عبر التراب الوطني.
-          </p>
-          <p className="text-sm text-cream-dim mt-2">
-            الدفع عند الاستلام متاح في جميع الطلبات.
-          </p>
-        </div>
-      </div>
-
-      <div className="border-t border-gold/10">
-        <div className="container-page py-5 text-xs text-cream-dim/80 text-center">
-          © {year} Store DZ. جميع الحقوق محفوظة.
         </div>
       </div>
     </footer>

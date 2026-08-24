@@ -1,6 +1,4 @@
-import Link from "next/link";
 import BrandImage from "@/components/brand/BrandImage";
-import { SITE_TAGLINE, WILAYA_COUNT } from "@/data/site";
 
 export default function Hero() {
   return (
@@ -13,19 +11,6 @@ export default function Hero() {
           <h1 className="font-display text-3xl md:text-5xl font-extrabold text-cream leading-tight">
             منتجات تختارها بثقة، <span className="gold-gradient-text">وتوصلك أينما كنت</span>
           </h1>
-          <p className="text-cream-dim mt-5 text-base md:text-lg leading-relaxed">
-            {SITE_TAGLINE}. اكتشف تشكيلتنا من الإلكترونيات، الأزياء، ومنتجات
-            المنزل، واطلب مباشرة من الموقع بخطوة واحدة، مع توصيل لـ {WILAYA_COUNT} ولاية
-            ودفع عند الاستلام.
-          </p>
-          <div className="flex flex-wrap items-center gap-4 mt-8">
-            <Link
-              href="/products"
-              className="gold-gradient text-ink font-bold px-6 py-3.5 rounded-xl hover:brightness-110 transition"
-            >
-              تصفح المنتجات
-            </Link>
-          </div>
         </div>
 
         <div className="relative aspect-[16/10] rounded-2xl overflow-hidden gold-border">

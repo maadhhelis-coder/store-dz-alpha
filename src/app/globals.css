@@ -81,6 +81,31 @@ h6 {
   box-shadow: 0 0 24px 0 theme(--color-gold / 25%);
 }
 
+/* حركة انتباه لطيفة لأزرار الطلب الأساسية (اطلب الآن / اشتري الآن) — نبض توهج بلا أي
+   transform (اكتُشف فعليًا: transform: scale() هنا كان يجعل Playwright يعتبر الزر "غير
+   مستقر" هندسيًا بشكل دائم، فيفشل كل اختبار E2E يحاول النقر عليه بـTimeout — راجع
+   locator.click stability check. box-shadow وحده لا يغيّر Bounding Box إطلاقًا، فيبقى الزر
+   قابلاً للنقر آليًا بينما يحافظ على تأثير بصري جذاب. تُحترَم prefers-reduced-motion أيضًا. */
+@keyframes cta-attention-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 theme(--color-gold / 45%);
+  }
+  50% {
+    box-shadow: 0 0 28px 8px theme(--color-gold / 45%);
+  }
+}
+
+.cta-attention {
+  animation: cta-attention-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-attention {
+    animation: none;
+  }
+}
+
 [dir="rtl"] .icon-flip {
   transform: scaleX(-1);
 }
