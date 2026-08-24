@@ -81,6 +81,31 @@ h6 {
   box-shadow: 0 0 24px 0 theme(--color-gold / 25%);
 }
 
+/* حركة انتباه لطيفة لأزرار الطلب الأساسية (اطلب الآن / اشتري الآن) — نبض بسيط بلا اهتزاز
+   صاخب يناسب الهوية الذهبية الفاخرة للمتجر. تُحترَم prefers-reduced-motion لمن يفضّل تقليل
+   الحركة (إتاحة أساسية، وليست تفصيلًا اختياريًا). */
+@keyframes cta-attention-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 theme(--color-gold / 45%);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 28px 6px theme(--color-gold / 45%);
+  }
+}
+
+.cta-attention {
+  animation: cta-attention-pulse 2.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta-attention {
+    animation: none;
+  }
+}
+
 [dir="rtl"] .icon-flip {
   transform: scaleX(-1);
 }
