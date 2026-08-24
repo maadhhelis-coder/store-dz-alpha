@@ -11,12 +11,6 @@ type FooterProps = {
   tiktokUrl?: string | null;
 };
 
-// اكتُشف فعليًا (تصحيح صريح بعد طلب سابق): الشعار والتعريف والروابط الاجتماعية يجب أن
-// تبقى — الحذف السابق طال هذا العمود خطأً. "التصنيفات" و"معلومات التواصل" وشريط الحقوق
-// يبقون محذوفين كما طُلب. الفلترة هنا تستثني الأسئلة الشائعة من "روابط سريعة" تحديدًا
-// دون التأثير على NAV_LINKS نفسه (لا يزال يظهر كاملاً فقائمة الهيدر).
-const FOOTER_LINKS = NAV_LINKS.filter((link) => link.href !== "/faq");
-
 export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }: FooterProps = {}) {
   const igUrl = instagramUrl || INSTAGRAM_URL;
   const fbUrl = facebookUrl || FACEBOOK_URL;
@@ -76,7 +70,7 @@ export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
             روابط سريعة
           </h3>
           <ul className="space-y-2">
-            {FOOTER_LINKS.map((link) => (
+            {NAV_LINKS.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
