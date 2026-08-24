@@ -11,7 +11,10 @@ export const INSTAGRAM_URL = "https://www.instagram.com/store_dz51";
 export const FACEBOOK_URL =
   "https://www.facebook.com/profile.php?id=61590403662522";
 
-export const WILAYA_COUNT = 58;
+// رقم تسويقي فقط (شريط الثقة، الهيرو، الفوتر، صفحات التواصل والشروط) — لا علاقة له بمنطق
+// استمارة الطلب الفعلي (بيانات الولايات/البلديات/أسعار DHD فـ src/data/delivery.ts تبقى
+// كما هي، 58 ولاية حقيقية، غير متأثرة بهذا الثابت إطلاقًا).
+export const WILAYA_COUNT = 69;
 
 export const NAV_LINKS = [
   { href: "/", label: "الرئيسية" },
