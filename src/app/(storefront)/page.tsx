@@ -3,8 +3,6 @@ import Link from "next/link";
 import Hero from "@/components/home/Hero";
 import BrandImage from "@/components/brand/BrandImage";
 import SectionHeading from "@/components/shared/SectionHeading";
-import FAQAccordion from "@/components/faq/FAQAccordion";
-import { faqItems } from "@/data/faq";
 import JsonLd from "@/components/shared/JsonLd";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
 
@@ -23,8 +21,6 @@ const HIGHLIGHT_BADGES = [
 ] as const;
 
 export default function Home() {
-  const previewFaq = faqItems.slice(0, 6);
-
   return (
     <>
       <JsonLd data={websiteJsonLd()} />
@@ -54,22 +50,6 @@ export default function Home() {
               />
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="container-page py-14 md:py-20">
-        <SectionHeading
-          eyebrow="الأسئلة الشائعة"
-          title="عندك سؤال؟ عندنا الجواب"
-          align="center"
-        />
-        <div className="max-w-2xl mx-auto">
-          <FAQAccordion items={previewFaq} />
-          <div className="text-center mt-6">
-            <Link href="/faq" className="text-sm font-semibold text-gold hover:underline">
-              عرض كل الأسئلة الشائعة ←
-            </Link>
-          </div>
         </div>
       </section>
     </>

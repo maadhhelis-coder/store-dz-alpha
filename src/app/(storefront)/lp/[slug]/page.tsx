@@ -4,8 +4,6 @@ import { CheckCircle2 } from "lucide-react";
 import BrandImage from "@/components/brand/BrandImage";
 import { getPublishedFunnelBySlug, incrementFunnelViews } from "@/server/services/funnelsService";
 import { mapProduct, getRelatedProducts } from "@/lib/storefrontData";
-import { faqItems } from "@/data/faq";
-import FAQAccordion from "@/components/faq/FAQAccordion";
 import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
 import GuaranteeCard from "@/components/trust/GuaranteeCard";
 import FunnelCtaButton from "@/components/order/FunnelCtaButton";
@@ -134,15 +132,6 @@ export default async function FunnelPage({ params }: FunnelPageProps) {
       </section>
 
       {/* قسم الشهادات مُعطَّل مؤقتًا — راجع التعليق في page.tsx (الصفحة الرئيسية) للسبب. */}
-
-      <section className="container-page py-14 md:py-20">
-        <h2 className="font-display text-xl md:text-2xl font-bold text-cream text-center mb-6">
-          الأسئلة الشائعة
-        </h2>
-        <div className="max-w-2xl mx-auto">
-          <FAQAccordion items={faqItems.slice(0, 5)} />
-        </div>
-      </section>
 
       <div className="sticky bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-3 md:hidden">
         <FunnelCtaButton product={product} ctaText={funnel.ctaText} />

@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
-import Breadcrumbs from "@/components/shared/Breadcrumbs";
 import SectionHeading from "@/components/shared/SectionHeading";
-import ProductGrid from "@/components/commerce/ProductGrid";
-import StorefrontPagination from "@/components/shared/StorefrontPagination";
-import { getPublishedProductsPage, getCategories, PRODUCTS_PAGE_SIZE } from "@/lib/storefrontData";
+import { getCategories } from "@/lib/storefrontData";
 import { buildMetadata } from "@/lib/seo";
 
 type ProductsPageProps = {
@@ -39,38 +36,12 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
   return meta;
 }
 
-export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { page: pageParam, category } = await searchParams;
-  const page = Math.max(1, Number(pageParam) || 1);
-
-  const [{ products, total }, categories] = await Promise.all([
-    getPublishedProductsPage({ categorySlug: category, page }),
-    getCategories(),
-  ]);
-
+// اكتُشف فعليًا (طلب صريح): هذه الصفحة أصبحت تعرض العنوان فقط ("كل المنتجات" /
+// "تشكيلتنا الكاملة") — لا Breadcrumbs، لا وصف، لا شبكة منتجات، لا تصنيفات، لا ترقيم صفحات.
+export default async function ProductsPage() {
   return (
     <div className="container-page py-10 md:py-14">
-      <Breadcrumbs items={[{ name: "المنتجات", path: "/products" }]} />
-      <SectionHeading
-        as="h1"
-        eyebrow="كل المنتجات"
-        title="تشكيلتنا الكاملة"
-        description="اختر من بين تشكيلة متنوعة من المنتجات الأصلية، واطلب مباشرة عبر واتساب."
-        className="mt-6"
-      />
-      <ProductGrid
-        products={products}
-        categories={categories}
-        activeCategorySlug={category ?? ""}
-        basePath="/products"
-      />
-      <StorefrontPagination
-        page={page}
-        pageSize={PRODUCTS_PAGE_SIZE}
-        total={total}
-        basePath="/products"
-        extraParams={category ? { category } : {}}
-      />
+      <SectionHeading as="h1" eyebrow="كل المنتجات" title="تشكيلتنا الكاملة" />
     </div>
   );
 }
