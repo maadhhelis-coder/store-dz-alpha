@@ -3,6 +3,7 @@ import { getCommuneLatinName, getCommuneArabicName } from "@/data/communes";
 import { decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
 import { prisma } from "@/server/db/prisma";
+import { fireWebhookEvent } from "@/server/services/webhooksService";
 
 const DHD_BASE_URL = "https://platform.dhd-dz.com/api/v1";
 
@@ -85,13 +86,22 @@ const PENDING_DHD_STATUS = "لم تُسجَّل حالة الشحنة بعد ع�
 // فقط إن تغيّرت القيمة فعليًا وبدون التراجع لحالة "لم تُسجَّل بعد" المؤقتة إن كانت لدينا
 // أصلًا حالة حقيقية سابقة (نفس حماية syncAllDhdOrderStatuses أدناه).
 async function applyDhdCourierStatusUpdate(
-  order: { id: string; courierStatus: string | null },
+  order: { id: string; orderNumber: string; courierStatus: string | null },
   newStatus: string,
 ): Promise<boolean> {
   const isRegressionToPending =
     newStatus === PENDING_DHD_STATUS && !!order.courierStatus && order.courierStatus !== PENDING_DHD_STATUS;
   if (newStatus === order.courierStatus || isRegressionToPending) return false;
   await prisma.order.update({ where: { id: order.id }, data: { courierStatus: newStatus } });
+  // لا نُطلق الحدث لحالة "لم تُسجَّل بعد" المؤقتة (PENDING_DHD_STATUS) — هذه ليست تحديثًا
+  // حقيقيًا من DHD يستحق إشعار الزبون، بل غياب بيانات مؤقت (راجع التعليق أعلى الدالة).
+  if (newStatus !== PENDING_DHD_STATUS) {
+    fireWebhookEvent("courier_status_changed", {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      courierStatus: newStatus,
+    });
+  }
   return true;
 }
 

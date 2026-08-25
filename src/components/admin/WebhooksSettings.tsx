@@ -9,6 +9,7 @@ import DataTablePagination from "@/components/admin/DataTablePagination";
 const EVENT_LABELS: Record<WebhookEvent, string> = {
   order_created: "طلب جديد",
   order_status_changed: "تغيّر حالة الطلب",
+  courier_status_changed: "تحديث حالة الشحن من شركة التوصيل",
 };
 
 const PAGE_SIZE = 20;

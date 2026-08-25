@@ -81,6 +81,9 @@ enum FunnelPageType {
 enum WebhookEvent {
   order_created
   order_status_changed
+  // يُطلَق عند تغيّر courierStatus الفعلي (نص DHD الخام) — يسمح لتكاملات خارجية (مثل بوت
+  // واتساب) بإشعار الزبون بتحديثات شحن حقيقية بدل الانتظار لتغيير "حالة الطلب" اليدوي.
+  courier_status_changed
 }
 
 model AdminUser {
