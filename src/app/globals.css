@@ -73,6 +73,30 @@ h6 {
   color: transparent;
 }
 
+/* نص الشريط المتحرك تحديدًا (Hero.tsx) — بلون ذهبي مصمت على الهاتف بدل تدرّج مقصوص
+   (background-clip:text) — طلب صريح مؤكَّد عدة مرات: الشريط ما زال بطيئًا/متقطّعًا على
+   الهاتف رغم إزالة القناع (mask) سابقًا. background-clip:text على عنصر متحرك مستمر معروف
+   بأنه يُجبر بعض متصفحات الأندرويد الأضعف على مسار رسم غير مُسرَّع (software) لكل إطار —
+   عبء إضافي محتمل غير القناع. لون مصمت على الهاتف يُزيله بالكامل؛ التدرّج المقصوص يبقى من
+   sm فما فوق حيث لا مشكلة أداء (نفس شكل .gold-gradient-text بالضبط). */
+.marquee-text {
+  color: var(--color-gold);
+}
+
+@media (min-width: 640px) {
+  .marquee-text {
+    background-image: linear-gradient(
+      135deg,
+      var(--color-gold-light),
+      var(--color-gold) 55%,
+      var(--color-gold-deep)
+    );
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+}
+
 .gold-border {
   border: 1px solid theme(--color-gold / 35%);
 }
@@ -126,13 +150,20 @@ h6 {
 }
 
 .animate-marquee {
-  /* سرعة واحدة موحّدة للهاتف والحاسوب الآن (طلب صريح: "اريدها سريعة ... دون اي بطئ"،
-     وأيضًا الوحدتان أصبحتا بنفس العدد فكلا الحجمين — راجع MARQUEE_UNITS فـHero.tsx —
-     فلم تعد هناك حاجة لمدة منفصلة للهاتف). 8s أقصر بكثير من 16s السابقة. */
   animation: marquee-scroll 8s linear infinite;
   /* يعزل الشريط فطبقة GPU خاصة به فقط أثناء التحريك — يخفّف العبء الرسومي على معالجات
      رسوميات الهواتف الأضعف. */
   will-change: transform;
+}
+
+/* بوحدتين فقط (راجع MARQUEE_UNITS فـHero.tsx) تكون فترة الانتظار قبل ظهور نسخة جديدة عند
+   أي نقطة ثابتة = مدة الدورة كاملة (8s) — طلب صريح مؤكَّد عدة مرات: هذا يبدو "طويلاً" على
+   الهاتف تحديدًا. مدة أقصر هنا للهاتف فقط (بلا تغيير عدد الوحدات، فلا تتكرر مشكلة عدة نسخ
+   ساكنة ظاهرة معًا) تُقصِّر فترة إعادة الظهور تلك إلى النصف تقريبًا. */
+@media (max-width: 639px) {
+  .animate-marquee {
+    animation-duration: 4s;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

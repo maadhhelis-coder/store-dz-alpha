@@ -31,7 +31,7 @@ function MarqueeSet() {
             className="h-9 sm:h-11 md:h-14 w-auto shrink-0 rounded-full"
             priority
           />
-          <span className="font-display text-sm sm:text-base md:text-lg lg:text-2xl font-bold gold-gradient-text whitespace-nowrap">
+          <span className="font-display text-sm sm:text-base md:text-lg lg:text-2xl font-bold marquee-text whitespace-nowrap">
             {MARQUEE_TEXT}
           </span>
         </div>
