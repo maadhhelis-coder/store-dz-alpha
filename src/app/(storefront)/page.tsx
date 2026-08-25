@@ -28,28 +28,30 @@ export default function Home() {
       <JsonLd data={websiteJsonLd()} />
       <Hero />
 
-      <section className="container-page py-10 text-center">
+      {/* "المنتجات" بين خطّين ذهبيين متدرّجين، بلون متلألئ (طلب صريح) بدل رابط نصي عادي. */}
+      <section className="container-page py-8 text-center">
+        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
         <Link
           href="/products"
-          className="font-display text-2xl md:text-3xl font-extrabold text-cream hover:text-gold transition-colors"
+          className="inline-block font-display text-2xl md:text-3xl font-extrabold gold-gradient-text my-3 hover:opacity-80 transition-opacity"
         >
           المنتجات
         </Link>
+        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
       </section>
 
-      {/* استُبدلت شبكة الشارات الأربعة بصورة واحدة (طلب صريح) — الصورة نفسها تحمل عنوان
-          "ما يميزنا" مرسومًا بداخلها، فلا حاجة لـ SectionHeading مكرِّر هنا. */}
-      <section className="container-page py-10 md:py-14">
-        <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden gold-border">
-          <BrandImage
-            src="/images/highlights/ma-yumayyizna.png"
-            alt="ما يميزنا: ضمان حقيقي، الشحن إلى 69 ولاية، الدفع عند الاستلام، خدمة ما بعد البيع"
-            width={1536}
-            height={1024}
-            className="w-full h-auto"
-            sizes="(max-width: 768px) 100vw, 672px"
-          />
-        </div>
+      {/* صورة "ما يميزنا" ممتدة حافة إلى حافة (طلب صريح) — بلا إطار ذهبي وبلا أي مسافة على
+          الجانبين، فلا حاويةcontainer-page هنا عمدًا، والصورة نفسها تحمل عنوان "ما يميزنا"
+          مرسومًا بداخلها فلا حاجة لعنوان قسم مكرِّر. */}
+      <section>
+        <BrandImage
+          src="/images/highlights/ma-yumayyizna.png"
+          alt="ما يميزنا: ضمان حقيقي، الشحن إلى 69 ولاية، الدفع عند الاستلام، خدمة ما بعد البيع"
+          width={1536}
+          height={1024}
+          className="w-full h-auto block"
+          sizes="100vw"
+        />
       </section>
     </>
   );
