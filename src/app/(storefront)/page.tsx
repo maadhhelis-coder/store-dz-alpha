@@ -4,7 +4,13 @@ import Hero from "@/components/home/Hero";
 import BrandImage from "@/components/brand/BrandImage";
 import SectionHeading from "@/components/shared/SectionHeading";
 import JsonLd from "@/components/shared/JsonLd";
+import ProductGrid from "@/components/commerce/ProductGrid";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
+import { getPublishedProductsPage } from "@/lib/storefrontData";
+
+// عدد المنتجات المعروضة فمعاينة الصفحة الرئيسية — طلب صريح: توفير "بلاصة" حقيقية تحت
+// عنوان "المنتجات" لعرض منتجات حقيقية من قاعدة البيانات فعليًا، وليس مجرد تكبير العنوان.
+const HOMEPAGE_PRODUCTS_LIMIT = 8;
 
 // عنوان قصير صراحة بطلب المتجر — Google كان يعرض العنوان الأطول السابق كاملاً فنتائج
 // البحث، والمطلوب الآن هو "Store DZ" فقط. title: { absolute } ضروري هنا تحديدًا (وليس نص
@@ -22,7 +28,9 @@ export const metadata: Metadata = {
   title: { absolute: "Store DZ" },
 };
 
-export default function Home() {
+export default async function Home() {
+  const { products } = await getPublishedProductsPage({ page: 1, pageSize: HOMEPAGE_PRODUCTS_LIMIT });
+
   return (
     <>
       <JsonLd data={websiteJsonLd()} />
@@ -40,6 +48,15 @@ export default function Home() {
         </Link>
         <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
       </section>
+
+      {/* شبكة منتجات حقيقية من قاعدة البيانات (طلب صريح: "بلاصة" تحت عنوان المنتجات لعرض
+          منتجات حقيقية) — بلا فلتر تصنيفات هنا (معاينة فقط)، نفس مكوّن ProductGrid المُستعمل
+          فصفحات التصنيف والبحث، فلا تكرار منطق أو بيانات مُلفَّقة. */}
+      {products.length > 0 && (
+        <section className="container-page pb-14 md:pb-20">
+          <ProductGrid products={products} showFilter={false} />
+        </section>
+      )}
 
       {/* صورة "ما يميزنا" ممتدة حافة إلى حافة (طلب صريح) — بلا إطار ذهبي وبلا أي مسافة على
           الجانبين، فلا حاويةcontainer-page هنا عمدًا، والصورة نفسها تحمل عنوان "ما يميزنا"
