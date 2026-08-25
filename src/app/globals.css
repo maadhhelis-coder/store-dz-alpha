@@ -124,7 +124,7 @@ h6 {
 }
 
 .animate-marquee {
-  animation: marquee-scroll 38s linear infinite;
+  animation: marquee-scroll 12s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
