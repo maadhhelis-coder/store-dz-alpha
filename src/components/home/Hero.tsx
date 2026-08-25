@@ -22,7 +22,16 @@ function MarqueeSet() {
   return (
     <div className="flex items-center">
       {Array.from({ length: MARQUEE_UNITS }).map((_, i) => (
-        <div key={i} className="flex items-center gap-2 sm:gap-3 mx-4 sm:mx-6 md:mx-8 shrink-0">
+        <div
+          key={i}
+          // الوحدتان الثالثة والرابعة مخفيتان على الهاتف تحديدًا (طلب صريح: الشريط "ثقيل
+          // جدًا" على الهاتف) — أقل عناصر مرسومة/مركَّبة كل إطار يعني حركة أخفّ على معالجات
+          // رسوميات الهواتف الأضعف؛ لا تُفقد التغطية لأن وحدات الهاتف أصغر أصلاً (نص/شعار
+          // أصغر) فوحدتان تكفيان لملء عرض شاشة هاتف عادي دون فجوة.
+          className={`flex items-center gap-2 sm:gap-3 mx-4 sm:mx-6 md:mx-8 shrink-0 ${
+            i >= 2 ? "hidden sm:flex" : ""
+          }`}
+        >
           <BrandImage
             src="/images/brand/logo-badge.png"
             alt="Store DZ"
