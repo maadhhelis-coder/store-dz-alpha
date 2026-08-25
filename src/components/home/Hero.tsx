@@ -29,7 +29,7 @@ function MarqueeSet() {
             alt="Store DZ"
             width={200}
             height={200}
-            className="h-11 w-auto shrink-0 rounded-full"
+            className="h-14 w-auto shrink-0 rounded-full"
             priority={i === 0}
           />
           <span className="font-display text-lg md:text-2xl font-bold gold-gradient-text whitespace-nowrap">
@@ -53,11 +53,12 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* سقف ارتفاع (max-h) على الشاشات الكبيرة — طلب صريح: الصورة كانت تكبر بلا حدود مع
-          عرض الشاشة (نسبة 3/2 على شاشة 1920px تعني ارتفاعًا يتجاوز 1200px)، فتبدو "كبيرة
-          جدًا" وتغطي الشاشة بالكامل تقريبًا. تبقى ممتدة حافة إلى حافة أفقيًا (object-cover)
-          بلا أي تغيير فذلك — فقط ارتفاعها محدود الآن. */}
-      <div className="relative aspect-[3/2] max-h-[420px] md:max-h-[520px]">
+      {/* ارتفاع صريح متدرّج حسب حجم الشاشة (طلب صريح: مقاس يناسب الهاتف والحاسوب معًا) بدل
+          aspect-ratio+max-h — تلك التركيبة كانت تجعل المتصفح يحسب العرض من الارتفاع
+          المحدود (aspect-ratio على صندوق width:auto) فينكمش الصندوق ويلتصق بحافة البداية
+          فـRTL (اليمين)، تاركًا فراغًا أسود على اليسار — دليل حقيقي شوهد فعليًا على الحاسوب.
+          w-full صريح هنا يضمن الامتداد الكامل أفقيًا فكل حجم شاشة بلا أي فراغ جانبي. */}
+      <div className="relative w-full h-[220px] sm:h-[300px] md:h-[420px] lg:h-[520px]">
         <BrandImage
           src="/images/banners/delivery-coverage-hero.png"
           alt="Store DZ — توصيل إلى 69 ولاية"
