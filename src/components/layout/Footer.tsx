@@ -1,21 +1,15 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
 import { InstagramIcon, FacebookIcon, TiktokIcon, WhatsAppIcon } from "@/components/shared/SocialIcons";
-import { FACEBOOK_URL, INSTAGRAM_URL, NAV_LINKS, SITE_TAGLINE } from "@/data/site";
+import {
+  ABOUT_STORE_LINKS,
+  FACEBOOK_URL,
+  INSTAGRAM_URL,
+  NAV_LINKS,
+  POLICY_LINKS,
+  SITE_TAGLINE,
+} from "@/data/site";
 import { buildGenericMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
-
-const ABOUT_STORE_LINKS = [
-  { href: "/about", label: "عن المتجر" },
-  { href: "/payment-methods", label: "طرق الدفع" },
-  { href: "/shipping-delivery", label: "الشحن والتسليم" },
-  { href: "/faq", label: "الأسئلة الشائعة" },
-] as const;
-
-const POLICY_LINKS = [
-  { href: "/terms-of-service", label: "شروط الاستخدام" },
-  { href: "/return-policy", label: "سياسة الاستبدال والاسترجاع" },
-  { href: "/privacy-policy", label: "سياسة الخصوصية" },
-] as const;
 
 type FooterProps = {
   logoUrl?: string | null;

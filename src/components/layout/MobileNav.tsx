@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Search, X } from "lucide-react";
+import { ChevronDown, Menu, Search, X } from "lucide-react";
 import WhatsAppButton from "@/components/shared/WhatsAppButton";
 import { InstagramIcon, FacebookIcon, TiktokIcon } from "@/components/shared/SocialIcons";
+import { ABOUT_STORE_LINKS, POLICY_LINKS } from "@/data/site";
 import { buildGenericMessage } from "@/lib/whatsapp";
+import { cn } from "@/lib/utils";
 
 type NavLink = { href: string; label: string };
 
@@ -16,10 +18,18 @@ type MobileNavProps = {
   tiktokUrl?: string | null;
 };
 
+// مجموعتان قابلتان للطي داخل قائمة الموبايل تحديدًا (بخلاف الفوتر، حيث تبقى هذه الروابط
+// ظاهرة بالكامل دومًا بطلب صريح) — هنا مساحة الشاشة محدودة فيفيد طيّها خلف سهم.
+const COLLAPSIBLE_GROUPS = [
+  { id: "about", title: "عن المتجر", items: ABOUT_STORE_LINKS },
+  { id: "policies", title: "الشروط والسياسات", items: POLICY_LINKS },
+] as const;
+
 // جزيرة تفاعلية معزولة — زر القائمة والدرج المنسدل فقط على الموبايل، بلا تأثير على
 // حجم جافاسكريبت الهيدر الثابت على الشاشات الكبيرة (Header.tsx نفسه Server Component الآن).
 export default function MobileNav({ navLinks, igUrl, fbUrl, tiktokUrl }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
   return (
     <>
@@ -61,6 +71,40 @@ export default function MobileNav({ navLinks, igUrl, fbUrl, tiktokUrl }: MobileN
                 {link.label}
               </Link>
             ))}
+
+            {COLLAPSIBLE_GROUPS.map((group) => {
+              const isGroupOpen = openGroup === group.id;
+              return (
+                <div key={group.id} className="border-t border-gold/10 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpenGroup(isGroupOpen ? null : group.id)}
+                    aria-expanded={isGroupOpen}
+                    className="w-full flex items-center justify-between text-cream-dim hover:text-gold transition-colors"
+                  >
+                    {group.title}
+                    <ChevronDown
+                      className={cn("w-4 h-4 transition-transform duration-200", isGroupOpen && "rotate-180")}
+                    />
+                  </button>
+                  {isGroupOpen && (
+                    <div className="flex flex-col gap-3 mt-3 ps-3">
+                      {group.items.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setOpen(false)}
+                          className="text-sm text-cream-dim hover:text-gold transition-colors"
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
             <div className="flex items-center gap-4 pt-2">
               <a
                 href={igUrl}

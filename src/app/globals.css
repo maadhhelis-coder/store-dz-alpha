@@ -106,6 +106,33 @@ h6 {
   }
 }
 
+/* شريط نص متحرك بلا توقف (طلب صريح: "شريط لا يتوقف") — يُستعمَل فـHero.tsx. الحيلة
+   الكلاسيكية: تكرار المحتوى مرتين داخل صف flex واحد، ثم إزاحته أفقيًا بمقدار 50% بالضبط
+   (= عرض نسخة واحدة بالتمام) بشكل خطي لا نهائي؛ فور خروج النسخة الأولى بالكامل من الإطار
+   تكون الثانية قد أخذت مكانها تمامًا فيبدو التكرار سلسًا بلا أي قفزة أو توقف ملحوظ. يعمل
+   بلا أي تعديل خاص لاتجاه RTL — translateX ليست خاصية منطقية (logical property) واعية
+   بالاتجاه، فتُزيح الصف نفس المسافة بصريًا في كلا الاتجاهين، وهو ما يعطي هنا بالضبط حركة
+   دخول النص من اليمين (قراءة عربية طبيعية) والخروج من اليسار.
+*/
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee-scroll 16s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee {
+    animation: none;
+  }
+}
+
 [dir="rtl"] .icon-flip {
   transform: scaleX(-1);
 }
