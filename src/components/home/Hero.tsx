@@ -55,8 +55,10 @@ export default function Hero() {
       <h1 className="sr-only">Store DZ — {SITE_TAGLINE}</h1>
 
       {/* marquee-fade-mask (راجع globals.css): تلاشي تدريجي عند حافتي الشريط بدل قصّ حاد —
-          طلب صريح: "تدخل الجملة نفقًا ثم تعاود تخرج" مثل أشرطة القنوات التلفزيونية. */}
-      <div className="h-[3cm] flex items-center overflow-hidden bg-black marquee-fade-mask">
+          طلب صريح: "تدخل الجملة نفقًا ثم تعاود تخرج" مثل أشرطة القنوات التلفزيونية. تدرّج
+          ذهبي خفيف بدل الأسود المسطّح (طلب صريح: "زخرفة تجلب النظر وتكون أكثر احترافية")
+          — بلا أي خط/حدّ فاصل عن الصورة أدناه (طلب صريح سابق برفض ذلك). */}
+      <div className="h-[3cm] flex items-center overflow-hidden bg-gradient-to-r from-black via-gold/10 to-black marquee-fade-mask">
         <div className="flex items-center animate-marquee w-max" aria-hidden="true">
           <MarqueeSet />
           <MarqueeSet />
