@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import Hero from "@/components/home/Hero";
 import BrandImage from "@/components/brand/BrandImage";
 import SectionHeading from "@/components/shared/SectionHeading";
@@ -28,9 +29,22 @@ export const metadata: Metadata = {
   title: { absolute: "Store DZ" },
 };
 
-export default async function Home() {
+// معاينة المنتجات فمكوّن Server منفصل مُغلَّف بـSuspense (طلب صريح: الصفحة الرئيسية —
+// وعلى رأسها الشريط المتحرك — كانت "تطول باش تظهر" عند أول زيارة). السبب الحقيقي: Home()
+// كانت async وتنتظر استعلام قاعدة البيانات هذا بالكامل قبل إرسال أي HTML، فيتأخر ظهور
+// الشريط والصورة خلف زمن استجابة قاعدة البيانات (خصوصًا فبداية اتصال باردة). فصلها هنا
+// يسمح للمتصفح باستلام Hero وبقية الصفحة فورًا فيما يُستكمل جلب المنتجات فالخلفية.
+async function ProductsPreview() {
   const { products } = await getPublishedProductsPage({ page: 1, pageSize: HOMEPAGE_PRODUCTS_LIMIT });
+  if (products.length === 0) return null;
+  return (
+    <section className="container-page pb-14 md:pb-20">
+      <ProductGrid products={products} showFilter={false} />
+    </section>
+  );
+}
 
+export default function Home() {
   return (
     <>
       <JsonLd data={websiteJsonLd()} />
@@ -51,12 +65,11 @@ export default async function Home() {
 
       {/* شبكة منتجات حقيقية من قاعدة البيانات (طلب صريح: "بلاصة" تحت عنوان المنتجات لعرض
           منتجات حقيقية) — بلا فلتر تصنيفات هنا (معاينة فقط)، نفس مكوّن ProductGrid المُستعمل
-          فصفحات التصنيف والبحث، فلا تكرار منطق أو بيانات مُلفَّقة. */}
-      {products.length > 0 && (
-        <section className="container-page pb-14 md:pb-20">
-          <ProductGrid products={products} showFilter={false} />
-        </section>
-      )}
+          فصفحات التصنيف والبحث، فلا تكرار منطق أو بيانات مُلفَّقة. Suspense فارغ fallback
+          (بلا مؤشر تحميل) لأن القسم أصلاً اختياري ومُخفى حين لا توجد منتجات. */}
+      <Suspense fallback={null}>
+        <ProductsPreview />
+      </Suspense>
 
       {/* عرض أقصى بدل قص بالارتفاع (طلب صريح: نسخة القص السابقة كانت تُخفي عنوان "ما يميزنا"
           بالكامل وتترك فراغًا أسود عند الحافتين لأن الزخرفة الذهبية موجودة فأعلى/أسفل
