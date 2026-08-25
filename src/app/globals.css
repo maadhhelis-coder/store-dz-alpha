@@ -126,13 +126,35 @@ h6 {
 }
 
 .animate-marquee {
-  animation: marquee-scroll 7s linear infinite;
+  animation: marquee-scroll 16s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee {
     animation: none;
   }
+}
+
+/* قناع تلاشي عند حافتي الشريط (طلب صريح: "تدخل الجملة نفقًا ثم تعاود تخرج" مثل أشرطة
+   القنوات التلفزيونية، بدل قصّ حاد بـoverflow-hidden فقط). يُطبَّق على الحاوية الثابتة
+   (غير المتحركة) لا على الشريط المتحرك نفسه، فيبقى التلاشي فمكانه الثابت بصريًا بينما
+   المحتوى يمر خلاله — بالضبط تأثير "دخول نفق". mask-image مدعوم على كل المتصفحات الحديثة؛
+   المتصفحات القديمة تتجاهله فقط فيبقى القصّ الحاد الافتراضي (تدهور تدريجي آمن). */
+.marquee-fade-mask {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
 }
 
 [dir="rtl"] .icon-flip {

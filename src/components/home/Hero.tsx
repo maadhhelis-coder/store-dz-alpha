@@ -3,36 +3,35 @@ import { SITE_TAGLINE } from "@/data/site";
 
 const MARQUEE_TEXT = "منتجات تختارها بثقة وتوصلك أينما كنت";
 
-// جملة واحدة فقط تتكرر (طلب صريح لاحق: نسخة سابقة كررت الوحدة 6 مرات لتفادي فجوة فارغة على
-// الشاشات العريضة، فبدت 3 نسخ ثابتة من نفس الجملة معًا فآن واحد — وهو بالضبط ما رفضه صاحب
-// المتجر: "الشريط لا يتكرر أبدًا" يعني عدة نسخ ساكنة بدل نسخة واحدة تتحرك وتُعاد. الحل هنا
-// نسخة واحدة فقط + مدة حركة أقصر (راجع .animate-marquee فـglobals.css) بدل تكثيف النسخ.
-const MARQUEE_UNITS = 1;
+// أربع وحدات (طلب صريح لاحق: "3 جمل أو أربعة") داخل كل طقم — مع قناع تلاشي الحواف
+// (marquee-fade-mask فـglobals.css) الذي يجعل دخول/خروج كل نسخة يبدو "دخولاً فنفق" بدل قصّ
+// مفاجئ، فتصبح عدة نسخ ظاهرة معًا مقبولة بصريًا واحترافية (بخلاف نسخة سابقة بلا قناع حيث
+// بدت النسخ المتعددة نصًا ثابتًا مكررًا فقط). أحجام متدرّجة حسب الشاشة (طلب صريح: مقاس
+// يناسب الهاتف والحاسوب معًا) — على الهاتف تحديدًا وحدة أصغر تعني فرصة أكبر لظهور الجملة
+// كاملة فآن واحد بدل قصّها بسبب ضيق الشاشة.
+const MARQUEE_UNITS = 4;
 
-// شريط متحرك بلا توقف (طلب صريح، أُكِّد مرتين): الشعار الكامل (الشارة الدائرية بالضبط كما
-// أُرسلت — لا نص "Store DZ" منفصل بجانبه لأنه مكتوب داخلها أصلاً) يتحرك الآن مع الجملة معًا
-// كوحدة واحدة متكررة عبر .animate-marquee (راجع globals.css)، وليس ثابتًا بجانب نص متحرك.
-// h1 حقيقي يبقى ضروريًا لصحة الصفحة SEO؛ بما أن كل الوحدات الظاهرة بصريًا هنا نص/شعار
-// متكرر لأجل الحلقة السلسة (لا يصلح دلاليًا كمحتوى)، يبقى الشريط كله aria-hidden ويُعوَّضه
-// h1 منفصل غير ظاهر بصريًا (sr-only) يحمل اسم الموقع ووصفه الحقيقي.
-// صورة الغلاف أدناها ممتدة حافة إلى حافة بلا إطار ذهبي وبلا أي مسافة جانبية أو خط فاصل
-// فوقها (طلب صريح لاحق: إزالة الخط الذهبي بين الشريط والصورة ورفعها للأعلى)، بنسبة أبعاد
-// 3/2 مطابقة تمامًا لأبعاد الصورة الأصلية (1536×1024). ارتفاع الشريط 3سم (خُفِّض من 4سم
-// بطلب صريح لاحق).
+// شريط متحرك بلا توقف (طلب صريح، أُكِّد عدة مرات): الشعار الكامل (الشارة الدائرية بالضبط
+// كما أُرسلت — لا نص "Store DZ" منفصل بجانبه لأنه مكتوب داخلها أصلاً) يتحرك مع الجملة معًا
+// كوحدة واحدة متكررة عبر .animate-marquee (راجع globals.css)، من اليسار إلى اليمين (طلب
+// صريح: عكس الاتجاه الأصلي). h1 حقيقي يبقى ضروريًا لصحة الصفحة SEO؛ بما أن كل الوحدات
+// الظاهرة بصريًا هنا نص/شعار متكرر لأجل الحلقة السلسة (لا يصلح دلاليًا كمحتوى)، يبقى
+// الشريط كله aria-hidden ويُعوَّضه h1 منفصل غير ظاهر بصريًا (sr-only) يحمل اسم الموقع
+// ووصفه الحقيقي. ارتفاع الشريط 3سم (طلب صريح).
 function MarqueeSet() {
   return (
     <div className="flex items-center">
       {Array.from({ length: MARQUEE_UNITS }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 mx-8 shrink-0">
+        <div key={i} className="flex items-center gap-2 sm:gap-3 mx-4 sm:mx-6 md:mx-8 shrink-0">
           <BrandImage
             src="/images/brand/logo-badge.png"
             alt="Store DZ"
             width={200}
             height={200}
-            className="h-14 w-auto shrink-0 rounded-full"
+            className="h-9 sm:h-11 md:h-14 w-auto shrink-0 rounded-full"
             priority={i === 0}
           />
-          <span className="font-display text-lg md:text-2xl font-bold gold-gradient-text whitespace-nowrap">
+          <span className="font-display text-sm sm:text-base md:text-lg lg:text-2xl font-bold gold-gradient-text whitespace-nowrap">
             {MARQUEE_TEXT}
           </span>
         </div>
@@ -46,26 +45,29 @@ export default function Hero() {
     <section className="relative overflow-hidden border-b border-gold/15">
       <h1 className="sr-only">Store DZ — {SITE_TAGLINE}</h1>
 
-      <div className="h-[3cm] flex items-center overflow-hidden bg-black">
+      {/* marquee-fade-mask (راجع globals.css): تلاشي تدريجي عند حافتي الشريط بدل قصّ حاد —
+          طلب صريح: "تدخل الجملة نفقًا ثم تعاود تخرج" مثل أشرطة القنوات التلفزيونية. */}
+      <div className="h-[3cm] flex items-center overflow-hidden bg-black marquee-fade-mask">
         <div className="flex items-center animate-marquee w-max" aria-hidden="true">
           <MarqueeSet />
           <MarqueeSet />
         </div>
       </div>
 
-      {/* ارتفاع صريح متدرّج حسب حجم الشاشة (طلب صريح: مقاس يناسب الهاتف والحاسوب معًا) بدل
-          aspect-ratio+max-h — تلك التركيبة كانت تجعل المتصفح يحسب العرض من الارتفاع
-          المحدود (aspect-ratio على صندوق width:auto) فينكمش الصندوق ويلتصق بحافة البداية
-          فـRTL (اليمين)، تاركًا فراغًا أسود على اليسار — دليل حقيقي شوهد فعليًا على الحاسوب.
-          w-full صريح هنا يضمن الامتداد الكامل أفقيًا فكل حجم شاشة بلا أي فراغ جانبي. */}
-      <div className="relative w-full h-[220px] sm:h-[300px] md:h-[420px] lg:h-[520px]">
+      {/* عرض أقصى بدل قص بالارتفاع (طلب صريح: نسخة القص السابقة كانت تُخفي عنوان "توصيل"
+          وصف الأيقونات السفلي بالكامل من منتصف الصورة — غير احترافي، دليل حقيقي بالمعاينة).
+          هنا الصورة كاملة بلا أي قص، فقط بحجم أصغر على الشاشات الواسعة (max-w)، ممركزة على
+          خلفية سوداء تطابق خلفية الصفحة فلا يبدو أي فراغ جانبي كخلل. على الهاتف تبقى ممتدة
+          كامل العرض طبيعيًا (w-full بلا حد أقصى قبل sm). */}
+      <div className="w-full flex justify-center bg-black">
         <BrandImage
           src="/images/banners/delivery-coverage-hero.png"
           alt="Store DZ — توصيل إلى 69 ولاية"
-          fill
+          width={1536}
+          height={1024}
           priority
-          className="object-cover"
-          sizes="100vw"
+          className="w-full sm:max-w-2xl md:max-w-3xl h-auto"
+          sizes="(max-width: 640px) 100vw, 768px"
         />
       </div>
     </section>
