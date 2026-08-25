@@ -52,7 +52,24 @@ export function buildMetadata({
   };
 }
 
-export function organizationJsonLd() {
+// اكتُشف فعليًا (طلب صريح): كانت sameAs تعتمد ثوابت INSTAGRAM_URL/FACEBOOK_URL الثابتة فقط،
+// بينما Header/Footer/MobileNav تعرض فعليًا روابط socialUrls المُعدَّة من لوحة التحكم (قد
+// تختلف عن الثوابت)، ولا تتضمن TikTok إطلاقًا رغم عرضه فعليًا فالواجهة. هذا يُصحِّح ذلك:
+// يقبل روابط socialUrls الحقيقية من DB (اختيارية)، ويسقط أي رابط غير مضبوط بدل إدراج قيمة
+// فارغة/خاطئة. صحة sameAs هي الأساس التقني الوحيد الذي يمكن لصاحب الموقع التحكم فيه لدعم
+// احتمال ظهور أيقونات التواصل الاجتماعي فنتيجة بحث جوجل — عرضها الفعلي قرار خوارزمي من جوجل
+// نفسه، لا يضمنه أي كود.
+export function organizationJsonLd(socialUrls?: {
+  instagramUrl?: string | null;
+  facebookUrl?: string | null;
+  tiktokUrl?: string | null;
+}) {
+  const sameAs = [
+    socialUrls?.instagramUrl || INSTAGRAM_URL,
+    socialUrls?.facebookUrl || FACEBOOK_URL,
+    socialUrls?.tiktokUrl,
+  ].filter((url): url is string => Boolean(url));
+
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -67,7 +84,7 @@ export function organizationJsonLd() {
       areaServed: "DZ",
       availableLanguage: ["ar"],
     },
-    sameAs: [INSTAGRAM_URL, FACEBOOK_URL],
+    sameAs,
   };
 }
 

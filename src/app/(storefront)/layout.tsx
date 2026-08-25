@@ -36,7 +36,13 @@ export default async function StorefrontLayout({
       >
         تخطي إلى المحتوى الرئيسي
       </a>
-      <JsonLd data={organizationJsonLd()} />
+      <JsonLd
+        data={organizationJsonLd({
+          instagramUrl: settings.instagramUrl,
+          facebookUrl: settings.facebookUrl,
+          tiktokUrl: settings.tiktokUrl,
+        })}
+      />
       <PageViewTracker />
       <WebVitalsReporter />
       <TrackingPixels
