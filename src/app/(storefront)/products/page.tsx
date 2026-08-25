@@ -15,8 +15,11 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
   const page = Math.max(1, Number(pageParam) || 1);
 
   let title = "المنتجات";
+  // نص عام عمدًا (لا يُعدِّد أسماء تصنيفات بعينها) — نسخة سابقة كانت تُسمّي ثلاثة تصنيفات
+  // بالاسم هنا، فبقيت فوصف الصفحة الوصفي (meta description) بعد حذف تصنيفين فعليًا من
+  // قاعدة البيانات، فظهرت فنتائج بحث جوجل تصنيفات لم تعد موجودة إطلاقًا.
   let description =
-    "تصفح كل منتجات Store DZ: إلكترونيات وغادجات، أزياء وإكسسوارات، ومنتجات منزلية أصلية 100% بأسعار مناسبة وتوصيل لكل الجزائر.";
+    "تصفح تشكيلة منتجات Store DZ الأصلية 100% بأسعار مناسبة وتوصيل لكل الجزائر.";
   let path = "/products";
 
   if (categorySlug) {
