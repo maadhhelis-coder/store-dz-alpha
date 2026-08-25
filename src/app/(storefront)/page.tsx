@@ -28,12 +28,13 @@ export default function Home() {
       <JsonLd data={websiteJsonLd()} />
       <Hero />
 
-      {/* "المنتجات" بين خطّين ذهبيين متدرّجين، بلون متلألئ (طلب صريح) بدل رابط نصي عادي. */}
+      {/* "المنتجات" بين خطّين ذهبيين متدرّجين، بلون متلألئ (طلب صريح) بدل رابط نصي عادي.
+          حجم أكبر قليلاً ومسافة أوسع حولها (طلب صريح لاحق) — بلا أي تعديل آخر هنا. */}
       <section className="container-page py-8 text-center">
         <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
         <Link
           href="/products"
-          className="inline-block font-display text-2xl md:text-3xl font-extrabold gold-gradient-text my-3 hover:opacity-80 transition-opacity"
+          className="inline-block font-display text-3xl md:text-4xl font-extrabold gold-gradient-text my-5 hover:opacity-80 transition-opacity"
         >
           المنتجات
         </Link>

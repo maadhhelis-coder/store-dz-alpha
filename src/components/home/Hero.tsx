@@ -1,33 +1,40 @@
 import BrandImage from "@/components/brand/BrandImage";
+import { SITE_TAGLINE } from "@/data/site";
 
-// "Store DZ" + الشعار الحقيقي، بين خطين ذهبيين متدرّجين وبلون متلألئ (طلب صريح) —
-// بنفس أسلوب فاصل "المنتجات" فـpage.tsx. h1 هنا هو نفسه النص الظاهر (وليس sr-only كما
-// كان مؤقتًا) الآن بعد وصول ملف الشعار الحقيقي.
-// الشعار المستعمَل هنا هو علامة "S" فقط (نفس /images/brand/logo-on-black.png المستعملة
-// أصلاً فـHeader/Footer)، وليس الشارة الدائرية الكاملة (التي تحمل كتابة "STORE DZ" داخلها
-// أصلاً) — لتفادي تكرار الكتابة مرتين جنبًا إلى جنب. الشارة الكاملة محفوظة كأصل حقيقي
-// فـ/images/brand/logo-badge.png لاستعمالات أخرى (بروفايل واتساب للأعمال، إلخ).
+const MARQUEE_TEXT = "منتجات تختارها بثقة وتوصلك أينما كنت";
+
+// شريط متحرك بلا توقف (طلب صريح — نسخة سابقة كانت فاصلاً ثابتًا بلا حركة، وهذا خطأ فُهم
+// وأُصلح بعد توضيح صريح): الشعار الكامل (الشارة الدائرية بالضبط كما أُرسلت — لا نص "Store
+// DZ" منفصل بجانبه لأنه مكتوب داخلها أصلاً) ثابت لا يتحرك، والنص بجانبه يتحرك باستمرار عبر
+// .animate-marquee (راجع globals.css). h1 حقيقي يبقى ضروريًا لصحة الصفحة SEO؛ بما أن
+// المحتوى الظاهر بصريًا هنا نص متكرر لأجل الحلقة السلسة (لا يصلح دلاليًا كـh1)، يبقى h1
+// منفصلاً غير ظاهر بصريًا (sr-only) يحمل اسم الموقع ووصفه الحقيقي.
 // صورة الغلاف أدناها ممتدة حافة إلى حافة بلا إطار ذهبي وبلا أي مسافة جانبية (طلب صريح)،
-// بنسبة أبعاد 3/2 مطابقة تمامًا لأبعاد الصورة الأصلية (1536×1024) — أي نسبة أخرى تقص جزءًا
-// من التصميم لم يُطلَب قصّه.
+// بنسبة أبعاد 3/2 مطابقة تمامًا لأبعاد الصورة الأصلية (1536×1024).
 export default function Hero() {
   return (
     <section className="relative overflow-hidden border-b border-gold/15">
-      <div className="container-page py-6 text-center">
-        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
-        <div className="flex items-center justify-center gap-3 my-3">
-          <BrandImage
-            src="/images/brand/logo-on-black.png"
-            alt="Store DZ"
-            width={96}
-            height={96}
-            className="w-10 h-10 md:w-12 md:h-12 rounded-full"
-          />
-          <h1 className="font-display text-2xl md:text-3xl font-extrabold gold-gradient-text">
-            Store DZ
-          </h1>
+      <h1 className="sr-only">Store DZ — {SITE_TAGLINE}</h1>
+
+      <div className="h-[4cm] flex items-center gap-4 px-4 md:px-8 bg-black border-b border-gold/15">
+        <BrandImage
+          src="/images/brand/logo-badge.png"
+          alt="Store DZ"
+          width={200}
+          height={200}
+          className="h-[70%] w-auto shrink-0 rounded-full"
+          priority
+        />
+        <div className="flex-1 overflow-hidden">
+          <div className="flex whitespace-nowrap animate-marquee w-max">
+            <span className="mx-8 font-display text-lg md:text-2xl font-bold gold-gradient-text">
+              {MARQUEE_TEXT}
+            </span>
+            <span className="mx-8 font-display text-lg md:text-2xl font-bold gold-gradient-text" aria-hidden="true">
+              {MARQUEE_TEXT}
+            </span>
+          </div>
         </div>
-        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
       </div>
 
       <div className="relative aspect-[3/2]">

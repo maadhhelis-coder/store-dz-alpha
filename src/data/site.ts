@@ -22,6 +22,20 @@ export const NAV_LINKS = [
   { href: "/contact", label: "تواصل معنا" },
 ] as const;
 
+// مُركزَّة هنا (بدل تكرارها فFooter.tsx وMobileNav.tsx) — تُستعمَل فكلا المكانين.
+export const ABOUT_STORE_LINKS = [
+  { href: "/about", label: "عن المتجر" },
+  { href: "/payment-methods", label: "طرق الدفع" },
+  { href: "/shipping-delivery", label: "الشحن والتسليم" },
+  { href: "/faq", label: "الأسئلة الشائعة" },
+] as const;
+
+export const POLICY_LINKS = [
+  { href: "/terms-of-service", label: "شروط الاستخدام" },
+  { href: "/return-policy", label: "سياسة الاستبدال والاسترجاع" },
+  { href: "/privacy-policy", label: "سياسة الخصوصية" },
+] as const;
+
 export const TRUST_BADGES = [
   {
     id: "authentic",
