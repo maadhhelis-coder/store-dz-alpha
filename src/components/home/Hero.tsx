@@ -17,19 +17,21 @@ const MARQUEE_UNITS = 6;
 // h1 حقيقي يبقى ضروريًا لصحة الصفحة SEO؛ بما أن كل الوحدات الظاهرة بصريًا هنا نص/شعار
 // متكرر لأجل الحلقة السلسة (لا يصلح دلاليًا كمحتوى)، يبقى الشريط كله aria-hidden ويُعوَّضه
 // h1 منفصل غير ظاهر بصريًا (sr-only) يحمل اسم الموقع ووصفه الحقيقي.
-// صورة الغلاف أدناها ممتدة حافة إلى حافة بلا إطار ذهبي وبلا أي مسافة جانبية (طلب صريح)،
-// بنسبة أبعاد 3/2 مطابقة تمامًا لأبعاد الصورة الأصلية (1536×1024).
+// صورة الغلاف أدناها ممتدة حافة إلى حافة بلا إطار ذهبي وبلا أي مسافة جانبية أو خط فاصل
+// فوقها (طلب صريح لاحق: إزالة الخط الذهبي بين الشريط والصورة ورفعها للأعلى)، بنسبة أبعاد
+// 3/2 مطابقة تمامًا لأبعاد الصورة الأصلية (1536×1024). ارتفاع الشريط 3سم (خُفِّض من 4سم
+// بطلب صريح لاحق).
 function MarqueeSet() {
   return (
     <div className="flex items-center">
       {Array.from({ length: MARQUEE_UNITS }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 mx-10 shrink-0">
+        <div key={i} className="flex items-center gap-3 mx-8 shrink-0">
           <BrandImage
             src="/images/brand/logo-badge.png"
             alt="Store DZ"
             width={200}
             height={200}
-            className="h-[4.5rem] w-auto shrink-0 rounded-full"
+            className="h-11 w-auto shrink-0 rounded-full"
             priority={i === 0}
           />
           <span className="font-display text-lg md:text-2xl font-bold gold-gradient-text whitespace-nowrap">
@@ -46,7 +48,7 @@ export default function Hero() {
     <section className="relative overflow-hidden border-b border-gold/15">
       <h1 className="sr-only">Store DZ — {SITE_TAGLINE}</h1>
 
-      <div className="h-[4cm] flex items-center overflow-hidden bg-black border-b border-gold/15">
+      <div className="h-[3cm] flex items-center overflow-hidden bg-black">
         <div className="flex items-center animate-marquee w-max" aria-hidden="true">
           <MarqueeSet />
           <MarqueeSet />
