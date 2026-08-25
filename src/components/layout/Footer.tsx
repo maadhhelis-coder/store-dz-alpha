@@ -1,8 +1,22 @@
 import Link from "next/link";
 import Logo from "@/components/brand/Logo";
+import FooterAccordionColumn from "@/components/layout/FooterAccordionColumn";
 import { InstagramIcon, FacebookIcon, TiktokIcon, WhatsAppIcon } from "@/components/shared/SocialIcons";
 import { FACEBOOK_URL, INSTAGRAM_URL, NAV_LINKS, SITE_TAGLINE } from "@/data/site";
 import { buildGenericMessage, buildWhatsAppUrl } from "@/lib/whatsapp";
+
+const ABOUT_STORE_LINKS = [
+  { href: "/about", label: "عن المتجر" },
+  { href: "/payment-methods", label: "طرق الدفع" },
+  { href: "/shipping-delivery", label: "الشحن والتسليم" },
+  { href: "/faq", label: "الأسئلة الشائعة" },
+] as const;
+
+const POLICY_LINKS = [
+  { href: "/terms-of-service", label: "شروط الاستخدام" },
+  { href: "/return-policy", label: "سياسة الاستبدال والاسترجاع" },
+  { href: "/privacy-policy", label: "سياسة الخصوصية" },
+] as const;
 
 type FooterProps = {
   logoUrl?: string | null;
@@ -17,7 +31,7 @@ export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
 
   return (
     <footer className="border-t border-gold/15 bg-ink mt-16">
-      <div className="container-page py-12 grid gap-10 md:grid-cols-2">
+      <div className="container-page py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo logoUrl={logoUrl} />
           <p className="text-sm text-cream-dim mt-4 leading-relaxed">
@@ -82,6 +96,9 @@ export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
             ))}
           </ul>
         </div>
+
+        <FooterAccordionColumn title="عن المتجر" items={ABOUT_STORE_LINKS} />
+        <FooterAccordionColumn title="الشروط والسياسات" items={POLICY_LINKS} />
       </div>
     </footer>
   );

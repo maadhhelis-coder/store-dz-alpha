@@ -6,19 +6,21 @@ import SectionHeading from "@/components/shared/SectionHeading";
 import JsonLd from "@/components/shared/JsonLd";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
 
-export const metadata: Metadata = buildMetadata({
-  title: "تسوق إلكترونيات وأزياء ومنتجات منزلية أصلية",
-  description:
-    "متجرك الإلكتروني في الجزائر لمنتجات أصلية، بتوصيل سريع لكل الولايات ودفع عند الاستلام.",
-  path: "/",
-});
-
-const HIGHLIGHT_BADGES = [
-  { src: "/images/badges/shipping-refund.png", alt: "الشحن — ضمان استعادة الأموال" },
-  { src: "/images/badges/real-guarantee.png", alt: "ضمان حقيقي" },
-  { src: "/images/badges/after-sales.png", alt: "خدمة ما بعد البيع" },
-  { src: "/images/badges/cash-on-delivery.png", alt: "الدفع عند الاستلام" },
-] as const;
+// عنوان قصير صراحة بطلب المتجر — Google كان يعرض العنوان الأطول السابق كاملاً فنتائج
+// البحث، والمطلوب الآن هو "Store DZ" فقط. title: { absolute } ضروري هنا تحديدًا (وليس نص
+// عادي) — اكتُشف فعليًا محليًا: نص عادي "Store DZ" يمتلئ به %s فقالب العنوان الجذري
+// ("%s | Store DZ")، فيظهر "Store DZ | Store DZ" مكررًا بدل "Store DZ" فقط. absolute
+// يتجاوز القالب صراحة، بلا التأثير على باقي الصفحات (كل صفحة أخرى تحتاج فعلاً لاحقة
+// "| Store DZ" العادية، فتبقى title نصًا عاديًا فيها).
+export const metadata: Metadata = {
+  ...buildMetadata({
+    title: "Store DZ",
+    description:
+      "متجرك الإلكتروني في الجزائر لمنتجات أصلية، بتوصيل سريع لكل الولايات ودفع عند الاستلام.",
+    path: "/",
+  }),
+  title: { absolute: "Store DZ" },
+};
 
 export default function Home() {
   return (
@@ -35,21 +37,18 @@ export default function Home() {
         </Link>
       </section>
 
-      <section className="container-page py-14 md:py-20">
-        <SectionHeading eyebrow="لماذا Store DZ" title="ما يميزنا" align="center" />
-        <div className="grid grid-cols-2 gap-4 md:gap-6 max-w-xl mx-auto">
-          {HIGHLIGHT_BADGES.map((badge) => (
-            <div key={badge.src} className="rounded-xl overflow-hidden gold-border">
-              <BrandImage
-                src={badge.src}
-                alt={badge.alt}
-                width={1080}
-                height={1440}
-                className="w-full h-auto"
-                sizes="(max-width: 768px) 45vw, 280px"
-              />
-            </div>
-          ))}
+      {/* استُبدلت شبكة الشارات الأربعة بصورة واحدة (طلب صريح) — الصورة نفسها تحمل عنوان
+          "ما يميزنا" مرسومًا بداخلها، فلا حاجة لـ SectionHeading مكرِّر هنا. */}
+      <section className="container-page py-10 md:py-14">
+        <div className="max-w-2xl mx-auto rounded-2xl overflow-hidden gold-border">
+          <BrandImage
+            src="/images/highlights/ma-yumayyizna.png"
+            alt="ما يميزنا: ضمان حقيقي، الشحن إلى 69 ولاية، الدفع عند الاستلام، خدمة ما بعد البيع"
+            width={1536}
+            height={1024}
+            className="w-full h-auto"
+            sizes="(max-width: 768px) 100vw, 672px"
+          />
         </div>
       </section>
     </>
