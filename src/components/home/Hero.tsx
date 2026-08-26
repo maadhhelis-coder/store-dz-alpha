@@ -9,20 +9,20 @@ export default function Hero() {
     <section className="relative overflow-hidden border-b border-gold/15">
       <h1 className="sr-only">Store DZ — {SITE_TAGLINE}</h1>
 
-      {/* عرض أقصى بدل قص بالارتفاع (طلب صريح: نسخة القص السابقة كانت تُخفي عنوان "توصيل"
-          وصف الأيقونات السفلي بالكامل من منتصف الصورة — غير احترافي، دليل حقيقي بالمعاينة).
-          هنا الصورة كاملة بلا أي قص، فقط بحجم أصغر على الشاشات الواسعة (max-w)، ممركزة على
-          خلفية سوداء تطابق خلفية الصفحة فلا يبدو أي فراغ جانبي كخلل. على الهاتف تبقى ممتدة
-          كامل العرض طبيعيًا (w-full بلا حد أقصى قبل sm). */}
-      <div className="w-full flex justify-center bg-black">
+      {/* طلب صريح لاحق: "بدون جوانب سوداء" — نسخة max-w المُمركَزة كانت تمنع القصّ فعلاً،
+          لكنها تركت فراغًا أسود جانبيًا على الشاشات الواسعة. ممتدة حافة إلى حافة هنا (بلا
+          max-w) بارتفاع معقول غير مبالغ فيه (طلب صريح: "لا كبيرة جدًا ولا صغيرة")، مع
+          object-position: top للحفاظ على العنوان والشعار والخريطة/الشاحنة كاملين — الجزء
+          الوحيد الذي يُقصّ عند الحاجة هو صف الأيقونات السفلي الرفيع، وهو نفسه مكرَّر بلا
+          فقدان فعلي بقسم "ما يميزنا" أدناه (بطاقات TRUST_BADGES الحقيقية نفسها). */}
+      <div className="relative w-full h-[420px] sm:h-[480px] md:h-[540px] lg:h-[600px]">
         <BrandImage
           src="/images/banners/delivery-coverage-hero.png"
           alt="Store DZ — توصيل إلى 69 ولاية"
-          width={1536}
-          height={1024}
+          fill
           priority
-          className="w-full sm:max-w-2xl md:max-w-3xl h-auto"
-          sizes="(max-width: 640px) 100vw, 768px"
+          className="object-cover object-top"
+          sizes="100vw"
         />
       </div>
     </section>
