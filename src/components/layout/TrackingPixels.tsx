@@ -62,11 +62,21 @@ export default function TrackingPixels({
   return (
     <>
       <script id="pixel-config" type="application/json" dangerouslySetInnerHTML={{ __html: config }} />
-      <Script id="pixel-loader" src="/pixel-loader.js" strategy="afterInteractive" nonce={nonce} />
+      {/* lazyOnload بدل afterInteractive (طلب صريح مؤكَّد عدة مرات: الشريط المتحرك ما زال
+          يتقطّع على الهاتف رغم كل تحسينات CSS المستهدفة له تحديدًا — لم تُحلّ المشكلة إطلاقًا
+          مهما خُفِّف الشريط نفسه، وهذا دليل أن السبب ليس تكلفة رسم الشريط بحد ذاتها بل عمل
+          آخر ينافسه على نفس المعالج فنفس اللحظة). afterInteractive يُشغِّل 4 حزم SDK طرف
+          ثالث منفصلة (فيسبوك، تيك توك، جوجل، سناب شات) فور اكتمال الـhydration — تحليل
+          وتنفيذ حزم جافاسكريبت كبيرة كهذه بالتزامن هو عبء معالج حقيقي وملموس على هاتف ضعيف
+          (فحص فعلي: Vivo X21، نفس المشكلة فمتصفحين مختلفين)، بالتزامن الدقيق مع أول ثوانٍ
+          مشاهدة الشريط. lazyOnload يؤجّل التنفيذ حتى يصبح المتصفح خاملاً (requestIdleCallback)
+          فلا ينافس أي عمل حرج — الأحداث (PageView) لا تُفقَد، فقط تصل بعد ثوانٍ قليلة إضافية،
+          وهو فرق لا يُذكر فدقة تتبّع الإعلانات مقابل تحسين حقيقي فسلاسة الصفحة. */}
+      <Script id="pixel-loader" src="/pixel-loader.js" strategy="lazyOnload" nonce={nonce} />
       {googleTagId && (
         <Script
           id="gtag-src"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
           src={`https://www.googletagmanager.com/gtag/js?id=${googleTagId}`}
           nonce={nonce}
         />
