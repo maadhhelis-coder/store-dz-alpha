@@ -1,4 +1,5 @@
 import BrandImage from "@/components/brand/BrandImage";
+import MarqueePerfGate from "@/components/home/MarqueePerfGate";
 import { SITE_TAGLINE } from "@/data/site";
 
 const MARQUEE_TEXT = "منتجات تختارها بثقة وتوصلك أينما كنت";
@@ -23,12 +24,15 @@ function MarqueeSet() {
     <div className="flex items-center">
       {Array.from({ length: MARQUEE_UNITS }).map((_, i) => (
         <div key={i} className="flex items-center gap-2 sm:gap-3 mx-4 sm:mx-6 md:mx-8 shrink-0">
+          {/* marquee-unit-image (راجع .marquee-lite فـglobals.css): تُخفى تلقائيًا فقط إذا
+              قاس MarqueePerfGate أداءً ضعيفًا فعليًا على جهاز الزائر الحالي — نص بلا شعار
+              متحرك أخفّ عبء تركيب ممكن. */}
           <BrandImage
             src="/images/brand/logo-badge.png"
             alt="Store DZ"
             width={200}
             height={200}
-            className="h-9 sm:h-11 md:h-14 w-auto shrink-0 rounded-full"
+            className="marquee-unit-image h-9 sm:h-11 md:h-14 w-auto shrink-0 rounded-full"
             priority
           />
           <span className="font-display text-sm sm:text-base md:text-lg lg:text-2xl font-bold marquee-text whitespace-nowrap">
@@ -52,12 +56,14 @@ export default function Hero() {
           النصي سابقًا — أي خلفية متدرّجة (gradient) على الحاوية الثابتة نفسها التي يتحرك
           بداخلها عنصر هي مصدر عبء تركيب إضافي محتمل مشابه للقناع تمامًا، فأُزيلت من الهاتف
           أيضًا بنفس المنطق. */}
-      <div className="h-[3cm] flex items-center overflow-hidden bg-black marquee-bg marquee-fade-mask">
-        <div className="flex items-center animate-marquee w-max" aria-hidden="true">
-          <MarqueeSet />
-          <MarqueeSet />
+      <MarqueePerfGate>
+        <div className="h-[3cm] flex items-center overflow-hidden bg-black marquee-bg marquee-fade-mask">
+          <div className="flex items-center animate-marquee w-max" aria-hidden="true">
+            <MarqueeSet />
+            <MarqueeSet />
+          </div>
         </div>
-      </div>
+      </MarqueePerfGate>
 
       {/* عرض أقصى بدل قص بالارتفاع (طلب صريح: نسخة القص السابقة كانت تُخفي عنوان "توصيل"
           وصف الأيقونات السفلي بالكامل من منتصف الصورة — غير احترافي، دليل حقيقي بالمعاينة).
