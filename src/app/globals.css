@@ -106,37 +106,6 @@ h6 {
   }
 }
 
-/* شريط الإعلان المتحرك أعلى المتجر (MarqueeBanner.tsx) — طلب صريح مفصَّل: مواصفات كاملة
-   من الصفر، حلقة لا نهائية سلسة بلا أي قفزة أو فراغ، خطية (linear) بلا تسريع/تباطؤ، أداء
-   GPU-only بلا أي جافاسكريبت يحرّك أي شيء (فقط transform + will-change، لا setInterval ولا
-   حلقات React). الحيلة الكلاسيكية: طقم واحد يحتوي عدة وحدات (شعار+نص+فاصل) تكفي لتغطية
-   أعرض شاشة متوقّعة، مكرّر مرتين، ثم إزاحة بمقدار 50% بالضبط لحلقة سلسة بلا حدود شرطية —
-   بلا قناع تلاشي هذه المرة (لم يُطلب، وأبسط = أقل عبء بلا أي تجربة). */
-@keyframes marquee-banner-scroll {
-  from {
-    transform: translate3d(-50%, 0, 0);
-  }
-  to {
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-.marquee-banner-track {
-  /* 29s مضبوطة لتعطي سرعة ثابتة ≈100px/s (طلب صريح: "90-120px/s ... نفس الإحساس بالسرعة
-     على الهاتف والكمبيوتر") — قِيست فعليًا: عرض "الطقم" الواحد (المقاسات الآن ثابتة بلا
-     أي breakpoint فـMarqueeBanner.tsx، فعرضه بالبكسل واحد على كل الشاشات) ≈2901px، فمدة
-     29s تعطي 2901/29 ≈ 100px/s بالضبط. بما أن العرض لم يعد يتغيّر حسب الشاشة، هذه المدة
-     الثابتة تُنتج نفس السرعة الفعلية بالبكسل/الثانية على كل جهاز بلا أي حساب فجافاسكريبت. */
-  animation: marquee-banner-scroll 29s linear infinite;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee-banner-track {
-    animation: none;
-  }
-}
-
 [dir="rtl"] .icon-flip {
   transform: scaleX(-1);
 }

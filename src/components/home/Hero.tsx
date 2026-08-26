@@ -1,9 +1,9 @@
 import BrandImage from "@/components/brand/BrandImage";
 import { SITE_TAGLINE } from "@/data/site";
 
-// الشريط المتحرك السابق حُذف نهائيًا من هنا (طلب صريح) — استُبدل بمكوّن مستقل جديد كليًا
-// (MarqueeBanner فـsrc/components/layout/) موضوع أعلى المتجر فوق الهيدر مباشرة، وفق مواصفات
-// جديدة كاملة (راجع ذلك الملف). لا علاقة له بـHero بعد الآن.
+// الشريط المتحرك السابق حُذف نهائيًا من هنا (طلب صريح) — استُبدل بشريط ثابت مستقل كليًا
+// (BrandBar فـsrc/components/layout/) موضوع تحت الهيدر مباشرة، بلا أي حركة. لا علاقة له
+// بـHero بعد الآن.
 export default function Hero() {
   return (
     <section className="relative overflow-hidden border-b border-gold/15">
