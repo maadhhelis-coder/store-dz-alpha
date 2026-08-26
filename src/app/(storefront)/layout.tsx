@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import AnnouncementBar from "@/components/layout/AnnouncementBar";
+import MarqueeBanner from "@/components/layout/MarqueeBanner";
 import PageViewTracker from "@/components/layout/PageViewTracker";
 import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
@@ -36,6 +37,10 @@ export default async function StorefrontLayout({
       >
         تخطي إلى المحتوى الرئيسي
       </a>
+      {/* أعلى المتجر فوق كل شيء (طلب صريح: "يمكن وضعه بسهولة في أعلى المتجر") — قبل شريط
+          الإعلان النصي القابل للتحكم من لوحة التحكم (AnnouncementBar) وقبل الهيدر، فهو
+          العنصر الأول الذي يراه الزائر دومًا بلا شرط تفعيل من الإعدادات. */}
+      <MarqueeBanner />
       <JsonLd
         data={organizationJsonLd({
           instagramUrl: settings.instagramUrl,
