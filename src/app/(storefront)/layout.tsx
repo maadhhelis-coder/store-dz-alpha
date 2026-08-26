@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import AnnouncementBar from "@/components/layout/AnnouncementBar";
-import MarqueeBanner from "@/components/layout/MarqueeBanner";
+import BrandBar from "@/components/layout/BrandBar";
 import PageViewTracker from "@/components/layout/PageViewTracker";
 import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
@@ -62,13 +62,11 @@ export default async function StorefrontLayout({
         facebookUrl={settings.facebookUrl}
         tiktokUrl={settings.tiktokUrl}
       />
-      {/* تحت الهيدر (طلب صريح لاحق: "اجعلها تحت الرئيسية") — كانت فوق الهيدر، لكن الهيدر
-          sticky top-0 z-40 (راجع Header.tsx)، فأي تمرير ولو بسيط (شائع جدًا على الهاتف
-          بسبب انكماش شريط عنوان المتصفح تلقائيًا عند أول لمسة) يجعل الهيدر "يلتصق" بأعلى
-          الشاشة ويُغطّي الشريط بالكامل تمامًا — وهذا السبب الحقيقي وراء "لا يظهر فالهاتف
-          إطلاقًا" (دليل حقيقي: z-40 على الهيدر يعلو الشريط الذي بلا z-index مرتفع). هنا
-          تحت الهيدر لا يوجد أي تنافس على نفس موضع sticky، فيبقى ظاهرًا دومًا. */}
-      <MarqueeBanner />
+      {/* شريط ثابت بلا حركة (طلب صريح: إزالة الشريط المتحرك نهائيًا — بطء محسوس رغم سرعة
+          مضبوطة رياضيًا فآخر تعديل، أرجح تفسير أداء جهاز حقيقي لا يمكن لأي ضبط CSS تجاوزه).
+          تحت الهيدر (نفس الموضع السابق، بلا مشكلة تراكب مع الهيدر sticky بما أنه لا حركة
+          الآن أصلاً تتطلب أي اعتبار خاص). */}
+      <BrandBar />
       <main id="main-content" className="flex-1">{children}</main>
       <Footer
         logoUrl={settings.logoUrl}
