@@ -127,3 +127,17 @@ h6 {
   background: var(--color-gold);
   color: var(--color-black);
 }
+
+/* طلب صريح: "نقص فالزووم" بالحاسوب لصورتي التوصيل و"ما يميزنا" — قيمة مختلفة بالحاسوب عن
+   الهاتف (0.82 بدل 0.92)، لذا لا يكفي style مضمّن ثابت (لا يدعم breakpoints). فئة CSS عادية
+   هنا بدل فئة Tailwind الاعتباطية scale-[…] (أُثبت سابقًا أنها لا تُطبَّق فعليًا بمشروع
+   Tailwind v4 هذا — media query عادية بخلاف ذلك تعمل بشكل طبيعي). */
+.banner-zoom {
+  transform: scale(0.92);
+}
+
+@media (min-width: 768px) {
+  .banner-zoom {
+    transform: scale(0.82);
+  }
+}
