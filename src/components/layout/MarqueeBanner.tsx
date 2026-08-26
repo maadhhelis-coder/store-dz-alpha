@@ -9,19 +9,24 @@ const UNITS_PER_SET = 8;
 
 function MarqueeUnit({ index }: { index: number }) {
   return (
-    <span className="flex items-center gap-2 md:gap-3 shrink-0 mx-3 md:mx-4">
+    // مقاسات ثابتة بلا أي breakpoint (طلب صريح: "نفس الإحساس بالسرعة على الهاتف والكمبيوتر
+    // ... لا تجعل الشريط يبطئ عندما يكون عرض الشاشة صغيرًا"). كانت الوحدة سابقًا تصغر على
+    // الهاتف (sm:/md:) بينما مدة الحركة ثابتة — يعني عرض "الطقم" الفعلي بالبكسل يختلف بين
+    // الشاشات فتختلف السرعة الفعلية (px/s) رغم نفس المدة بالثواني. عرض ثابت للوحدة على كل
+    // الشاشات + مدة ثابتة (globals.css) = سرعة px/s ثابتة فعليًا بلا أي جافاسكريبت لقياسها.
+    <span className="flex items-center gap-2.5 shrink-0 mx-3.5">
       <BrandImage
         src="/images/brand/logo-badge.png"
         alt=""
         width={80}
         height={80}
         priority={index === 0}
-        className="h-6 sm:h-7 md:h-8 lg:h-9 w-auto shrink-0 rounded-full drop-shadow-[0_0_4px_rgba(212,175,55,0.5)]"
+        className="h-7 w-auto shrink-0 rounded-full drop-shadow-[0_0_4px_rgba(212,175,55,0.5)]"
       />
-      <span className="text-sm md:text-base font-semibold text-white whitespace-nowrap">
+      <span className="text-base font-semibold text-white whitespace-nowrap">
         {MARQUEE_TEXT}
       </span>
-      <span className="text-gold text-base md:text-lg" aria-hidden="true">
+      <span className="text-gold text-lg" aria-hidden="true">
         ✦
       </span>
     </span>
@@ -46,7 +51,7 @@ function MarqueeSet() {
 export default function MarqueeBanner() {
   return (
     <div
-      className="w-full overflow-hidden bg-gradient-to-r from-black via-ink-light to-black py-2 md:py-2.5"
+      className="w-full overflow-hidden bg-gradient-to-r from-black via-ink-light to-black py-2.5"
       role="region"
       aria-label="إعلان المتجر"
     >
