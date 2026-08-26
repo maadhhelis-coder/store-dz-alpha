@@ -7,9 +7,15 @@ type LogoProps = {
   className?: string;
   size?: number;
   logoUrl?: string | null;
+  imgClassName?: string;
+  textClassName?: string;
 };
 
-export default function Logo({ className, size = 44, logoUrl }: LogoProps) {
+// imgClassName/textClassName اختياريان (طلب صريح: تكبير لوغو الهيدر تحديدًا على الحاسوب) —
+// يتجاوزان الحجم الافتراضي بصريًا عبر CSS بلا تغيير width/height الأصلية للصورة (نفس نمط
+// BrandBar الحالي)، بلا التأثير على استخدامات Logo الأخرى (Footer، صفحة دخول لوحة التحكم)
+// التي لا تمرّرهما فتبقى بحجمها الافتراضي كما هي.
+export default function Logo({ className, size = 44, logoUrl, imgClassName, textClassName }: LogoProps) {
   return (
     <Link
       href="/"
@@ -21,10 +27,10 @@ export default function Logo({ className, size = 44, logoUrl }: LogoProps) {
         alt={`شعار ${SITE_NAME}`}
         width={size}
         height={size}
-        className="rounded-full"
+        className={cn("rounded-full", imgClassName)}
         priority
       />
-      <span className="font-display font-bold text-lg tracking-wide text-cream">
+      <span className={cn("font-display font-bold text-lg tracking-wide text-cream", textClassName)}>
         STORE <span className="gold-gradient-text">DZ</span>
       </span>
     </Link>

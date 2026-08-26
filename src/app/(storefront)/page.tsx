@@ -1,22 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { BadgeCheck, Truck, HandCoins, Headset } from "lucide-react";
 import Hero from "@/components/home/Hero";
 import JsonLd from "@/components/shared/JsonLd";
 import ProductGrid from "@/components/commerce/ProductGrid";
+import BrandImage from "@/components/brand/BrandImage";
 import { buildMetadata, websiteJsonLd } from "@/lib/seo";
 import { getPublishedProductsPage } from "@/lib/storefrontData";
-import { TRUST_BADGES } from "@/data/site";
-
-// نفس تعيين الأيقونات المُستعمَل فـTrustBadgeStrip.tsx (لا تكرار منطق جديد، فقط استعمال
-// محلي هنا لأن قسم "ما يميزنا" له تنسيق بصري أكبر/أكثر زخرفة من الشريط المضغوط هناك).
-const WHY_US_ICONS = {
-  "badge-check": BadgeCheck,
-  truck: Truck,
-  "hand-coins": HandCoins,
-  headset: Headset,
-} as const;
 
 // عدد المنتجات المعروضة فمعاينة الصفحة الرئيسية — طلب صريح: توفير "بلاصة" حقيقية تحت
 // عنوان "المنتجات" لعرض منتجات حقيقية من قاعدة البيانات فعليًا، وليس مجرد تكبير العنوان.
@@ -80,37 +70,22 @@ export default function Home() {
         <ProductsPreview />
       </Suspense>
 
-      {/* طلب صريح لاحق: استُبدلت صورة "ما يميزنا" الثابتة (PNG) بقسم HTML/CSS حقيقي —
-          الصورة كانت تفرض معضلة لا حل نهائي لها بين "بلا قصّ" و"بلا فراغ جانبي أسود" (أي
-          عرض أوسع من عرض احتواء الصورة الطبيعي يعني إما قصًّا أو فراغًا، دليل رياضي: نسبة
-          أبعاد الحاوية إذا اختلفت عن 3/2 الأصلية فلا مفرّ من أحدهما). محتوى DOM حقيقي هنا
-          لا يواجه هذه المعضلة إطلاقًا مهما كان عرض الشاشة، ويحقق "الأشكال الأربعة أفقيًا
-          بجانب بعضها" (طلب صريح) بشكل موثوق تمامًا — نفس بيانات TRUST_BADGES الحقيقية
-          المُستعمَلة فصفحة المنتج (لا تكرار بيانات وهمية)، بزخرفة خطوط ذهبية بدل الزخرفة
-          المرسومة فالصورة القديمة. */}
-      <section className="container-page py-10 md:py-14">
-        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent" />
-        <h2 className="text-center font-display text-3xl md:text-4xl font-extrabold gold-gradient-text my-5">
-          ما يميزنا
-        </h2>
-        <div className="max-w-xs mx-auto h-px bg-gradient-to-r from-transparent via-gold to-transparent mb-8 md:mb-10" />
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-5 md:gap-8">
-          {TRUST_BADGES.map((badge) => {
-            const Icon = WHY_US_ICONS[badge.icon as keyof typeof WHY_US_ICONS];
-            return (
-              <div
-                key={badge.id}
-                className="flex flex-col items-center text-center gap-3 gold-border rounded-2xl bg-ink py-6 px-4"
-              >
-                <div className="w-14 h-14 md:w-16 md:h-16 rounded-full gold-border gold-glow flex items-center justify-center">
-                  <Icon className="w-7 h-7 md:w-8 md:h-8 text-gold" strokeWidth={1.75} />
-                </div>
-                <span className="text-sm md:text-base font-bold text-cream">{badge.title}</span>
-              </div>
-            );
-          })}
-        </div>
+      {/* طلب صريح لاحق: استبدال قسم "ما يميزنا" (كان HTML/CSS ببطاقات TRUST_BADGES) بصورة
+          جديدة زوّدنيها المستخدم مباشرة — نسبة أبعادها الحقيقية عريضة جدًا (~2:1، 1774×887)
+          خلافًا للصورة القديمة (3:2) التي فرضت معضلة القصّ/الفراغ الجانبي. حواف الصورة نفسها
+          تتلاشى إلى الأسود الخالص (يطابق --color-black خلفية الصفحة تمامًا) فالعرض الكامل
+          حافة-إلى-حافة (بلا container-page، بلا max-w) لا يترك أي فراغ أو حافة مرئية مهما
+          كان عرض الشاشة — و w-full h-auto (بلا crop/fill) يحافظ على كامل الزخرفة الذهبية
+          والعنوان المرسومين داخل الصورة نفسها دون أي قصّ. */}
+      <section className="w-full">
+        <BrandImage
+          src="/images/highlights/ma-yumayyizna.png"
+          alt="ما يميزنا: خدمة ما بعد البيع، الدفع عند الاستلام، ضمان حقيقي، الشحن الى 69 ولاية"
+          width={1774}
+          height={887}
+          className="w-full h-auto"
+          sizes="100vw"
+        />
       </section>
     </>
   );

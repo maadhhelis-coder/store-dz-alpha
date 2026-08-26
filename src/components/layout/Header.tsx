@@ -23,8 +23,14 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
 
   return (
     <header className="sticky top-0 z-40 bg-black/90 backdrop-blur border-b border-gold/15">
-      <div className="container-page flex items-center justify-between h-18 py-3">
-        <Logo logoUrl={logoUrl} />
+      <div className="container-page flex items-center justify-between h-18 py-3 md:h-20">
+        {/* طلب صريح: تكبير لوغو واسم store dz بالحاسوب — الجانب الأيمن بصريًا هنا (RTL،
+            أول عنصر بترتيب DOM) كما هو مطلوب، بلا تغيير أي شيء بالموبايل. */}
+        <Logo
+          logoUrl={logoUrl}
+          imgClassName="md:w-12 md:h-12"
+          textClassName="md:text-xl"
+        />
 
         <nav className="hidden md:flex items-center gap-6">
           {NAV_LINKS.map((link) => (
@@ -38,7 +44,9 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
           ))}
         </nav>
 
-        <div className="hidden md:flex items-center gap-3">
+        {/* طلب صريح: تكبير أيقونات مواقع التواصل الاجتماعي بالحاسوب — الجانب الأيسر بصريًا
+            هنا (RTL، آخر عنصر بترتيب DOM) كما هو مطلوب، مع تباعد أوسع قليلاً بينها. */}
+        <div className="hidden md:flex items-center gap-4">
           <HeaderSearchToggle />
           <a
             href={igUrl}
@@ -47,7 +55,7 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
             aria-label="صفحة Store DZ على انستغرام"
             className="text-cream-dim hover:text-gold transition-colors p-1.5 -m-1.5"
           >
-            <InstagramIcon className="w-5 h-5" />
+            <InstagramIcon className="w-6 h-6" />
           </a>
           <a
             href={fbUrl}
@@ -56,7 +64,7 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
             aria-label="صفحة Store DZ على فيسبوك"
             className="text-cream-dim hover:text-gold transition-colors p-1.5 -m-1.5"
           >
-            <FacebookIcon className="w-5 h-5" />
+            <FacebookIcon className="w-6 h-6" />
           </a>
           {tiktokUrl && (
             <a
@@ -66,10 +74,15 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
               aria-label="صفحة Store DZ على تيك توك"
               className="text-cream-dim hover:text-gold transition-colors p-1.5 -m-1.5"
             >
-              <TiktokIcon className="w-5 h-5" />
+              <TiktokIcon className="w-6 h-6" />
             </a>
           )}
-          <WhatsAppButton variant="pill" message={buildGenericMessage()} label="راسلنا واتساب" />
+          <WhatsAppButton
+            variant="pill"
+            message={buildGenericMessage()}
+            label="راسلنا واتساب"
+            className="md:px-5 md:py-2.5 md:text-base"
+          />
         </div>
 
         <MobileNav navLinks={NAV_LINKS} igUrl={igUrl} fbUrl={fbUrl} tiktokUrl={tiktokUrl} />
