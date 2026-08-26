@@ -5,19 +5,19 @@ import BrandImage from "@/components/brand/BrandImage";
 // تجاوزه). شعار + نص فقط، بلا أي حركة إطلاقًا. حجم متدرّج حسب الشاشة (أكبر قليلاً بالحاسوب،
 // مناسب لحجم شاشة الهاتف) — لا داعي بعد الآن لعرض ثابت بلا breakpoints (كان ذلك خاصًّا
 // بضمان سرعة px/s ثابتة للحركة، ولم تعد هناك حركة).
-// طلب صريح لاحق: (1) اللوغو "لاصق" بالحافة اليمنى بدل مجموعة ممركزة فالوسط — عبر shrink-0
-// أول عنصر بترتيب DOM (يمين فـRTL) + padding أفقي خاص بدل container-page، بنفس معاملة
-// الهيدر. (2) إزالة توهج drop-shadow الذهبي حول اللوغو والتدرّج اللوني للخلفية (كانا يُقرآن
-// بصريًا كـ"أسود ممزوج بأصفر/أبيض" بدل أسود خالص — طلب صريح) لصالح خلفية سوداء خالصة
-// bg-black. (3) طلب صريح لاحق آخر: "ارجع اللوغو بجانب الكتابة" — تراجع عن flex-1/text-center
-// (كان يبعّد النص عن اللوغو بمسافة كبيرة)؛ اللوغو والنص الآن مجموعة متلاصقة كالسابق، بلا
-// justify-content فالحاوية فتبقى المجموعة عند البداية المنطقية (يمين فـRTL) تلقائيًا.
-// (4) "دائرته سوداء لا سوداء وفيها اضاءة صفراء" — نفس قصّ الحافة بـoverflow-hidden+scale
-// المُستعمَل بمكوّن Logo (انظر تعليقه) لأن BrandBar لا يستعمل ذلك المكوّن، بل BrandImage مباشرة.
+// طلب صريح لاحق: (1) إزالة توهج drop-shadow الذهبي حول اللوغو والتدرّج اللوني للخلفية (كانا
+// يُقرآن بصريًا كـ"أسود ممزوج بأصفر/أبيض" بدل أسود خالص) لصالح خلفية سوداء خالصة bg-black.
+// (2) "ارجع اللوغو بجانب الكتابة" — اللوغو والنص مجموعة متلاصقة (بلا flex-1/text-center).
+// (3) طلب صريح لاحق آخر: "الكتابة مع الشعار فالنصف" — المجموعة كاملة الآن في منتصف الشريط
+// (justify-center) بدل الالتصاق بالحافة اليمنى فقط. (4) "دائرته سوداء لا سوداء وفيها اضاءة
+// صفراء" — قراءة بكسلات logo-badge.png فعليًا أظهرت حوافه نظيفة (أسود خالص حتى ~97% من نصف
+// القطر، لا اصفر) خلافًا لـlogo-on-black.png المُستعمَل بالهيدر؛ scale خفيف هنا (1.08) فقط
+// لإزالة بكسل التنعيم الرمادي الطفيف بالحافة القصوى، عبر style مضمّن (فئة Tailwind
+// scale-[…] أثبتت أنها لا تُطبَّق فعليًا فهذا المشروع — انظر تعليق Logo.tsx).
 export default function BrandBar() {
   return (
     <div className="w-full bg-black py-4 md:py-5 lg:py-6 px-4 sm:px-6 lg:px-10 xl:px-14">
-      <div className="flex items-center gap-3 sm:gap-4 md:gap-6 lg:gap-8">
+      <div className="flex items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8">
         <span className="relative overflow-hidden rounded-full shrink-0 inline-block w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 lg:w-20 lg:h-20">
           <BrandImage
             src="/images/brand/logo-badge.png"
@@ -25,7 +25,8 @@ export default function BrandBar() {
             width={120}
             height={120}
             priority
-            className="w-full h-full object-cover scale-[1.14]"
+            className="w-full h-full object-cover"
+            style={{ transform: "scale(1.08)" }}
           />
         </span>
         <span className="font-display text-base sm:text-lg md:text-2xl lg:text-3xl font-bold gold-gradient-text leading-snug">
