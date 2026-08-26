@@ -6,19 +6,21 @@ import BrandImage from "@/components/brand/BrandImage";
 // مناسب لحجم شاشة الهاتف) — لا داعي بعد الآن لعرض ثابت بلا breakpoints (كان ذلك خاصًّا
 // بضمان سرعة px/s ثابتة للحركة، ولم تعد هناك حركة). "لامعة وجذابة": التدرّج الذهبي
 // (gold-gradient-text) نفسه المُستعمَل فمواضع أخرى فالمتجر للنص، وتوهج ذهبي خفيف حول الشعار.
+// طلب صريح لاحق: تكبير اللوغو والنص وزيادة التباعد بينهما وارتفاع الشريط قليلاً (padding
+// عمودي أكبر) ليبدو أكثر احترافية واتساعًا.
 export default function BrandBar() {
   return (
-    <div className="w-full bg-gradient-to-r from-black via-ink-light to-black py-3 md:py-4">
-      <div className="container-page flex flex-wrap items-center justify-center gap-2.5 sm:gap-3 md:gap-4 text-center">
+    <div className="w-full bg-gradient-to-r from-black via-ink-light to-black py-4 md:py-5 lg:py-6">
+      <div className="container-page flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-5 lg:gap-6 text-center">
         <BrandImage
           src="/images/brand/logo-badge.png"
           alt="شعار Store DZ"
           width={120}
           height={120}
           priority
-          className="h-8 sm:h-10 md:h-12 lg:h-14 w-auto shrink-0 rounded-full drop-shadow-[0_0_10px_rgba(212,175,55,0.6)]"
+          className="h-9 sm:h-11 md:h-14 lg:h-16 w-auto shrink-0 rounded-full drop-shadow-[0_0_10px_rgba(212,175,55,0.6)]"
         />
-        <span className="font-display text-sm sm:text-base md:text-lg lg:text-xl font-bold gold-gradient-text leading-snug">
+        <span className="font-display text-base sm:text-lg md:text-xl lg:text-2xl font-bold gold-gradient-text leading-snug">
           منتجات تختارها بثقة وتوصلك أينما كنت
         </span>
       </div>
