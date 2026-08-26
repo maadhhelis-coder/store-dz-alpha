@@ -75,6 +75,17 @@ export function organizationJsonLd(socialUrls?: {
     "@type": "Organization",
     name: SITE_NAME,
     url: SITE_URL,
+    // طلب صريح: "يظهر فالبحث اسم المتجر والشعار نتاعه" — كان logo مفقودًا من هذا الكائن
+    // بالكامل رغم أنه الحقل الذي يعتمده Google فعليًا لعرض شعار Knowledge Panel بجانب
+    // اسم المتجر فنتيجة بحث "Store DZ". ImageObject (لا رابط نصي فقط) مع width/height
+    // صريحين هو الشكل المُوصى به فتوثيق Google؛ الشعار المربّع (800×800، خلفية دائرية سوداء
+    // + الشعار الذهبي + "STORE DZ") هو الأنسب هنا (مربّع تمامًا، لا اقتصاص).
+    logo: {
+      "@type": "ImageObject",
+      url: `${SITE_URL}/images/brand/logo-badge.png`,
+      width: 800,
+      height: 800,
+    },
     description: SITE_TAGLINE,
     telephone: WHATSAPP_DISPLAY,
     contactPoint: {
