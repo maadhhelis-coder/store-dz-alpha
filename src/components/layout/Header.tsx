@@ -23,21 +23,25 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
 
   return (
     <header className="sticky top-0 z-40 bg-black/90 backdrop-blur border-b border-gold/15">
-      <div className="container-page flex items-center justify-between h-18 py-3 md:h-20">
-        {/* طلب صريح: تكبير لوغو واسم store dz بالحاسوب — الجانب الأيمن بصريًا هنا (RTL،
+      {/* طلب صريح لاحق: جعل اللوغو "تقريبًا لاصق" بالحافة اليمنى وأيقونات التواصل "لاصقة"
+          بالحافة اليسرى بالحاسوب — container-page (بحدّ أقصى 1200px) كان يترك فراغًا حقيقيًا
+          خارجه على الشاشات الواسعة. عرض كامل هنا مع padding أفقي خاص بالهيدر بدل container-page. */}
+      <div className="w-full flex items-center justify-between h-18 py-3 md:h-20 px-4 sm:px-6 lg:px-10 xl:px-14">
+        {/* طلب صريح: تكبير لوغو واسم store dz بالحاسوب أكثر — الجانب الأيمن بصريًا هنا (RTL،
             أول عنصر بترتيب DOM) كما هو مطلوب، بلا تغيير أي شيء بالموبايل. */}
         <Logo
           logoUrl={logoUrl}
-          imgClassName="md:w-12 md:h-12"
-          textClassName="md:text-xl"
+          imgClassName="md:w-14 md:h-14"
+          textClassName="md:text-2xl"
         />
 
+        {/* طلب صريح: تكبير كلمات الرئيسية/المنتجات/تواصل معنا. */}
         <nav className="hidden md:flex items-center gap-6">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm text-cream-dim hover:text-gold transition-colors"
+              className="text-base lg:text-lg text-cream-dim hover:text-gold transition-colors"
             >
               {link.label}
             </Link>
