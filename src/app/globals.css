@@ -142,17 +142,20 @@ h6 {
 */
 @keyframes marquee-scroll {
   from {
-    transform: translateX(-50%);
+    transform: translateX(-50%) translateZ(0);
   }
   to {
-    transform: translateX(0);
+    transform: translateX(0) translateZ(0);
   }
 }
 
 .animate-marquee {
   animation: marquee-scroll 8s linear infinite;
   /* يعزل الشريط فطبقة GPU خاصة به فقط أثناء التحريك — يخفّف العبء الرسومي على معالجات
-     رسوميات الهواتف الأضعف. */
+     رسوميات الهواتف الأضعف. translateZ(0) داخل الـkeyframes نفسها فوق (وليس هنا كقيمة
+     transform ثابتة — كانت ستُلغى فورًا بمجرد بدء الحركة لأن transform خاصية واحدة لا
+     تُدمَج بين قاعدة ثابتة وanimation) يدفع المتصفح صراحة نحو تركيب مُسرَّع (GPU) بدل
+     الاكتفاء بتلميح will-change وحده، والذي لا يكفي على بعض متصفحات أندرويد الأقدم. */
   will-change: transform;
 }
 
@@ -199,6 +202,21 @@ h6 {
       black 18%,
       black 82%,
       transparent 100%
+    );
+  }
+}
+
+/* خلفية الشريط: أسود مصمت على الهاتف، تدرّج ذهبي خفيف من sm فما فوق — بنفس منطق القناع
+   تمامًا (طلب صريح مؤكَّد عدة مرات: الشريط ما زال يبطئ/يتقطّع قليلاً على الهاتف). أي
+   background-image متدرّج على حاوية ثابتة يتحرك عنصر بداخلها هو عبء تركيب محتمل إضافي،
+   فأُزيل من الهاتف لنفس السبب الذي أُزيل لأجله القناع والتدرّج النصي سابقًا. */
+@media (min-width: 640px) {
+  .marquee-bg {
+    background-image: linear-gradient(
+      to right,
+      black 0%,
+      theme(--color-gold / 10%) 50%,
+      black 100%
     );
   }
 }
