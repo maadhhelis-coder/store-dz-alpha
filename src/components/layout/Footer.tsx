@@ -22,8 +22,13 @@ export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
   const igUrl = instagramUrl || INSTAGRAM_URL;
   const fbUrl = facebookUrl || FACEBOOK_URL;
 
+  // طلب صريح: تقليص الفراغ على الهاتف تحديدًا بين قسم "ما يميزنا" (آخر عنصر بالصفحة الرئيسية)
+  // وخط الفوتر الذهبي العلوي (border-t border-gold/15) — "هبطها [الصورة] كي لا يكون بينها
+  // وبين الخط الاصفر الا قليلا جدا" كان يقصد هذا الفراغ تحديدًا (mt-16 السابق)، وليس الفراغ
+  // أعلى قسم "ما يميزنا" كما فُهم خطأً فمحاولة سابقة. mt-4 على الهاتف، mt-16 الأصلي كما هو
+  // بالحاسوب (لم يُطلب تغييره هناك).
   return (
-    <footer className="border-t border-gold/15 bg-ink mt-16">
+    <footer className="border-t border-gold/15 bg-ink mt-4 md:mt-16">
       <div className="container-page py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo logoUrl={logoUrl} />
