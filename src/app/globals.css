@@ -122,7 +122,8 @@ h6 {
 }
 
 .marquee-banner-track {
-  animation: marquee-banner-scroll 26s linear infinite;
+  /* 18s بدل 26s (طلب صريح: "اريدها سريعة قليلا ليست بطيئة"). */
+  animation: marquee-banner-scroll 18s linear infinite;
   will-change: transform;
 }
 

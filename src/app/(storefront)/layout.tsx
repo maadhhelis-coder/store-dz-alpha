@@ -37,10 +37,6 @@ export default async function StorefrontLayout({
       >
         تخطي إلى المحتوى الرئيسي
       </a>
-      {/* أعلى المتجر فوق كل شيء (طلب صريح: "يمكن وضعه بسهولة في أعلى المتجر") — قبل شريط
-          الإعلان النصي القابل للتحكم من لوحة التحكم (AnnouncementBar) وقبل الهيدر، فهو
-          العنصر الأول الذي يراه الزائر دومًا بلا شرط تفعيل من الإعدادات. */}
-      <MarqueeBanner />
       <JsonLd
         data={organizationJsonLd({
           instagramUrl: settings.instagramUrl,
@@ -66,6 +62,13 @@ export default async function StorefrontLayout({
         facebookUrl={settings.facebookUrl}
         tiktokUrl={settings.tiktokUrl}
       />
+      {/* تحت الهيدر (طلب صريح لاحق: "اجعلها تحت الرئيسية") — كانت فوق الهيدر، لكن الهيدر
+          sticky top-0 z-40 (راجع Header.tsx)، فأي تمرير ولو بسيط (شائع جدًا على الهاتف
+          بسبب انكماش شريط عنوان المتصفح تلقائيًا عند أول لمسة) يجعل الهيدر "يلتصق" بأعلى
+          الشاشة ويُغطّي الشريط بالكامل تمامًا — وهذا السبب الحقيقي وراء "لا يظهر فالهاتف
+          إطلاقًا" (دليل حقيقي: z-40 على الهيدر يعلو الشريط الذي بلا z-index مرتفع). هنا
+          تحت الهيدر لا يوجد أي تنافس على نفس موضع sticky، فيبقى ظاهرًا دومًا. */}
+      <MarqueeBanner />
       <main id="main-content" className="flex-1">{children}</main>
       <Footer
         logoUrl={settings.logoUrl}
