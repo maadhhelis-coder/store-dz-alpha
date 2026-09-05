@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/sync-dhd-status",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/crm-recompute",
+      "schedule": "30 2 * * *"
     }
   ]
 }

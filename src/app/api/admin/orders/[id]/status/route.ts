@@ -7,6 +7,7 @@ export const maxDuration = 60;
 import { requireAdminOrApiKey } from "@/lib/auth/requireAdminOrApiKey";
 import { orderStatusSchema } from "@/lib/validation/orderSchema";
 import { updateOrderStatus, OrderNotFoundError, InsufficientStockError } from "@/server/services/ordersService";
+import { InvalidTransitionError } from "@/server/modules/orders/stateMachine";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -35,6 +36,13 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
     if (error instanceof OrderNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    if (error instanceof InvalidTransitionError) {
+      // آلة الحالات ترفض الانتقال — 409 بكود آلي قابل للمعالجة برمجيًا
+      return NextResponse.json(
+        { error: error.message, code: error.code, from: error.from, to: error.to },
+        { status: 409 },
+      );
     }
     if (error instanceof InsufficientStockError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -8,7 +8,18 @@ datasource db {
 
 enum AdminRole {
   owner
+  // قيمة قديمة قابلة للقراءة فقط (توافق خلفي) — لم تعد تُمنح؛ كل الصفوف الحالية
+  // حُوِّلت إلى admin في migration 20260901120100. صلاحياتها في role_permissions
+  // مطابقة لـadmin احتياطًا. إزالتها تتطلب DROP VALUE غير مدعوم فPostgres — تبقى.
   staff
+  admin
+  confirmation_agent
+  customer_support
+  packing_agent
+  logistics_agent
+  marketing
+  accountant
+  viewer
 }
 
 enum ProductBadge {
@@ -25,16 +36,25 @@ enum DeliveryOption {
 enum OrderStatus {
   pending
   confirmed
+  preparing
+  ready_to_ship
+  shipped
+  in_transit
+  out_for_delivery
+  delivered
+  cod_collected
+  return_to_origin
+  returned
+  cancelled
+  fake
+  duplicate
+  wrong_number
+  fraud_suspected
+  // الثلاث القديمة التالية قابلة للقراءة فقط (بيانات تاريخية) — ممنوع كتابتها:
+  // نتائج الاتصال تعيش في confirmation_attempts.outcome (راجع الـstate machine).
   no_answer
   callback
   voicemail
-  fake
-  wrong_number
-  duplicate
-  cancelled
-  shipped
-  delivered
-  returned
 }
 
 enum OrderSource {
@@ -86,6 +106,185 @@ enum WebhookEvent {
   courier_status_changed
 }
 
+// ===================== CRM enums — enum واحد لكل مفهوم =====================
+
+enum CustomerStatus {
+  active
+  blacklisted
+  archived
+}
+
+enum CustomerPhoneType {
+  primary
+  alternative
+}
+
+enum CustomerMatchSource {
+  new_customer
+  primary_phone
+  alternative_phone
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  very_high
+}
+
+enum SegmentKind {
+  vip
+  new_customer
+  repeat_customer
+  loyal
+  inactive
+  at_risk
+  high_risk
+  high_rto
+  profitable
+  unprofitable
+}
+
+enum ActorType {
+  admin
+  system
+  api
+  carrier
+}
+
+enum ConfirmationOutcome {
+  confirmed
+  no_answer
+  call_back
+  wrong_number
+  cancelled
+  duplicate
+  fraud_suspected
+  customer_requested_change
+}
+
+enum TaskType {
+  confirm_order
+  prepare_order
+  follow_up
+  manual_review
+  logistics_review
+  customer_support
+}
+
+enum TaskStatus {
+  open
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum ShipmentRole {
+  primary
+  replacement
+  reship
+}
+
+enum ShipmentStatus {
+  created
+  handed_over
+  in_transit
+  out_for_delivery
+  return_requested
+  delivered
+  returned
+  cancelled
+  error
+}
+
+enum ShippingCostProvenance {
+  actual
+  estimated
+  unavailable
+}
+
+enum ReturnReason {
+  refused
+  unreachable
+  address_issue
+  delivery_failed
+  damaged
+  wrong_product
+  customer_cancelled
+  carrier_return
+}
+
+enum ReturnStatus {
+  open
+  in_return_transit
+  received
+  inspected
+  partially_restocked
+  restocked
+  closed
+  rejected
+}
+
+enum CommunicationChannel {
+  whatsapp
+  sms
+  email
+}
+
+enum CommunicationStatus {
+  queued
+  sending
+  sent
+  delivered
+  failed
+}
+
+enum CodSettlementStatus {
+  pending
+  matched
+  discrepancy
+  resolved
+}
+
+enum AdjustmentDirection {
+  credit
+  debit
+}
+
+enum FinancialAdjustmentType {
+  full_refund
+  partial_refund
+  shipping
+  return
+  other
+}
+
+enum FraudSignalStatus {
+  open
+  reviewed
+  dismissed
+}
+
+enum DomainEventStatus {
+  pending
+  processing
+  processed
+  failed
+}
+
+enum AutomationRunStatus {
+  success
+  failed
+  dead_letter
+}
+
 model AdminUser {
   id          String    @id @default(uuid())
   authUserId  String    @unique @map("auth_user_id")
@@ -96,18 +295,34 @@ model AdminUser {
   lastLoginAt DateTime? @map("last_login_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
+  // علاقات عكسية لكل FK يشير لهذا الجدول (كلها SET NULL عند حذف المستخدم —
+  // السجلات التاريخية تبقى ويُفرَّغ المسنِد فقط).
+  performedCustomerMerges CustomerMerge[]       @relation("MergePerformedBy")
+  confirmationAttempts    ConfirmationAttempt[]
+  assignedOrders          Order[]               @relation("OrderAssignedAgent")
+  assignedTasks           Task[]                @relation("TaskAssignee")
+  createdTasks            Task[]                @relation("TaskCreatedBy")
+  completedTasks          Task[]                @relation("TaskCompletedBy")
+  reviewedFraudSignals    FraudSignal[]         @relation("FraudSignalReviewedBy")
+  createdAdjustments      FinancialAdjustment[] @relation("AdjustmentCreatedBy")
+  createdSettlements      CodSettlement[]       @relation("SettlementCreatedBy")
+  resolvedSettlements     CodSettlement[]       @relation("SettlementResolvedBy")
+  updatedCrmSettings      CrmSetting[]
+  acknowledgedAlerts      SystemAlert[]         @relation("AlertAcknowledgedBy")
+  resolvedAlerts          SystemAlert[]         @relation("AlertResolvedBy")
+
   @@map("admin_users")
 }
 
 model Category {
-  id                String  @id @default(uuid())
-  slug              String  @unique
-  name              String
-  shortDescription  String? @map("short_description")
-  description       String?
-  imageUrl          String? @map("image_url")
-  icon              String?
-  sortOrder         Int     @default(0) @map("sort_order")
+  id               String  @id @default(uuid())
+  slug             String  @unique
+  name             String
+  shortDescription String? @map("short_description")
+  description      String?
+  imageUrl         String? @map("image_url")
+  icon             String?
+  sortOrder        Int     @default(0) @map("sort_order")
 
   products Product[]
 
@@ -117,31 +332,31 @@ model Category {
 }
 
 model Product {
-  id                   String        @id @default(uuid())
-  slug                 String        @unique
-  name                 String
-  categoryId           String        @map("category_id")
-  category             Category      @relation(fields: [categoryId], references: [id])
-  priceDzd             Int           @map("price_dzd")
-  oldPriceDzd          Int?          @map("old_price_dzd")
+  id                  String        @id @default(uuid())
+  slug                String        @unique
+  name                String
+  categoryId          String        @map("category_id")
+  category            Category      @relation(fields: [categoryId], references: [id])
+  priceDzd            Int           @map("price_dzd")
+  oldPriceDzd         Int?          @map("old_price_dzd")
   // تكلفة الوحدة (COGS) — اختيارية ونصّها فارغة لكل المنتجات الحالية عمدًا (لا نفترض رقمًا
   // غير موجود فعليًا). تُستعمل فحساب الربح الحقيقي؛ راجع OrderItem.unitCostDzd للقطة وقت الطلب.
-  costDzd              Int?          @map("cost_dzd")
-  shortDescription     String        @map("short_description")
-  longDescriptionHtml  String        @map("long_description_html")
-  howToUse             Json          @default("[]") @map("how_to_use")
-  badge                ProductBadge?
-  inStock              Boolean       @default(true) @map("in_stock")
-  inventoryCount       Int           @default(0) @map("inventory_count")
-  isPublished          Boolean       @default(true) @map("is_published")
-  sortOrder            Int           @default(0) @map("sort_order")
+  costDzd             Int?          @map("cost_dzd")
+  shortDescription    String        @map("short_description")
+  longDescriptionHtml String        @map("long_description_html")
+  howToUse            Json          @default("[]") @map("how_to_use")
+  badge               ProductBadge?
+  inStock             Boolean       @default(true) @map("in_stock")
+  inventoryCount      Int           @default(0) @map("inventory_count")
+  isPublished         Boolean       @default(true) @map("is_published")
+  sortOrder           Int           @default(0) @map("sort_order")
 
-  images         ProductImage[]
-  variants       ProductVariant[]
-  orderItems     OrderItem[]
-  funnels        Funnel[]
-  offersAsTrigger Offer[] @relation("OfferTrigger")
-  offersAsOffer   Offer[] @relation("OfferProduct")
+  images          ProductImage[]
+  variants        ProductVariant[]
+  orderItems      OrderItem[]
+  funnels         Funnel[]
+  offersAsTrigger Offer[]          @relation("OfferTrigger")
+  offersAsOffer   Offer[]          @relation("OfferProduct")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -166,15 +381,15 @@ model ProductImage {
 }
 
 model ProductVariant {
-  id                String  @id @default(uuid())
-  productId         String  @map("product_id")
-  product           Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name              String
-  value             String
-  sku               String? @unique
-  priceOverrideDzd  Int?    @map("price_override_dzd")
-  inventoryCount    Int     @default(0) @map("inventory_count")
-  sortOrder         Int     @default(0) @map("sort_order")
+  id               String  @id @default(uuid())
+  productId        String  @map("product_id")
+  product          Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name             String
+  value            String
+  sku              String? @unique
+  priceOverrideDzd Int?    @map("price_override_dzd")
+  inventoryCount   Int     @default(0) @map("inventory_count")
+  sortOrder        Int     @default(0) @map("sort_order")
 
   orderItems OrderItem[]
 
@@ -185,63 +400,121 @@ model ProductVariant {
 }
 
 model Wilaya {
-  code            Int      @id
-  name            String
-  officePriceDzd  Int?     @map("office_price_dzd")
-  homePriceDzd    Int      @map("home_price_dzd")
-  isActive        Boolean  @default(true) @map("is_active")
+  code           Int     @id
+  name           String
+  // الاسم اللاتيني (بيانات مرجعية تُزرع من static) — لناقلي التوصيل والتقارير
+  nameLatin      String? @map("name_latin")
+  officePriceDzd Int?    @map("office_price_dzd")
+  homePriceDzd   Int     @map("home_price_dzd")
+  isActive       Boolean @default(true) @map("is_active")
 
-  orders Order[]
-  leads  Lead[]
+  orders               Order[]
+  leads                Lead[]
+  customers            Customer[]
+  communes             Commune[]
+  carrierShippingRates CarrierShippingRate[]
+  shipments            Shipment[]            @relation("ShipmentDestination")
 
   @@map("wilayas")
 }
 
 model Order {
-  id                  String         @id @default(uuid())
-  orderSeq            Int            @default(autoincrement()) @unique @map("order_seq")
-  orderNumber         String         @unique @map("order_number")
-  status              OrderStatus    @default(pending)
-  customerFirstName   String         @map("customer_first_name")
-  customerLastName    String         @map("customer_last_name")
-  phone               String
-  wilayaCode          Int            @map("wilaya_code")
-  wilaya              Wilaya         @relation(fields: [wilayaCode], references: [code])
-  wilayaName          String         @map("wilaya_name")
-  commune             String
-  address             String?
-  deliveryOption      DeliveryOption @map("delivery_option")
-  deliveryPriceDzd    Int            @map("delivery_price_dzd")
-  itemsSubtotalDzd    Int            @map("items_subtotal_dzd")
-  totalDzd            Int            @map("total_dzd")
-  notes               String?
-  courierProvider     String?        @map("courier_provider")
-  courierTrackingId   String?        @map("courier_tracking_id")
-  courierStatus       String?        @map("courier_status")
-  source              OrderSource    @default(website)
-  ipAddress           String?        @map("ip_address")
-  userAgent           String?        @map("user_agent")
-  deviceFingerprint   String?        @map("device_fingerprint")
-  confirmedAt         DateTime?      @map("confirmed_at")
+  id                String         @id @default(uuid())
+  orderSeq          Int            @unique @default(autoincrement()) @map("order_seq")
+  orderNumber       String         @unique @map("order_number")
+  status            OrderStatus    @default(pending)
+  customerFirstName String         @map("customer_first_name")
+  customerLastName  String         @map("customer_last_name")
+  phone             String
+  wilayaCode        Int            @map("wilaya_code")
+  wilaya            Wilaya         @relation(fields: [wilayaCode], references: [code])
+  wilayaName        String         @map("wilaya_name")
+  commune           String
+  address           String?
+  deliveryOption    DeliveryOption @map("delivery_option")
+  deliveryPriceDzd  Int            @map("delivery_price_dzd")
+  itemsSubtotalDzd  Int            @map("items_subtotal_dzd")
+  totalDzd          Int            @map("total_dzd")
+  notes             String?
+  courierProvider   String?        @map("courier_provider")
+  courierTrackingId String?        @map("courier_tracking_id")
+  courierStatus     String?        @map("courier_status")
+  source            OrderSource    @default(website)
+  ipAddress         String?        @map("ip_address")
+  userAgent         String?        @map("user_agent")
+  deviceFingerprint String?        @map("device_fingerprint")
+  confirmedAt       DateTime?      @map("confirmed_at")
   // نفس منطق confirmedAt تمامًا — تُسجَّل عند أول وصول لهذه الحالة، تُستعمل لحساب مقاييس
   // الأداء حسب الفترة الزمنية الفعلية (اليوم/أمس/7 أيام) بدل الاعتماد على createdAt الذي قد
   // يعكس تاريخ إنشاء الطلب لا تاريخ تسليمه/إلغائه/إرجاعه الفعلي.
-  deliveredAt         DateTime?      @map("delivered_at")
-  cancelledAt         DateTime?      @map("cancelled_at")
-  returnedAt          DateTime?      @map("returned_at")
-  offerId             String?        @map("offer_id")
-  offer               Offer?         @relation(fields: [offerId], references: [id])
-  couponCode          String?        @map("coupon_code")
-  discountDzd         Int            @default(0) @map("discount_dzd")
-  platform            AdPlatform?
-  creativeName        String?        @map("creative_name")
-  visitorId           String?        @map("visitor_id")
+  deliveredAt       DateTime?      @map("delivered_at")
+  cancelledAt       DateTime?      @map("cancelled_at")
+  returnedAt        DateTime?      @map("returned_at")
+  offerId           String?        @map("offer_id")
+  offer             Offer?         @relation(fields: [offerId], references: [id])
+  couponCode        String?        @map("coupon_code")
+  discountDzd       Int            @default(0) @map("discount_dzd")
+  platform          AdPlatform?
+  creativeName      String?        @map("creative_name")
+  visitorId         String?        @map("visitor_id")
   // موعد إعادة الاتصال التالي المُجدوَل يدويًا من المؤكِّد، وعدد محاولات الاتصال المتراكمة
-  // (يُزاد تلقائيًا كل مرة تتحول فيها الحالة لـcallback/no_answer/voicemail).
-  nextCallAt          DateTime?      @map("next_call_at")
-  callAttempts        Int            @default(0) @map("call_attempts")
+  // (يُزاد الآن عبر confirmation_attempts — نتائج الاتصال لم تعد حالات طلب).
+  nextCallAt        DateTime?      @map("next_call_at")
+  callAttempts      Int            @default(0) @map("call_attempts")
 
-  items OrderItem[]
+  // ===================== حقول CRM =====================
+  // عزل بيانات الاختبار (قيد DB: طلب isTest لا يُربط بعميل أبدًا، وكل استعلامات
+  // الإنتاج تستثنيه). تغييره عملية متميزة موثّقة فقط — ليس عبر endpoints عادية.
+  isTest                Boolean              @default(false) @map("is_test")
+  // الهوية: تطبيع مشتق من phone (allowed backfill وحيد)؛ الربط بالعميل حصرًا
+  // للطلبات الإنتاجية الجديدة عبر مطابقة هاتف حتمية داخل معاملة الإنشاء.
+  customerId            String?              @map("customer_id")
+  customer              Customer?            @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerMatchSource   CustomerMatchSource? @map("customer_match_source")
+  matchedPhoneId        String?              @map("matched_phone_id")
+  matchedPhone          CustomerPhone?       @relation(fields: [matchedPhoneId], references: [id], onDelete: SetNull)
+  phoneNormalized       String?              @map("phone_normalized")
+  // التشغيل
+  assignedAgentId       String?              @map("assigned_agent_id")
+  assignedAgent         AdminUser?           @relation("OrderAssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  priority              String               @default("normal")
+  tags                  String[]             @default([])
+  cancellationReason    String?              @map("cancellation_reason")
+  // العزو (P7 يربط الالتقاط من الواجهة) — كل الحقول قابلة للفراغ مع provenance لاحق
+  utmSource             String?              @map("utm_source")
+  utmMedium             String?              @map("utm_medium")
+  utmCampaign           String?              @map("utm_campaign")
+  utmContent            String?              @map("utm_content")
+  utmTerm               String?              @map("utm_term")
+  landingPath           String?              @map("landing_path")
+  campaignId            String?              @map("campaign_id")
+  adSetId               String?              @map("ad_set_id")
+  adId                  String?              @map("ad_id")
+  firstTouchPlatform    String?              @map("first_touch_platform")
+  firstTouchUtmSource   String?              @map("first_touch_utm_source")
+  firstTouchUtmCampaign String?              @map("first_touch_utm_campaign")
+  // COD — دورة الحياة تنتهي عند cod_collected؛ التسوية مستقلة في cod_settlements.
+  // collectible = totalDzd (لقطة الطلب الرسمية)؛ المبلغ المحصَّل ≤ collectible
+  // إلا بتعديل مالي موثّق صريح.
+  codCollectedAt        DateTime?            @map("cod_collected_at")
+  codCollectedAmountDzd Int?                 @map("cod_collected_amount_dzd")
+  // لقطات تكاليف وقت الإنشاء (الربحية التاريخية لا تقرأ الإعدادات الحالية أبدًا)
+  packagingCostDzd      Int                  @default(0) @map("packaging_cost_dzd")
+  otherCostDzd          Int                  @default(0) @map("other_cost_dzd")
+  // ملاحظة مرئية للعميل (الملاحظات الداخلية notes لا تُعرَض عبر storefront أبدًا)
+  customerNote          String?              @map("customer_note")
+
+  items                OrderItem[]
+  shipmentItems        ShipmentItem[]
+  statusHistory        OrderStatusHistory[]
+  confirmationAttempts ConfirmationAttempt[]
+  tasks                Task[]
+  shipments            Shipment[]
+  returns              ReturnRecord[]
+  communications       Communication[]
+  fraudSignals         FraudSignal[]
+  financialAdjustments FinancialAdjustment[]
+  codSettlementItems   CodSettlementItem[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -251,29 +524,38 @@ model Order {
   @@index([createdAt(sort: Desc)])
   @@index([wilayaCode])
   @@index([platform, creativeName])
+  @@index([customerId])
+  @@index([phoneNormalized])
+  @@index([assignedAgentId])
+  @@index([utmCampaign])
   @@map("orders")
 }
 
 model OrderItem {
-  id                    String          @id @default(uuid())
-  orderId               String          @map("order_id")
-  order                 Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId             String?         @map("product_id")
-  product               Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
-  productNameSnapshot   String          @map("product_name_snapshot")
-  productSlugSnapshot   String          @map("product_slug_snapshot")
-  variantId             String?         @map("variant_id")
-  variant               ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
-  variantLabelSnapshot  String?         @map("variant_label_snapshot")
-  unitPriceDzd          Int             @map("unit_price_dzd")
+  id                   String          @id @default(uuid())
+  orderId              String          @map("order_id")
+  order                Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId            String?         @map("product_id")
+  product              Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  productNameSnapshot  String          @map("product_name_snapshot")
+  productSlugSnapshot  String          @map("product_slug_snapshot")
+  variantId            String?         @map("variant_id")
+  variant              ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  variantLabelSnapshot String?         @map("variant_label_snapshot")
+  unitPriceDzd         Int             @map("unit_price_dzd")
   // لقطة تكلفة الوحدة وقت إنشاء الطلب (قد تكون null لطلبات قديمة أو منتجات بلا costDzd مضبوط)
   // — نفس سبب unitPriceDzd: تعديل تكلفة المنتج لاحقًا يجب ألا يغيّر بأثر رجعي ربح طلب قديم.
-  unitCostDzd           Int?            @map("unit_cost_dzd")
-  quantity              Int
-  lineTotalDzd          Int             @map("line_total_dzd")
+  unitCostDzd          Int?            @map("unit_cost_dzd")
+  quantity             Int
+  lineTotalDzd         Int             @map("line_total_dzd")
 
   createdAt DateTime @default(now()) @map("created_at")
 
+  shipmentItems ShipmentItem[]
+  returnItems   ReturnItem[]
+
+  // زوج فريد يمكّن الـcomposite FK الذي يفرض "نفس الطلب" لعناصر الشحنة/الإرجاع
+  @@unique([orderId, id])
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
@@ -303,15 +585,15 @@ model Funnel {
 }
 
 model Offer {
-  id               String   @id @default(uuid())
+  id               String  @id @default(uuid())
   title            String
-  triggerProductId String   @map("trigger_product_id")
-  triggerProduct   Product  @relation("OfferTrigger", fields: [triggerProductId], references: [id])
-  offerProductId   String   @map("offer_product_id")
-  offerProduct     Product  @relation("OfferProduct", fields: [offerProductId], references: [id])
-  offerPriceDzd    Int      @map("offer_price_dzd")
-  isActive         Boolean  @default(true) @map("is_active")
-  sortOrder        Int      @default(0) @map("sort_order")
+  triggerProductId String  @map("trigger_product_id")
+  triggerProduct   Product @relation("OfferTrigger", fields: [triggerProductId], references: [id])
+  offerProductId   String  @map("offer_product_id")
+  offerProduct     Product @relation("OfferProduct", fields: [offerProductId], references: [id])
+  offerPriceDzd    Int     @map("offer_price_dzd")
+  isActive         Boolean @default(true) @map("is_active")
+  sortOrder        Int     @default(0) @map("sort_order")
 
   orders Order[]
 
@@ -364,19 +646,19 @@ model SiteSettings {
   storeDomain            String? @map("store_domain")
   funnelsDomain          String? @map("funnels_domain")
 
-  metaPixelId       String? @map("meta_pixel_id")
-  metaCapiAccessToken String? @map("meta_capi_access_token")
-  tiktokPixelId     String? @map("tiktok_pixel_id")
+  metaPixelId                String? @map("meta_pixel_id")
+  metaCapiAccessToken        String? @map("meta_capi_access_token")
+  tiktokPixelId              String? @map("tiktok_pixel_id")
   tiktokEventsApiAccessToken String? @map("tiktok_events_api_access_token")
-  googleTagId       String? @map("google_tag_id")
-  snapchatPixelId   String? @map("snapchat_pixel_id")
+  googleTagId                String? @map("google_tag_id")
+  snapchatPixelId            String? @map("snapchat_pixel_id")
 
   // للمزامنة التلقائية الحقيقية لبيانات النقرات والمصروف من حسابات الإعلانات (Marketing API)
   // — منفصلة عن توكنات Pixel/Conversions API أعلاه لأنها تحتاج صلاحية مختلفة (ads_read).
-  metaAdAccountId            String? @map("meta_ad_account_id")
-  metaAdsInsightsAccessToken String? @map("meta_ads_insights_access_token")
-  tiktokAdvertiserId         String? @map("tiktok_advertiser_id")
-  tiktokAdsReportAccessToken String? @map("tiktok_ads_report_access_token")
+  metaAdAccountId            String?   @map("meta_ad_account_id")
+  metaAdsInsightsAccessToken String?   @map("meta_ads_insights_access_token")
+  tiktokAdvertiserId         String?   @map("tiktok_advertiser_id")
+  tiktokAdsReportAccessToken String?   @map("tiktok_ads_report_access_token")
   adsLastSyncedAt            DateTime? @map("ads_last_synced_at")
 
   notifyOrders          Boolean @default(true) @map("notify_orders")
@@ -397,11 +679,11 @@ model SiteSettings {
 }
 
 model CourierIntegration {
-  id          String  @id @default(uuid())
-  provider    String  @unique
-  isEnabled   Boolean @default(false) @map("is_enabled")
-  apiKey      String? @map("api_key")
-  apiToken    String? @map("api_token")
+  id        String  @id @default(uuid())
+  provider  String  @unique
+  isEnabled Boolean @default(false) @map("is_enabled")
+  apiKey    String? @map("api_key")
+  apiToken  String? @map("api_token")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -410,11 +692,11 @@ model CourierIntegration {
 }
 
 model CourierCommuneMapping {
-  id                 String   @id @default(uuid())
+  id                 String @id @default(uuid())
   provider           String
-  wilayaCode         Int      @map("wilaya_code")
-  storeCommune       String   @map("store_commune")
-  courierCommuneName String   @map("courier_commune_name")
+  wilayaCode         Int    @map("wilaya_code")
+  storeCommune       String @map("store_commune")
+  courierCommuneName String @map("courier_commune_name")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -522,7 +804,7 @@ model Webhook {
   lastFiredAt DateTime?      @map("last_fired_at")
   // سر HMAC مشفَّر بالإنتاج (enc:v1:...) — يُنشأ عشوائيًا مرة واحدة عند إنشاء الـwebhook،
   // يُستعمل لتوقيع كل حمولة صادرة (X-Webhook-Signature) حتى يتحقق المستقبِل من أصالتها.
-  secret String @map("secret")
+  secret      String         @map("secret")
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -530,8 +812,8 @@ model Webhook {
 }
 
 model PageView {
-  id        String   @id @default(uuid())
-  path      String
+  id   String @id @default(uuid())
+  path String
 
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -558,23 +840,34 @@ model ApiKey {
   @@map("api_keys")
 }
 
-// تنبيهات تشغيلية حقيقية (Deployment Audit HIGH-05): safeRateLimit() كان يكتفي بـ
-// console.error عند تعطّل Redis (fail-open بلا أي تنبيه فعلي). بلا بيانات اعتماد قناة خارجية
-// حقيقية (Slack/Email) متاحة، هذا الجدول يجعل التنبيه مرئيًا فعليًا لصاحب المتجر عبر لوحة
-// التحكم نفسها (بدل الاعتماد فقط على قراءة سجلّات الخادم يدويًا).
+// تنبيهات تشغيلية دائمة (Blueprint — System Alerts): للفشول/الانحرافات المهمة
+// (carrier divergence، فشل DHD reconciliation، فروقات COD، تراكم dead-letter،
+// فشل cron، حالات ناقل مجهولة، فشول التكامل/النسخ/السلامة). الإقرار/الحل
+// بفاعل واضح + audit؛ metadata منقّح دائمًا — لا أسرار أو حمولات خام أبدًا.
 model SystemAlert {
-  id       String  @id @default(uuid())
-  type     String
-  message  String
-  // تفاصيل إضافية اختيارية (مثلًا اسم المحدِّد، رسالة الخطأ الأصلية) — JSON حر لتفادي تغيير
-  // السكيما مستقبلًا لكل نوع تنبيه جديد.
-  metadata Json?
+  id             String  @id @default(uuid())
+  severity       String  @default("medium")
+  type           String
+  entityType     String? @map("entity_type")
+  entityId       String? @map("entity_id")
+  message        String
+  // تفاصيل إضافية منقّحة (redactForAudit) — JSON حر لتفادي تغيير السكيما لكل نوع
+  metadata       Json?
+  status         String  @default("open")
 
-  createdAt  DateTime  @default(now()) @map("created_at")
-  resolvedAt DateTime? @map("resolved_at")
+  acknowledgedAt    DateTime? @map("acknowledged_at")
+  acknowledgedById  String?   @map("acknowledged_by")
+  acknowledgedBy    AdminUser? @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  createdAt         DateTime  @default(now()) @map("created_at")
+  resolvedAt        DateTime? @map("resolved_at")
+  resolvedById      String?   @map("resolved_by")
+  resolvedBy        AdminUser? @relation("AlertResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
 
-  @@index([type, createdAt])
+  // فهارس الاستعلام — مطابقة للقاعدة الفعلية: فهرس type أصلي (ASC) موجود منذ
+  // إنشاء الجدول، وفهرس status (DESC) من migration 20260901120120
   @@index([resolvedAt])
+  @@index([type, createdAt])
+  @@index([status, createdAt(sort: Desc)])
   @@map("system_alerts")
 }
 
@@ -582,7 +875,7 @@ model SystemAlert {
 // الجدول يبقى فارغًا حتى يزور المتجر زوّار حقيقيون بعد نشر هذا التتبّع، وهذا مقصود ومعروض
 // صراحةً فلوحة التحكم (بدل اختلاق بيانات تاريخية غير موجودة فعليًا).
 model WebVitalMetric {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   // LCP | INP | CLS | TTFB | FCP — القيم القياسية لمكتبة web-vitals نفسها.
   name      String
   value     Float
@@ -590,11 +883,662 @@ model WebVitalMetric {
   // العتبات القياسية الرسمية لكل مقياس، لا نعيد حسابها هنا.
   rating    String
   path      String
-  visitorId String   @map("visitor_id")
+  visitorId String @map("visitor_id")
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([name, createdAt])
   @@index([path])
   @@map("web_vital_metrics")
+}
+
+// ===================== CRM models =====================
+// ملاحظة معمارية: القيود الفريدة الجزئية (partial unique indexes) التالية موجودة
+// في قاعدة البيانات كسلوSQL خام ولا تُعرَّض هنا لأن Prisma لا يعبّر عنها — أي تعديل
+// مستقبلي عليها يتطلب migration يدوي بنفس النمط الموثّق في MIGRATIONS.md:
+//   customer_phones_one_primary_idx          (هاتف أساسي واحد/عميل)
+//   customer_segments_one_primary_idx        (سِgment أساسي واحد/عميل)
+//   shipments_one_active_per_order_idx       (شحنة نشطة واحدة/طلب — قاعدة V1)
+//   shipments_provider_tracking_number_key   (provider+tracking WHERE NOT NULL)
+//   shipment_events_provider_provider_event_id_key (WHERE provider_event_id NOT NULL)
+//   returns_one_active_cycle_per_order_idx   (دورة إرجاع غير منتهية واحدة/طلب)
+//   carrier_shipping_rates_wilaya_wide_key / _commune_specific_key
+//   domain_events_pending_idx                (فهرس انتظار الـoutbox)
+//
+// Known Drift (اعتماد 2026-09-05 — مختبَر بمقارنة migrate diff مع القاعدة الفعلية):
+// اختلافات شكلية متبقية بين السكيما والقاعدة، كلها مقصودة أو غير مؤثرة على الكتابة
+// أو الـintegrity — ممنوع "توفيقها" بmigration مولَّدة تلقائيًا (سيُضعف القيود):
+//
+// 1) FK مركّبة تفرضها القاعدة وأوسع من تعريف Prisma (القاعدة أصرم — عمدًا):
+//    - shipment_items: (order_id, shipment_id) → shipments(order_id, id) CASCADE
+//      و (order_id, order_item_id) → order_items(order_id, id) RESTRICT
+//    - returns: (order_id, shipment_id) → shipments(order_id, id) RESTRICT
+//    تحمّل تطابق order_id مع الشحنة/عنصر الطلب المُشار إليه (منع ربط عناصر شحنة
+//    بطلب آخر). Prisma يعبر عن الأعمدة فقط؛ القيد الحقيقي في القاعدة. أي
+//    migration مستقبلية تلمس هذه الجداول يجب أن تحافظ على هذه القيود حرفيًا.
+// 2) updated_at: القاعدة عليها DEFAULT CURRENT_TIMESTAMP (من الترحيلات) والسكيما
+//    @updatedAt فقط — Prisma يزوّد القيمة عمليًا في كل create/update، فلا أثر
+//    تشغيلي. (12 جدولًا: customers, customer_phones, tasks, shipments,
+//    shipment_items, returns, return_items, cod_settlements,
+//    cod_settlement_items, communications, crm_settings, carrier_shipping_rates)
+// 3) فهرس domain_events اسمه في القاعدة domain_events_entity_idx بينما يولّد
+//    السكيما اسماً أطول — اسم فقط، لا أثر على الاستعلامات.
+
+model Customer {
+  id                String         @id @default(uuid())
+  fullName          String         @map("full_name")
+  // نسخة عرض مؤقتة متزامنة مع customer_phones (المصدر الرسمي) — إزالتها لاحقًا
+  // عبر expand→contract موثّق بعد اكتمال الانتقال.
+  primaryPhone      String         @map("primary_phone")
+  status            CustomerStatus @default(active)
+  wilayaCode        Int?           @map("wilaya_code")
+  wilaya            Wilaya?        @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
+  commune           String?
+  address           String?
+  postalCode        String?        @map("postal_code")
+  notesInternal     String?        @map("notes_internal")
+  customerNote      String?        @map("customer_note")
+  tags              String[]       @default([])
+  riskScore         Int            @default(0) @map("risk_score")
+  riskLevel         RiskLevel      @default(low) @map("risk_level")
+  riskFactors       Json           @default("[]") @map("risk_factors")
+  riskCalculatedAt  DateTime?      @map("risk_calculated_at")
+  riskEngineVersion String?        @map("risk_engine_version")
+  firstOrderAt      DateTime?      @map("first_order_at")
+  lastOrderAt       DateTime?      @map("last_order_at")
+  // العزو: أول اقتناء غير قابل للكتابة فوقه؛ الأحدث يتحدث مع كل طلب
+  firstAcquisition  Json?          @map("first_acquisition")
+  latestAcquisition Json?          @map("latest_acquisition")
+
+  phones               CustomerPhone[]
+  segments             CustomerSegment[]
+  orders               Order[]
+  mergesAsSurvivor     CustomerMerge[]       @relation("MergeSurvivor")
+  mergesAsMerged       CustomerMerge[]       @relation("MergeMerged")
+  confirmationAttempts ConfirmationAttempt[]
+  tasks                Task[]
+  communications       Communication[]
+  fraudSignals         FraudSignal[]
+  financialAdjustments FinancialAdjustment[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("customers")
+}
+
+// الهوية الرسمية للهاتف — phoneNormalized فريد عالميًا؛ هاتف أساسي واحد لكل عميل
+// (قيد جزئي في SQL). المطابقة تتم عبر هذا الجدول حصرًا، ولا ترقية تلقائية لهاتف بديل.
+model CustomerPhone {
+  id              String            @id @default(uuid())
+  customerId      String            @map("customer_id")
+  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  phoneNormalized String            @map("phone_normalized")
+  phoneType       CustomerPhoneType @default(alternative) @map("phone_type")
+  isVerified      Boolean           @default(false) @map("is_verified")
+  verifiedAt      DateTime?         @map("verified_at")
+  source          String            @default("order")
+
+  matchedOrders Order[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([phoneNormalized])
+  @@index([customerId])
+  @@map("customer_phones")
+}
+
+// مانيفست دمج غير قابل للتعديل: كل علاقة مُعادة الإسناد تُسجَّل في idMap —
+// الـunmerge لا يجوز إلا عبر هذا المانيفست ويفشل بأمان عند أي تعارض ملكية.
+model CustomerMerge {
+  id              String     @id @default(uuid())
+  survivorId      String     @map("survivor_id")
+  survivor        Customer   @relation("MergeSurvivor", fields: [survivorId], references: [id], onDelete: Restrict)
+  mergedId        String     @map("merged_id")
+  merged          Customer   @relation("MergeMerged", fields: [mergedId], references: [id], onDelete: Restrict)
+  idMap           Json       @map("id_map")
+  performedBy     String?    @map("performed_by")
+  performedByUser AdminUser? @relation("MergePerformedBy", fields: [performedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("customer_merges")
+}
+
+// عضوية متعددة: قد يكون العميل VIP + high_rto + profitable معًا؛ الأساسي واحد
+// كحد أقصى (قيد جزئي في SQL) لأغراض العرض.
+model CustomerSegment {
+  id          String      @id @default(uuid())
+  customerId  String      @map("customer_id")
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  segment     SegmentKind
+  isPrimary   Boolean     @default(false) @map("is_primary")
+  computedAt  DateTime    @default(now()) @map("computed_at")
+  ruleVersion Int         @default(1) @map("rule_version")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([customerId, segment])
+  @@map("customer_segments")
+}
+
+// المصدر الرسمي لخرائط دور→صلاحية (deny by default: غير المدرَج = مرفوض).
+// الكتالوج الحتمي المُزرَع في migration 20260901120100 يطابق src/lib/rbac/permissions.ts.
+model RolePermission {
+  id         String    @id @default(uuid())
+  role       AdminRole
+  permission String
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@unique([role, permission])
+  @@map("role_permissions")
+}
+
+// سجل حالات الطلب — كل انتقال يمر إلزاميًا عبر الـstate machine ويُسجَّل هنا
+// داخل نفس المعاملة (old/new/actor/reason/metadata).
+model OrderStatusHistory {
+  id        String       @id @default(uuid())
+  orderId   String       @map("order_id")
+  order     Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  oldStatus OrderStatus? @map("old_status")
+  newStatus OrderStatus  @map("new_status")
+  actorType ActorType    @default(system) @map("actor_type")
+  actorId   String?      @map("actor_id")
+  reason    String?
+  metadata  Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@index([newStatus, createdAt])
+  @@map("order_status_history")
+}
+
+// محاولات التأكيد — نتائج الاتصال تعيش هنا وليست حالات طلب (النتائج الثلاث
+// القديمة no_answer/callback/voicemail لم تعد تُكتب في OrderStatus إطلاقًا).
+model ConfirmationAttempt {
+  id             String              @id @default(uuid())
+  orderId        String              @map("order_id")
+  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customerId     String?             @map("customer_id")
+  customer       Customer?           @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  agentId        String?             @map("agent_id")
+  agent          AdminUser?          @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  outcome        ConfirmationOutcome
+  note           String?
+  nextFollowUpAt DateTime?           @map("next_follow_up_at")
+  durationSec    Int?                @map("duration_sec")
+  idempotencyKey String?             @map("idempotency_key")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId, createdAt])
+  @@index([agentId, createdAt])
+  @@index([outcome, createdAt])
+  @@map("confirmation_attempts")
+}
+
+model Task {
+  id            String       @id @default(uuid())
+  type          TaskType
+  orderId       String?      @map("order_id")
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customerId    String?      @map("customer_id")
+  customer      Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  assigneeId    String?      @map("assignee_id")
+  assignee      AdminUser?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  priority      TaskPriority @default(normal)
+  status        TaskStatus   @default(open)
+  dueAt         DateTime?    @map("due_at")
+  reminderAt    DateTime?    @map("reminder_at")
+  slaMinutes    Int?         @map("sla_minutes")
+  source        String       @default("automation")
+  payload       Json?
+  createdById   String?      @map("created_by")
+  createdBy     AdminUser?   @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  completedAt   DateTime?    @map("completed_at")
+  completedById String?      @map("completed_by")
+  completedBy   AdminUser?   @relation("TaskCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([status, dueAt])
+  @@index([assigneeId, status])
+  @@map("tasks")
+}
+
+// طلب 1→N شحنات (بلا UNIQUE على orderId) — قاعدة V1: شحنة نشطة واحدة كحد أقصى
+// (قيد جزئي في SQL). reship دورة استيفاء جديدة مشروعة قد تعيد نفس الكمية.
+// codAmountDzd لهذه الشحنة فقط — لا يُجمع عبر الدورات أبدًا.
+model Shipment {
+  id                     String                 @id @default(uuid())
+  orderId                String                 @map("order_id")
+  order                  Order                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  role                   ShipmentRole           @default(primary)
+  parentShipmentId       String?                @map("parent_shipment_id")
+  parentShipment         Shipment?              @relation("ShipmentParent", fields: [parentShipmentId], references: [id], onDelete: SetNull)
+  childShipments         Shipment[]             @relation("ShipmentParent")
+  provider               String
+  trackingNumber         String?                @map("tracking_number")
+  status                 ShipmentStatus         @default(created)
+  codAmountDzd           Int                    @default(0) @map("cod_amount_dzd")
+  shippingCostDzd        Int?                   @map("shipping_cost_dzd")
+  shippingCostProvenance ShippingCostProvenance @default(unavailable) @map("shipping_cost_provenance")
+  destWilayaCode         Int?                   @map("dest_wilaya_code")
+  destWilaya             Wilaya?                @relation("ShipmentDestination", fields: [destWilayaCode], references: [code], onDelete: SetNull)
+  destCommune            String?                @map("dest_commune")
+  lastSyncedAt           DateTime?              @map("last_synced_at")
+  lastError              String?                @map("last_error")
+  retryCount             Int                    @default(0) @map("retry_count")
+
+  items        ShipmentItem[]
+  events       ShipmentEvent[]
+  returnCycles ReturnRecord[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // يمكّن الـcomposite FK لفرض انتماء العناصر/الإرجاعات لنفس الطلب على مستوى القاعدة
+  @@unique([orderId, id])
+  @@index([orderId])
+  @@index([status])
+  @@map("shipments")
+}
+
+// العلاقة الرسمية شحنة↔سطر طلب (quantity ≤ كمية سطر الطلب على مستوى العنصر؛
+// لا Σ على تاريخ الطلب كله — الـreship يعيد الشحن بشكل مشروع).
+model ShipmentItem {
+  id          String    @id @default(uuid())
+  shipmentId  String    @map("shipment_id")
+  shipment    Shipment  @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  orderId     String    @map("order_id")
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItemId String    @map("order_item_id")
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  quantity    Int
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([shipmentId])
+  @@index([orderItemId])
+  @@map("shipment_items")
+}
+
+// إلغاء تكرار الأحداث: تفضيل providerEventId عند توفره؛ وإلا (shipmentId, contentHash).
+// الأحداث غير المطابقة تُخزَّن كسجلات تكامل منقّحة ولا تُهمَل صامتًا أبدًا.
+model ShipmentEvent {
+  id              String          @id @default(uuid())
+  shipmentId      String          @map("shipment_id")
+  shipment        Shipment        @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  provider        String
+  contentHash     String          @map("content_hash")
+  providerEventId String?         @map("provider_event_id")
+  status          ShipmentStatus?
+  description     String?
+  rawPayload      Json?           @map("raw_payload")
+  occurredAt      DateTime        @default(now()) @map("occurred_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([shipmentId, contentHash])
+  @@index([shipmentId, occurredAt])
+  @@map("shipment_events")
+}
+
+// دورات إرجاع متعددة لكل طلب (cycleNumber وليس unique على orderId)؛ دورة غير
+// منتهية واحدة كحد أقصى (قيد جزئي في SQL). حالة "closed" إغلاق إداري فقط ولا
+// تعني استرجاع مخزون — الاسترجاع حصرًا عبر return_items.restockedQuantity.
+model ReturnRecord {
+  id                      String       @id @default(uuid())
+  orderId                 String       @map("order_id")
+  order                   Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  cycleNumber             Int          @map("cycle_number")
+  shipmentId              String?      @map("shipment_id")
+  shipment                Shipment?    @relation(fields: [shipmentId], references: [id], onDelete: Restrict)
+  returnNumber            String       @unique @map("return_number")
+  reason                  ReturnReason
+  status                  ReturnStatus @default(open)
+  outboundShippingCostDzd Int?         @map("outbound_shipping_cost_dzd")
+  returnShippingCostDzd   Int?         @map("return_shipping_cost_dzd")
+  notes                   String?
+  resolvedAt              DateTime?    @map("resolved_at")
+
+  items ReturnItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([orderId, cycleNumber])
+  @@index([status, createdAt])
+  @@map("returns")
+}
+
+// restocked_quantity هو المصدر الوحيد لاسترجاع المخزون (0≤restocked≤quantity) —
+// لا boolean؛ الاسترجاع للفارق فقط وأي تناقص يتطلب تسوية مخزون موثّقة منفصلة.
+model ReturnItem {
+  id                String        @id @default(uuid())
+  returnId          String        @map("return_id")
+  returnRecord      ReturnRecord  @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  orderItemId       String        @map("order_item_id")
+  orderItem         OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  quantity          Int
+  reason            ReturnReason?
+  condition         String?
+  restockedQuantity Int           @default(0) @map("restocked_quantity")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([returnId])
+  @@index([orderItemId])
+  @@map("return_items")
+}
+
+// سجلات تواصل تاريخية — "sent" لا تُسجَّل إلا بتأكيد المزود وفق دلالاته هو،
+// والاستجابات منقّحة دائمًا (redacted).
+model Communication {
+  id                String               @id @default(uuid())
+  customerId        String?              @map("customer_id")
+  customer          Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId           String?              @map("order_id")
+  order             Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  channel           CommunicationChannel
+  provider          String
+  template          String?
+  variables         Json?
+  status            CommunicationStatus  @default(queued)
+  providerMessageId String?              @map("provider_message_id")
+  providerResponse  Json?                @map("provider_response")
+  error             String?
+  retries           Int                  @default(0)
+  leaseUntil        DateTime?            @map("lease_until")
+  sentAt            DateTime?            @map("sent_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([customerId, createdAt])
+  @@index([orderId])
+  @@index([status])
+  @@map("communications")
+}
+
+// إشارات احتيال/إساءة — طبقة منفصلة عن Risk، لا حظر تلقائي أبدًا؛ high يفتح
+// مهمة مراجعة يدوية فقط.
+model FraudSignal {
+  id            String            @id @default(uuid())
+  customerId    String?           @map("customer_id")
+  customer      Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderId       String?           @map("order_id")
+  order         Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  signal        String
+  severity      String
+  evidence      Json?
+  engineVersion String            @map("engine_version")
+  status        FraudSignalStatus @default(open)
+  detectedAt    DateTime          @default(now()) @map("detected_at")
+  reviewedById  String?           @map("reviewed_by")
+  reviewedBy    AdminUser?        @relation("FraudSignalReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewReason  String?           @map("review_reason")
+  reviewedAt    DateTime?         @map("reviewed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([customerId])
+  @@index([orderId])
+  @@map("fraud_signals")
+}
+
+// تسويات مالية غير قابلة للتعديل — التصحيح سجل جديد معوّض (correction_of_id)
+// بسبب إلزامي، والمبلغ دائمًا ≥0 مع direction صريح (لا إشارات سالبة غامضة).
+model FinancialAdjustment {
+  id             String                  @id @default(uuid())
+  orderId        String                  @map("order_id")
+  order          Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customerId     String?                 @map("customer_id")
+  customer       Customer?               @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  type           FinancialAdjustmentType
+  amountDzd      Int                     @map("amount_dzd")
+  direction      AdjustmentDirection
+  reason         String
+  correctionOfId String?                 @map("correction_of_id")
+  correctionOf   FinancialAdjustment?    @relation("AdjustmentCorrection", fields: [correctionOfId], references: [id], onDelete: Restrict)
+  corrections    FinancialAdjustment[]   @relation("AdjustmentCorrection")
+  createdById    String?                 @map("created_by")
+  createdBy      AdminUser?              @relation("AdjustmentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([createdAt])
+  @@map("financial_adjustments")
+}
+
+// تسوية COD مستقلة تمامًا عن دورة حياة الطلب (settled ليست حالة طلب أبدًا) —
+// هوية التسوية الحتمية provider+reconciliation_key تمنع التكرار عند إعادة الاستيراد.
+model CodSettlement {
+  id                String              @id @default(uuid())
+  provider          String
+  settlementDate    DateTime            @map("settlement_date")
+  reconciliationKey String              @map("reconciliation_key")
+  expectedDzd       Int                 @default(0) @map("expected_dzd")
+  collectedDzd      Int                 @default(0) @map("collected_dzd")
+  discrepancyDzd    Int                 @default(0) @map("discrepancy_dzd")
+  status            CodSettlementStatus @default(pending)
+  reason            String?
+  createdById       String?             @map("created_by")
+  createdBy         AdminUser?          @relation("SettlementCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  resolvedById      String?             @map("resolved_by")
+  resolvedBy        AdminUser?          @relation("SettlementResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt        DateTime?           @map("resolved_at")
+
+  items CodSettlementItem[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, reconciliationKey])
+  @@index([provider, settlementDate])
+  @@map("cod_settlements")
+}
+
+model CodSettlementItem {
+  id             String        @id @default(uuid())
+  settlementId   String        @map("settlement_id")
+  settlement     CodSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  orderId        String        @map("order_id")
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  trackingNumber String?       @map("tracking_number")
+  orderNumber    String?       @map("order_number")
+  expectedDzd    Int           @default(0) @map("expected_dzd")
+  collectedDzd   Int           @default(0) @map("collected_dzd")
+  discrepancyDzd Int           @default(0) @map("discrepancy_dzd")
+  state          String        @default("pending")
+  reason         String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([settlementId, orderId])
+  @@index([orderId])
+  @@map("cod_settlement_items")
+}
+
+// سجل تدقيقي إلحاقي فقط (append-only): لا update/delete API إطلاقًا، ولا FK
+// لصفوف قابلة للتغيير كي يبقى شاهدًا بعد أي حذف. before/after منقّحان دائمًا.
+model AuditLog {
+  id            String  @id @default(uuid())
+  actorId       String? @map("actor_id")
+  // map إلزامي: الترحيل أنشأ actor_type (snake_case) — بدونه كل كتابات السجل
+  // التدقيقي تفشل بصمت (اكتُشف: audit_logs كان فارغًا تمامًا في الإنتاج)
+  actorType     String  @map("actor_type")
+  action        String
+  entityType    String  @map("entity_type")
+  entityId      String? @map("entity_id")
+  before        Json?
+  after         Json?
+  reason        String?
+  correlationId String? @map("correlation_id")
+  ip            String?
+  userAgent     String? @map("user_agent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // أسماء الفهارس مطابقة لما أنشأه الترحيل حرفيًا (تجنب drift زائف في migrate diff)
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId, createdAt], map: "audit_logs_entity_idx")
+  @@index([actorId, createdAt], map: "audit_logs_actor_idx")
+  @@map("audit_logs")
+}
+
+// الـoutbox المعاملاتي: يُكتب داخل نفس معاملة التغيير التجاري؛ الحالة صريحة
+// والـlease يسمح باستعادة الأحداث بعد انهيار أي عامل معالجة.
+model DomainEvent {
+  id                   String            @id @default(uuid())
+  eventType            String            @map("event_type")
+  version              Int               @default(1)
+  entityType           String            @map("entity_type")
+  entityId             String            @map("entity_id")
+  payload              Json
+  actorType            String?           @map("actor_type")
+  actorId              String?           @map("actor_id")
+  causationId          String?           @map("causation_id")
+  causation            DomainEvent?      @relation("EventCausation", fields: [causationId], references: [id], onDelete: SetNull)
+  causedEvents         DomainEvent[]     @relation("EventCausation")
+  correlationId        String?           @map("correlation_id")
+  automationDepth      Int               @default(0) @map("automation_depth")
+  originatingHandler   String?           @map("originating_handler")
+  status               DomainEventStatus @default(pending)
+  processingStartedAt  DateTime?         @map("processing_started_at")
+  processingLeaseUntil DateTime?         @map("processing_lease_until")
+  processedAt          DateTime?         @map("processed_at")
+  attempts             Int               @default(0)
+  lastError            String?           @map("last_error")
+
+  automationRuns AutomationRun[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@map("domain_events")
+}
+
+// بوابة الـidempotency للتنفيذ: (event, handler) فريد — التنفيذ مرة واحدة حتمًا.
+model AutomationRun {
+  id         String              @id @default(uuid())
+  eventId    String              @map("event_id")
+  event      DomainEvent         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  handler    String
+  status     AutomationRunStatus
+  attempts   Int                 @default(1)
+  error      String?
+  startedAt  DateTime            @default(now()) @map("started_at")
+  finishedAt DateTime?           @map("finished_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([eventId, handler])
+  @@index([status])
+  @@map("automation_runs")
+}
+
+// سجل تنفيذ الـcron (قفل/مدة/خطأ/آخر نجاح) — يغذي مراقبة الصحة والتنبيهات.
+model JobRun {
+  id         String    @id @default(uuid())
+  job        String
+  status     String
+  trigger    String    @default("cron")
+  durationMs Int?      @map("duration_ms")
+  error      String?
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  @@index([job, startedAt(sort: Desc)])
+  @@map("job_runs")
+}
+
+model IntegrationSyncLog {
+  id          String    @id @default(uuid())
+  integration String
+  status      String
+  stats       Json?
+  error       String?
+  startedAt   DateTime  @default(now()) @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  @@index([integration, startedAt(sort: Desc)])
+  @@map("integration_sync_logs")
+}
+
+// الـidempotency الدائم — PostgreSQL هو المرجع النهائي للصحة؛ Redis تسريع فقط.
+// نفس المفتاح+نفس الـhash → النتيجة الأصلية؛ hash مختلف → 409 IDEMPOTENCY_KEY_REUSED.
+model IdempotencyKey {
+  id             String   @id @default(uuid())
+  actorId        String   @map("actor_id")
+  operation      String
+  idempotencyKey String   @map("idempotency_key")
+  requestHash    String   @map("request_hash")
+  status         String   @default("claimed")
+  result         Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  expiresAt      DateTime @map("expires_at")
+
+  @@unique([actorId, operation, idempotencyKey])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+// إعدادات CRM التشغيلية فقط (أوزان المخاطر، SLA، التغليف، حدود التصدير...) —
+// صلاحيات RBAC ليست هنا أبدًا بل في role_permissions. كل قيمة zod-validated وموثّقة.
+model CrmSetting {
+  id          String     @id @default(uuid())
+  key         String     @unique
+  value       Json
+  updatedById String?    @map("updated_by")
+  updatedBy   AdminUser? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("crm_settings")
+}
+
+// البلديات كبيانات مرجعية منظمة (تُزرع من static ولا تكسر لقطات الطلبات القديمة)
+model Commune {
+  id         String  @id @default(uuid())
+  code       Int     @unique
+  wilayaCode Int     @map("wilaya_code")
+  wilaya     Wilaya  @relation(fields: [wilayaCode], references: [code], onDelete: Restrict)
+  nameArabic String  @map("name_arabic")
+  nameLatin  String  @map("name_latin")
+  isActive   Boolean @default(true) @map("is_active")
+
+  carrierShippingRates CarrierShippingRate[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([wilayaCode])
+  @@map("communes")
+}
+
+// تسعير التوصيل لكل ناقل/ولاية/بلدية/خيار — فريدة مزدوجة جزئية في SQL:
+// wilaya-wide (commune_id NULL) وcommune-specific منفصلتان.
+model CarrierShippingRate {
+  id             String         @id @default(uuid())
+  provider       String
+  wilayaCode     Int            @map("wilaya_code")
+  wilaya         Wilaya         @relation(fields: [wilayaCode], references: [code], onDelete: Restrict)
+  communeId      String?        @map("commune_id")
+  commune        Commune?       @relation(fields: [communeId], references: [id], onDelete: Cascade)
+  deliveryOption DeliveryOption @map("delivery_option")
+  priceDzd       Int            @map("price_dzd")
+  isActive       Boolean        @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("carrier_shipping_rates")
 }
