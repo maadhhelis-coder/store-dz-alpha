@@ -14,7 +14,7 @@ import { E2E_NETWORK_VIOLATIONS_FILE } from "../../src/lib/e2eNetworkGuard";
 // محاولة فعلية للوصول لـgraph.facebook.com أو business-api.tiktok.com وتُسجّلها فملف —
 // لو فشل الحارس التطبيقي لأي سبب (لأي من الحالتين)، هذا الملف كان سيحتوي على انتهاك فعلي.
 
-async function createTestOrder(status: "pending" | "confirmed") {
+async function createTestOrder(status: "pending" | "shipped") {
   const wilaya = await getActiveWilaya();
   const product = await createTestProduct({ inventoryCount: 5 });
 
@@ -73,10 +73,16 @@ test.describe("حارس الشبكة: Meta CAPI وTikTok Events API @desktop-onl
   });
 
   test("تغيير حالة طلب إلى delivered لا يُطلق أي نداء شبكة حقيقي نحو Meta أو TikTok", async ({ ownerPage }) => {
-    // نبدأ من "confirmed" مباشرة (وليس عبر PATCH متتالية) — الهدف اختبار مسار
+    // نبدأ من "shipped" مباشرة (وليس عبر PATCH متتالية) — الهدف اختبار مسار
     // sendMetaCapiOrderDelivered/sendTikTokOrderDelivered تحديدًا (شرط منفصل تمامًا فالكود
-    // عن مسار "confirmed"، راجع ordersService.ts:447-449)، لا إعادة اختبار الانتقال الأول.
-    const order = await createTestOrder("confirmed");
+    // عن مسار "confirmed"، راجع ordersService.ts:447-449)، لا إعادة اختبار الانتقالات قبله.
+    //
+    // لماذا "shipped" وليس "confirmed": جدول الانتقالات الرسمي
+    // (orders/stateMachine.ts) يسمح بـdelivered من shipped/in_transit/
+    // out_for_delivery فقط — confirmed→delivered مرفوض بـ409 عن حق. الحالة
+    // الابتدائية هنا لقطة تجهيز (نفس ما يفعله الاختبار الأول بـpending)،
+    // والانتقال المُختبَر نفسه يمر عبر PATCH وآلة الحالات بلا أي تجاوز.
+    const order = await createTestOrder("shipped");
     await assertNoNetworkViolations(ownerPage, order.id, "delivered");
   });
 });
