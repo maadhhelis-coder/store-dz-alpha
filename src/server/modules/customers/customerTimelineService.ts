@@ -8,6 +8,8 @@
 // الاتصالات المسجلة، المهام. بلا N+1: استعلام واحد لكل مصدر بحدود bounded.
 // المؤشر: base64(createdAtISO|id) — آمن للعرض وغير قابل للتفسير الخاطئ.
 
+import { prisma } from "@/server/db/prisma";
+
 export type TimelineEntryType = "order_status" | "confirmation_attempt" | "communication" | "task";
 
 export type TimelineEntry = {
@@ -67,8 +69,6 @@ export async function getCustomerTimeline(params: {
   // مؤشر غير صالح = طلب تالف — نبدأ من الأول بدل فشل غامض (سلوك pagination لطيف)
   const effectiveCursor = cursor;
 
-  const customerWhere = { customerId: params.customerId };
-
   // استعلام واحد لكل مصدر — بلا N+1، كل مصدر bounded ومرتب حتميًا
   const [statusHistory, attempts, communications, tasks] = await Promise.all([
     prisma.orderStatusHistory.findMany({
@@ -83,11 +83,11 @@ export async function getCustomerTimeline(params: {
       select: {
         id: true,
         createdAt: true,
-        fromStatus: true,
-        toStatus: true,
+        oldStatus: true,
+        newStatus: true,
         reason: true,
+        actorType: true,
         order: { select: { id: true, orderNumber: true } },
-        actor: { select: { fullName: true } },
       },
     }),
     prisma.confirmationAttempt.findMany({
@@ -149,11 +149,13 @@ export async function getCustomerTimeline(params: {
       type: "order_status" as const,
       id: h.id,
       createdAt: h.createdAt,
-      title: `حالة الطلب ${h.order.orderNumber}: ${h.fromStatus ?? "—"} → ${h.toStatus}`,
+      title: `حالة الطلب ${h.order.orderNumber}: ${h.oldStatus ?? "—"} → ${h.newStatus}`,
       detail: h.reason,
       orderId: h.order.id,
       orderNumber: h.order.orderNumber,
-      actorLabel: h.actor?.fullName ?? null,
+      // لا علاقة actor في OrderStatusHistory (actorId نصي بلا FK) — نوع الفاعل
+      // هو المتاح حتميًا بلا استعلام إضافي، وهو كافٍ للعرض.
+      actorLabel: h.actorType,
       cursor: encodeTimelineCursor(h.createdAt, h.id),
     })),
     ...attempts.map((a) => ({

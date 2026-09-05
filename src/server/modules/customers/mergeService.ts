@@ -2,7 +2,7 @@ import { prisma } from "@/server/db/prisma";
 import { executeIdempotent } from "@/server/modules/idempotency/durableIdempotency";
 import { writeAudit } from "@/server/services/auditService";
 import { recomputeCustomerSegments } from "@/server/modules/customers/segmentationService";
-import type { Prisma } from "@prisma/client";
+import { CustomerStatus, type Prisma } from "@prisma/client";
 
 // ===========================================================================
 // Customer Merge / Unmerge — وفق Blueprint (قفل تصاعدي، manifest غير قابل
@@ -406,10 +406,19 @@ export async function unmergeCustomer(input: {
         "الهاتف الأساسي من اللقطة غير موجود — تعارض استعادة",
       );
     }
+    // الـmanifest يُخزَّن JSON فالحالة تصل كنص — نتحقق منها مقابل التعداد الرسمي
+    // بدل الوثوق بها. قيمة غير معروفة (manifest قديم/تالف) = تعارض استعادة وفشل
+    // آمن، تمامًا كبقية تعارضات الـunmerge — لا كتابة حالة مجهولة على عميل حقيقي.
+    if (!(manifest.mergedSnapshot.status in CustomerStatus)) {
+      throw new CustomerMergeError(
+        "UNMERGE_CONFLICT",
+        `حالة العميل في اللقطة غير معروفة (${manifest.mergedSnapshot.status}) — تعارض استعادة`,
+      );
+    }
     await tx.customer.update({
       where: { id: merged.id },
       data: {
-        status: manifest.mergedSnapshot.status,
+        status: manifest.mergedSnapshot.status as CustomerStatus,
         primaryPhone: manifest.mergedSnapshot.primaryPhone,
       },
     });
