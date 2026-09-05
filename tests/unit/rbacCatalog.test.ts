@@ -93,3 +93,58 @@ describe("الخريطة الافتراضية للأدوار", () => {
     expect(perms).not.toContain("finance.adjust");
   });
 });
+
+// P4: صلاحيتان جديدتان — الكتالوج والـseed migration يجب أن يتطابقا حرفيًا،
+// وإلا فالتفويض يفشل بـ403 في الإنتاج بينما الكود يظن أن الصلاحية ممنوحة.
+describe("صلاحيات P4 (risk.read / fraud.review)", () => {
+  const P4_PERMISSIONS = ["risk.read", "fraud.review"] as const;
+
+  it("الصلاحيتان في الكتالوج", () => {
+    for (const permission of P4_PERMISSIONS) {
+      expect(PERMISSION_CATALOG).toContain(permission);
+      expect(isKnownPermission(permission)).toBe(true);
+    }
+  });
+
+  it("ليستا ضمن الصلاحيات المالكوية (تشغيليتان لا إداريتان)", () => {
+    for (const permission of P4_PERMISSIONS) {
+      expect(OWNER_ONLY_PERMISSIONS).not.toContain(permission);
+    }
+  });
+
+  it("deny-by-default: الأدوار التي لا تحتاجهما لا تملكهما", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.packing_agent).not.toContain("risk.read");
+    expect(DEFAULT_ROLE_PERMISSIONS.marketing).not.toContain("risk.read");
+    // مراجعة الاحتيال قرار بشري محصور — لا يملكه القارئ ولا وكيل التأكيد
+    expect(DEFAULT_ROLE_PERMISSIONS.viewer).not.toContain("fraud.review");
+    expect(DEFAULT_ROLE_PERMISSIONS.confirmation_agent).not.toContain("fraud.review");
+    expect(DEFAULT_ROLE_PERMISSIONS.accountant).not.toContain("fraud.review");
+  });
+
+  it("الأدوار المخوَّلة تملكهما فعلًا", () => {
+    expect(DEFAULT_ROLE_PERMISSIONS.owner).toContain("risk.read");
+    expect(DEFAULT_ROLE_PERMISSIONS.owner).toContain("fraud.review");
+    expect(DEFAULT_ROLE_PERMISSIONS.admin).toContain("fraud.review");
+    expect(DEFAULT_ROLE_PERMISSIONS.customer_support).toContain("fraud.review");
+    expect(DEFAULT_ROLE_PERMISSIONS.viewer).toContain("risk.read");
+  });
+
+  it("الـseed migration يزرع نفس التوزيع المُعلن في الكود (تطابق حرفي)", async () => {
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const dir = readdirSync("prisma/migrations").find((d) => d.includes("p4_risk_fraud_permissions"));
+    expect(dir, "migration الصلاحيات مفقودة").toBeDefined();
+    const sql = readFileSync(`prisma/migrations/${dir}/migration.sql`, "utf8");
+
+    for (const permission of P4_PERMISSIONS) {
+      expect(sql).toContain(`'${permission}'`);
+    }
+    // كل دور يملك صلاحية في الكود يجب أن يُذكر في الـmigration
+    for (const [role, perms] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+      for (const permission of P4_PERMISSIONS) {
+        if (perms.includes(permission)) {
+          expect(sql, `${role} يملك ${permission} في الكود لكن ليس في الـmigration`).toContain(`'${role}'`);
+        }
+      }
+    }
+  });
+});

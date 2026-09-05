@@ -49,6 +49,15 @@ export const crmSettingSchemas = {
       path: ["at_risk_days"],
     })
     .prefault({}),
+  // عتبات كشف الاحتيال (P4) — أعداد فقط. شدّة كل إشارة تصنيف ثابت بطبيعة
+  // القاعدة (لا رقم تشغيلي قابل للضبط)، والقاعدة تقبل low|medium|high حصرًا.
+  fraud_thresholds: z
+    .object({
+      shared_device_min_customers: z.number().int().min(2).default(3),
+      shared_ip_min_customers: z.number().int().min(2).default(5),
+      repeat_refusal_min_orders: z.number().int().min(1).default(3),
+    })
+    .prefault({}),
   // SLA لكل نوع مهمة (بالدقائق) — يقود ترتيب قائمة التأكيد والمتأخرات
   task_sla_minutes: z
     .object({

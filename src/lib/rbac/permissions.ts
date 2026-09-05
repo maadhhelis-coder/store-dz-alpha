@@ -46,6 +46,8 @@ export const PERMISSION_CATALOG = [
   "communications.send",
   "analytics.read",
   "is_test.manage",
+  "risk.read",
+  "fraud.review",
 ] as const;
 
 export type Permission = (typeof PERMISSION_CATALOG)[number];
@@ -81,6 +83,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
   // قيمة قديمة قابلة للقراءة فقط — صلاحياتها = admin احتياطًا لأي صف متبقٍ
   staff: PERMISSION_CATALOG.filter((p) => !(OWNER_ONLY_PERMISSIONS as readonly string[]).includes(p)),
   confirmation_agent: [
+    "risk.read",
     "orders.read",
     "orders.update",
     "orders.status_change",
@@ -93,6 +96,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
     "communications.read",
   ],
   customer_support: [
+    "risk.read",
+    "fraud.review",
     "orders.read",
     "orders.update",
     "orders.assign",
@@ -119,6 +124,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
   ],
   marketing: ["orders.read", "marketing.read", "analytics.read", "exports.create"],
   accountant: [
+    "risk.read",
     "orders.read",
     "customers.read",
     "finance.read",
@@ -130,6 +136,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
     "audit.read",
   ],
   viewer: [
+    "risk.read",
     "orders.read",
     "customers.read",
     "shipments.read",

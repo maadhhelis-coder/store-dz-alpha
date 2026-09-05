@@ -103,3 +103,30 @@ describe("segmentation_thresholds — إضافة مفاتيح at_risk/high_rto",
     }
   });
 });
+
+// P4: عتبات الاحتيال — نفس سياسة سلامة تغيير الإعدادات (defaults + رفض التالف).
+describe("fraud_thresholds (P4)", () => {
+  it("الافتراضيات كاملة عند غياب الصف", () => {
+    const d = parseCrmSettingValue("fraud_thresholds", undefined);
+    expect(d.shared_device_min_customers).toBe(3);
+    expect(d.shared_ip_min_customers).toBe(5);
+    expect(d.repeat_refusal_min_orders).toBe(3);
+  });
+
+  it("قيمة جزئية محفوظة تُحترم ويُكمَّل الباقي", () => {
+    const parsed = parseCrmSettingValue("fraud_thresholds", { shared_ip_min_customers: 9 });
+    expect(parsed.shared_ip_min_customers).toBe(9);
+    expect(parsed.shared_device_min_customers).toBe(3);
+  });
+
+  it("قيم غير صالحة مرفوضة (كسور، أصفار، سالب)", () => {
+    for (const bad of [
+      { shared_device_min_customers: 1 },
+      { shared_ip_min_customers: 0 },
+      { repeat_refusal_min_orders: -1 },
+      { repeat_refusal_min_orders: 2.5 },
+    ]) {
+      expect(() => parseCrmSettingValue("fraud_thresholds", bad)).toThrow();
+    }
+  });
+});
