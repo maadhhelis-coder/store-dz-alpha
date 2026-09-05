@@ -29,16 +29,13 @@ export class CustomerMergeError extends Error {
   }
 }
 
-const RELATION_TABLES = [
-  "orders",
-  "confirmationAttempts",
-  "tasks",
-  "communications",
-  "financialAdjustments",
-  "fraudSignals",
-] as const;
-
-type RelationTable = (typeof RELATION_TABLES)[number];
+type RelationTable =
+  | "orders"
+  | "confirmationAttempts"
+  | "tasks"
+  | "communications"
+  | "financialAdjustments"
+  | "fraudSignals";
 
 type MergeManifest = {
   version: 1;

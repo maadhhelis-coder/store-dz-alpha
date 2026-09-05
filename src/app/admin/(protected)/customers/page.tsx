@@ -1,27 +1,18 @@
 import type { Metadata } from "next";
-import { prisma } from "@/server/db/prisma";
+import Link from "next/link";
 import { requirePermission } from "@/lib/auth/requirePermission";
-import { maskPhoneForDisplay } from "@/lib/phone";
 import { formatDate } from "@/lib/format";
+import { listCustomers } from "@/server/modules/customers/customerQueryService";
+import { RISK_LABELS, SEGMENT_LABELS } from "@/components/admin/crm/customerLabels";
 
 export const metadata: Metadata = {
   title: "العملاء — إدارة المتجر",
   robots: { index: false, follow: false },
 };
 
-// قائمة العملاء الأساسية (P2) — قراءة فقط، customers.read حصرًا (لا requireAdmin).
-// العملاء لا يُنشأون من طلبات isTest أصلًا (قيد قاعدة بيانات)، فالقائمة نظيفة
-// بطبيعتها. البحث: بالاسم (contains) أو بالهاتف القانوني (exact بعد التطبيع —
-// لا contains واسع على الجداول الكبيرة، سياسة 3.19). الـ360 الكامل في P3.
-
-const PAGE_SIZE = 20;
-
-const RISK_LABELS: Record<string, string> = {
-  low: "منخفضة",
-  medium: "متوسطة",
-  high: "مرتفعة",
-  very_high: "مرتفعة جدًا",
-};
+// قائمة العملاء — customers.read حصرًا (لا requireAdmin). الاستعلام نفسه الذي
+// يخدم GET /api/admin/crm/customers (listCustomers) فلا تختلف الشاشة عن الـAPI
+// في ترتيب أو فلترة أو عدّ. العملاء لا يُنشأون من طلبات isTest أصلًا.
 
 export default async function CustomersPage({
   searchParams,
@@ -31,42 +22,14 @@ export default async function CustomersPage({
   await requirePermission("customers.read");
 
   const params = await searchParams;
-  const page = Math.max(1, Number(params.page) || 1);
   const search = params.search?.trim() ?? "";
+  const { items, page, total, totalPages } = await listCustomers({
+    page: Number(params.page) || 1,
+    filters: { search: search || null },
+  });
 
-  // الهاتف: طبّع ثم ابحث بالتطابق التام على الهوية الرسمية؛ الاسم: contains
-  const digits = search.replace(/[^0-9]/g, "");
-  const phoneTail = digits.length >= 9 ? "0" + digits.slice(-9) : null;
-
-  const where = search
-    ? {
-        OR: [
-          { fullName: { contains: search } },
-          ...(phoneTail ? [{ primaryPhone: phoneTail }] : []),
-        ],
-      }
-    : {};
-
-  const [items, total] = await Promise.all([
-    prisma.customer.findMany({
-      where,
-      orderBy: [{ lastOrderAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        fullName: true,
-        primaryPhone: true,
-        commune: true,
-        riskLevel: true,
-        firstOrderAt: true,
-        lastOrderAt: true,
-      },
-    }),
-    prisma.customer.count({ where }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageHref = (target: number) =>
+    `/admin/customers?page=${target}${search ? `&search=${encodeURIComponent(search)}` : ""}`;
 
   return (
     <div className="space-y-6">
@@ -105,24 +68,32 @@ export default async function CustomersPage({
                 <th className="px-4 py-3 text-start">العميل</th>
                 <th className="px-4 py-3 text-start">الهاتف</th>
                 <th className="px-4 py-3 text-start">البلدية</th>
+                <th className="px-4 py-3 text-start">الطلبات</th>
+                <th className="px-4 py-3 text-start">القطاعات</th>
                 <th className="px-4 py-3 text-start">المخاطرة</th>
-                <th className="px-4 py-3 text-start">أول طلب</th>
                 <th className="px-4 py-3 text-start">آخر طلب</th>
               </tr>
             </thead>
             <tbody>
               {items.map((customer) => (
                 <tr key={customer.id} className="border-t border-neutral-100">
-                  <td className="px-4 py-3 font-semibold">{customer.fullName}</td>
+                  <td className="px-4 py-3 font-semibold">
+                    <Link href={`/admin/customers/${customer.id}`} className="hover:underline">
+                      {customer.fullName}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 font-mono" dir="ltr">
-                    {maskPhoneForDisplay(customer.primaryPhone)}
+                    {customer.phoneMasked}
                   </td>
                   <td className="px-4 py-3">{customer.commune ?? "—"}</td>
+                  <td className="px-4 py-3">{customer.ordersCount}</td>
+                  <td className="px-4 py-3 text-xs text-neutral-500">
+                    {customer.segments.length === 0
+                      ? "—"
+                      : customer.segments.map((s) => SEGMENT_LABELS[s] ?? s).join("، ")}
+                  </td>
                   <td className="px-4 py-3">
                     {RISK_LABELS[customer.riskLevel] ?? customer.riskLevel}
-                  </td>
-                  <td className="px-4 py-3 text-neutral-500">
-                    {customer.firstOrderAt ? formatDate(customer.firstOrderAt.toISOString()) : "—"}
                   </td>
                   <td className="px-4 py-3 text-neutral-500">
                     {customer.lastOrderAt ? formatDate(customer.lastOrderAt.toISOString()) : "—"}
@@ -135,9 +106,25 @@ export default async function CustomersPage({
       )}
 
       {totalPages > 1 && (
-        <p className="text-xs text-neutral-400">
-          صفحة {page} من {totalPages}
-        </p>
+        <nav className="flex items-center justify-between text-sm">
+          {page > 1 ? (
+            <Link href={pageHref(page - 1)} className="rounded-lg border border-neutral-300 px-3 py-1.5">
+              السابق
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-xs text-neutral-400">
+            صفحة {page} من {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link href={pageHref(page + 1)} className="rounded-lg border border-neutral-300 px-3 py-1.5">
+              التالي
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
     </div>
   );
