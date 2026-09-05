@@ -45,6 +45,9 @@ jobs:
       # prisma generate داخل npm ci — فبدونه يفشل تثبيت الاعتماديات نفسه قبل أي
       # اختبار (PrismaConfigEnvError). نفس عنوان قاعدة الاختبار: الـCLI محلي هنا.
       DIRECT_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
+      # prisma/seed.ts ينشئ عميله من DATABASE_URL مباشرة (لا يمر بـsetup الاختبارات)
+      # فبدونه يتصل بـundefined ويفشل بـSASL. نفس عنوان قاعدة الاختبار المحلية.
+      DATABASE_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
       # قفل المهام (P4) يستعمل Upstash؛ غيابه يُفشل استيراد اختبارات الأقفال بدل
       # تخطي القفل صامتًا. نفس أسرار مشروع الاختبار المستعملة في e2e.yml.
       UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
