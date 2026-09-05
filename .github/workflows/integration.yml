@@ -41,6 +41,14 @@ jobs:
       # تطابق tests/integration/support/setup.ts: TEST_DATABASE_URL يصبح
       # DATABASE_URL قبل أي استيراد للـprisma singleton — العنوان الوحيد المقبول.
       TEST_DATABASE_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
+      # prisma.config.ts يقرأ DIRECT_URL عبر env() عند تحميله، وpostinstall يشغّل
+      # prisma generate داخل npm ci — فبدونه يفشل تثبيت الاعتماديات نفسه قبل أي
+      # اختبار (PrismaConfigEnvError). نفس عنوان قاعدة الاختبار: الـCLI محلي هنا.
+      DIRECT_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
+      # قفل المهام (P4) يستعمل Upstash؛ غيابه يُفشل استيراد اختبارات الأقفال بدل
+      # تخطي القفل صامتًا. نفس أسرار مشروع الاختبار المستعملة في e2e.yml.
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -55,11 +63,9 @@ jobs:
 
       # الترحيلات تشمل زرع role_permissions (seed SQL ضمن 20260901120110) —
       # المرجع النهائي للـRBAC يجيء مع الترحيلات لا من seed.ts.
-      # DIRECT_URL مطلوب لاتصال CLI (prisma.config.ts) — نفس قاعدة الاختبار هنا.
+      # DIRECT_URL مضبوط على مستوى الـjob أعلاه (يحتاجه npm ci أيضًا).
       - name: Apply database migrations
         run: npx prisma migrate deploy
-        env:
-          DIRECT_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
 
       # الولايات مرجعية للـFK في طلبات الاختبار (upsert idempotent — آمن كل تشغيلة)
       - name: Seed baseline data (wilayas)
