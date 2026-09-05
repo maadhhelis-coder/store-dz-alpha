@@ -55,3 +55,51 @@ describe("crm settings schemas", () => {
     expect(isCrmSettingKey("rbac_permissions")).toBe(false);
   });
 });
+
+// سلامة تغيير الإعدادات (Configuration Change Safety) لمفاتيح التجزئة الجديدة:
+// صف محفوظ بقيم قديمة (بلا المفاتيح الجديدة) يجب أن يبقى صالحًا ويُكمَّل من
+// الافتراضي — بلا migration وبلا كسر أي إعداد قائم في الإنتاج.
+describe("segmentation_thresholds — إضافة مفاتيح at_risk/high_rto", () => {
+  it("قيمة قديمة محفوظة بلا المفاتيح الجديدة تبقى صالحة وتُكمَّل بالافتراضي", () => {
+    const legacyRow = {
+      vip_min_orders: 4,
+      vip_min_delivery_rate_percent: 85,
+      vip_min_revenue_dzd: 50000,
+      loyal_min_orders: 2,
+      inactive_days: 120,
+      profitable_min_margin_percent: 20,
+    };
+    const parsed = parseCrmSettingValue("segmentation_thresholds", legacyRow);
+    expect(parsed.vip_min_orders).toBe(4); // القيمة المحفوظة لا تُدهَس
+    expect(parsed.inactive_days).toBe(120);
+    expect(parsed.at_risk_days).toBe(45);
+    expect(parsed.high_rto_min_delivered_orders).toBe(3);
+    expect(parsed.high_rto_rate_percent).toBe(30);
+  });
+
+  it("الافتراضيات وحدها متسقة: at_risk_days < inactive_days", () => {
+    const d = parseCrmSettingValue("segmentation_thresholds", undefined);
+    expect(d.at_risk_days).toBeLessThan(d.inactive_days);
+  });
+
+  it("ضبط يخلط الإنذار بالخمول مرفوض عند التحقق (لا قطاعات متداخلة)", () => {
+    expect(() =>
+      parseCrmSettingValue("segmentation_thresholds", { at_risk_days: 90, inactive_days: 90 }),
+    ).toThrow();
+    expect(() =>
+      parseCrmSettingValue("segmentation_thresholds", { at_risk_days: 100, inactive_days: 90 }),
+    ).toThrow();
+  });
+
+  it("القيم خارج المدى مرفوضة (نسبة > 100، عيّنة < 1، أيام < 1)", () => {
+    for (const bad of [
+      { high_rto_rate_percent: 101 },
+      { high_rto_rate_percent: 0 },
+      { high_rto_min_delivered_orders: 0 },
+      { at_risk_days: 0 },
+      { at_risk_days: 1.5 },
+    ]) {
+      expect(() => parseCrmSettingValue("segmentation_thresholds", bad)).toThrow();
+    }
+  });
+});

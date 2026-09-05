@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { SegmentKind } from "@prisma/client";
 import { decideSegments, pickPrimarySegment } from "@/server/modules/customers/segmentationService";
+import { parseCrmSettingValue } from "@/lib/validation/crmSettingsSchema";
 
-// عتبات الاختبار = نفس الافتراضيات الرسمية في crmSettingsSchema (لا أرقام مخترعة).
-const T = {
-  vip_min_orders: 3,
-  vip_min_delivery_rate_percent: 80,
-  vip_min_revenue_dzd: 30000,
-  loyal_min_orders: 2,
-  inactive_days: 90,
-  profitable_min_margin_percent: 15,
-};
+// عتبات الاختبار = الافتراضيات الرسمية نفسها مقروءة من الـschema مباشرة —
+// لا رقم منسوخ يدويًا هنا، فإضافة مفتاح أو تغيير افتراضي لا يترك الاختبار متخلفًا.
+const T = parseCrmSettingValue("segmentation_thresholds", undefined);
 
 const NOW = new Date("2026-09-05T12:00:00.000Z");
 const daysAgo = (n: number) => new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
@@ -19,6 +14,7 @@ function decide(over: Partial<Parameters<typeof decideSegments>[0]> = {}) {
   return decideSegments({
     ordersCount: 0,
     recognizedOrdersCount: 0,
+    returnedOrdersCount: 0,
     netRecognizedRevenueDzd: 0,
     grossProfitClvDzd: 0,
     netProfitClvDzd: 0,
@@ -113,5 +109,90 @@ describe("pickPrimarySegment", () => {
 
   it("بلا قطاعات ⇒ لا أساسي (0..1)", () => {
     expect(pickPrimarySegment([])).toBeNull();
+  });
+});
+
+// ===========================================================================
+// at_risk و high_rto — كل عتبة من crm_settings، والحدود مُختبَرة على الحافة
+// بالضبط (=) وقبلها بيوم/بنقطة واحدة، لأن الحد نفسه هو ما ينكسر بصمت.
+// ===========================================================================
+
+describe("at_risk — نافذة الإنذار قبل الخمول", () => {
+  it("عند at_risk_days بالضبط ⇒ at_risk بلا inactive", () => {
+    const s = decide({ ordersCount: 1, lastOrderAt: daysAgo(T.at_risk_days) });
+    expect(s).toContain(SegmentKind.at_risk);
+    expect(s).not.toContain(SegmentKind.inactive);
+  });
+
+  it("قبل الحد بيوم واحد ⇒ لا at_risk ولا inactive", () => {
+    const s = decide({ ordersCount: 1, lastOrderAt: daysAgo(T.at_risk_days - 1) });
+    expect(s).not.toContain(SegmentKind.at_risk);
+    expect(s).not.toContain(SegmentKind.inactive);
+  });
+
+  it("عند inactive_days بالضبط ⇒ inactive يبتلع at_risk (لا تداخل)", () => {
+    const s = decide({ ordersCount: 1, lastOrderAt: daysAgo(T.inactive_days) });
+    expect(s).toContain(SegmentKind.inactive);
+    expect(s).not.toContain(SegmentKind.at_risk);
+  });
+
+  it("قبل الخمول بيوم ⇒ at_risk وحده", () => {
+    const s = decide({ ordersCount: 1, lastOrderAt: daysAgo(T.inactive_days - 1) });
+    expect(s).toContain(SegmentKind.at_risk);
+    expect(s).not.toContain(SegmentKind.inactive);
+  });
+
+  it("بلا أي طلب (lastOrderAt = null) ⇒ لا at_risk", () => {
+    expect(decide({ lastOrderAt: null })).not.toContain(SegmentKind.at_risk);
+  });
+});
+
+describe("high_rto — المرتجع بعد التسليم", () => {
+  it("عند حد العيّنة والنسبة بالضبط ⇒ high_rto", () => {
+    const delivered = T.high_rto_min_delivered_orders;
+    const returned = Math.ceil((delivered * T.high_rto_rate_percent) / 100);
+    const s = decide({
+      ordersCount: delivered,
+      recognizedOrdersCount: delivered,
+      returnedOrdersCount: returned,
+    });
+    expect(s).toContain(SegmentKind.high_rto);
+  });
+
+  it("عيّنة أقل من الحد الأدنى ⇒ لا حكم مهما بلغت النسبة (100%)", () => {
+    const delivered = T.high_rto_min_delivered_orders - 1;
+    const s = decide({
+      ordersCount: Math.max(delivered, 1),
+      recognizedOrdersCount: delivered,
+      returnedOrdersCount: delivered,
+    });
+    expect(s).not.toContain(SegmentKind.high_rto);
+  });
+
+  it("نسبة تحت العتبة ⇒ لا high_rto", () => {
+    const s = decide({
+      ordersCount: 10,
+      recognizedOrdersCount: 10,
+      returnedOrdersCount: 1, // 10% < 30%
+    });
+    expect(s).not.toContain(SegmentKind.high_rto);
+  });
+
+  it("بلا طلبات مُسلَّمة ⇒ لا قسمة على صفر ولا قطاع", () => {
+    const s = decide({ ordersCount: 3, recognizedOrdersCount: 0, returnedOrdersCount: 0 });
+    expect(s).not.toContain(SegmentKind.high_rto);
+    expect(s.every((x) => typeof x === "string")).toBe(true);
+  });
+
+  it("حتمي: نفس المدخلات تعطي نفس القطاعات", () => {
+    const input = { ordersCount: 5, recognizedOrdersCount: 5, returnedOrdersCount: 3 };
+    expect(decide(input)).toEqual(decide(input));
+  });
+
+  it("high_rto يسبق القيمة في الأساسي، وinactive يسبق at_risk", () => {
+    expect(pickPrimarySegment([SegmentKind.vip, SegmentKind.high_rto])).toBe(SegmentKind.high_rto);
+    expect(pickPrimarySegment([SegmentKind.at_risk, SegmentKind.inactive])).toBe(
+      SegmentKind.inactive,
+    );
   });
 });

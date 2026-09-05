@@ -27,7 +27,11 @@ export const crmSettingSchemas = {
       very_high: z.number().min(1).max(100).default(75),
     })
     .prefault({}),
-  // عتبات التجزئة — VIP مثال المواصفة: عدد طلبات + نسبة تسليم + إيراد
+  // عتبات التجزئة — VIP مثال المواصفة: عدد طلبات + نسبة تسليم + إيراد.
+  // at_risk_days: نافذة الإنذار قبل الخمول — يجب أن تسبق inactive_days حتمًا
+  // (القطاعان متعاقبان لا متداخلان، والتحقق أدناه يرفض أي ضبط يخلطهما).
+  // high_rto_*: المرتجع بعد التسليم (returnedOrdersCount ÷ recognizedOrdersCount
+  // من metrics/definitions.ts حصرًا) مع حد أدنى للعيّنة يمنع حكمًا من طلب واحد.
   segmentation_thresholds: z
     .object({
       vip_min_orders: z.number().int().min(1).default(3),
@@ -36,6 +40,13 @@ export const crmSettingSchemas = {
       loyal_min_orders: z.number().int().min(1).default(2),
       inactive_days: z.number().int().min(30).default(90),
       profitable_min_margin_percent: z.number().min(0).max(100).default(15),
+      at_risk_days: z.number().int().min(1).default(45),
+      high_rto_min_delivered_orders: z.number().int().min(1).default(3),
+      high_rto_rate_percent: z.number().min(1).max(100).default(30),
+    })
+    .refine((v) => v.at_risk_days < v.inactive_days, {
+      message: "at_risk_days يجب أن تكون أقل من inactive_days (نافذة إنذار تسبق الخمول)",
+      path: ["at_risk_days"],
     })
     .prefault({}),
   // SLA لكل نوع مهمة (بالدقائق) — يقود ترتيب قائمة التأكيد والمتأخرات

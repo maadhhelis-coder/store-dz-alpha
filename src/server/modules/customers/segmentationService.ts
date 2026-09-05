@@ -1,6 +1,8 @@
 import { prisma } from "@/server/db/prisma";
 import { SegmentKind } from "@prisma/client";
 import { getCrmSetting } from "@/server/modules/settings/crmSettingsService";
+import { crmSettingSchemas } from "@/lib/validation/crmSettingsSchema";
+import type { z } from "zod";
 import { getCustomerMetrics } from "@/server/modules/customers/customerMetricsService";
 
 // ===========================================================================
@@ -14,21 +16,29 @@ import { getCustomerMetrics } from "@/server/modules/customers/customerMetricsSe
 // isTest مستثنى ضمنيًا: getCustomerMetrics يفلتره، والعملاء لا يُنشأون من
 // طلبات isTest أصلًا (قيد قاعدة بيانات).
 //
-// القطاعات غير المُطبَّقة عمدًا: at_risk و high_rto — لا مفتاح عتبة لهما في
-// crm_settings بعد. اختراع عتبة لهما هنا يخالف "القواعد تأتي من crm_settings"،
-// فتُضاف حين يُضاف مفتاحها الرسمي في crmSettingsSchema.
+// at_risk و high_rto مطبَّقان بعتبات رسمية في crmSettingsSchema
+// (at_risk_days، high_rto_min_delivered_orders، high_rto_rate_percent) — لا رقم
+// منها مكتوب هنا. at_risk نافذة إنذار تسبق الخمول حصرًا فلا يتداخل القطاعان.
 
 /** أولوية القطاع الأساسي — حتمية: الخطر أولًا، ثم القيمة، ثم دورة الحياة. */
 const PRIMARY_PRIORITY: readonly SegmentKind[] = [
   SegmentKind.high_risk,
+  SegmentKind.high_rto,
   SegmentKind.vip,
   SegmentKind.unprofitable,
   SegmentKind.profitable,
   SegmentKind.loyal,
   SegmentKind.repeat_customer,
   SegmentKind.inactive,
+  SegmentKind.at_risk,
   SegmentKind.new_customer,
 ];
+
+/** شكل العتبات من الـschema نفسه — مصدر واحد، فلا يمكن أن ينحرف الكود عن
+ * crm_settings عند إضافة مفتاح أو تغيير نوعه. */
+export type SegmentationThresholds = z.infer<
+  (typeof crmSettingSchemas)["segmentation_thresholds"]
+>;
 
 const RULE_VERSION = 1;
 
@@ -38,20 +48,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function decideSegments(input: {
   ordersCount: number;
   recognizedOrdersCount: number;
+  returnedOrdersCount: number;
   netRecognizedRevenueDzd: number;
   grossProfitClvDzd: number;
   netProfitClvDzd: number;
   lastOrderAt: Date | null;
   riskLevel: string;
   now: Date;
-  thresholds: {
-    vip_min_orders: number;
-    vip_min_delivery_rate_percent: number;
-    vip_min_revenue_dzd: number;
-    loyal_min_orders: number;
-    inactive_days: number;
-    profitable_min_margin_percent: number;
-  };
+  thresholds: SegmentationThresholds;
 }): SegmentKind[] {
   const t = input.thresholds;
   const segments = new Set<SegmentKind>();
@@ -72,11 +76,21 @@ export function decideSegments(input: {
   if (input.ordersCount >= 2) segments.add(SegmentKind.repeat_customer);
   if (input.ordersCount <= 1) segments.add(SegmentKind.new_customer);
 
-  if (
-    input.lastOrderAt !== null &&
-    input.now.getTime() - input.lastOrderAt.getTime() >= t.inactive_days * DAY_MS
-  ) {
-    segments.add(SegmentKind.inactive);
+  if (input.lastOrderAt !== null) {
+    const sinceLastOrderMs = input.now.getTime() - input.lastOrderAt.getTime();
+    if (sinceLastOrderMs >= t.inactive_days * DAY_MS) {
+      segments.add(SegmentKind.inactive);
+    } else if (sinceLastOrderMs >= t.at_risk_days * DAY_MS) {
+      // نافذة الإنذار فقط — الخمول يبتلعها (الـrefine في الـschema يضمن التعاقب)
+      segments.add(SegmentKind.at_risk);
+    }
+  }
+
+  // المرتجع بعد التسليم — نفس عدّادات metrics/definitions.ts بلا إعادة حساب،
+  // وبحد أدنى للعيّنة كي لا يصنّف طلب واحد مرتجع عميلًا كامل السجل
+  if (input.recognizedOrdersCount >= t.high_rto_min_delivered_orders) {
+    const rtoRate = (input.returnedOrdersCount / input.recognizedOrdersCount) * 100;
+    if (rtoRate >= t.high_rto_rate_percent) segments.add(SegmentKind.high_rto);
   }
 
   // هامش الربح على الإيراد المعترف به فقط — بلا إيراد معترف به لا حكم ربحية
@@ -114,6 +128,7 @@ export async function recomputeCustomerSegments(customerId: string): Promise<Seg
   const segments = decideSegments({
     ordersCount: metrics.ordersCount,
     recognizedOrdersCount: metrics.recognizedOrdersCount,
+    returnedOrdersCount: metrics.returnedOrdersCount,
     netRecognizedRevenueDzd: metrics.netRecognizedRevenueDzd,
     grossProfitClvDzd: metrics.grossProfitClvDzd,
     netProfitClvDzd: metrics.netProfitClvDzd,

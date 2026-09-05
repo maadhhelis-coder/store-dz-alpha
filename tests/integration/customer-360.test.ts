@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/server/db/prisma";
 import { listCustomers, getCustomer360 } from "@/server/modules/customers/customerQueryService";
 import { getCustomerTimeline } from "@/server/modules/customers/customerTimelineService";
+import { recomputeCustomerSegments } from "@/server/modules/customers/segmentationService";
 import {
   cleanupByTag,
   createCustomer,
@@ -176,6 +177,46 @@ maybeDescribe("ملف العميل 360 (integration)", () => {
     const data = await getCustomer360({ customerId: customer.id });
     expect(data!.customer.phoneMasked).toMatch(/^05\*{7}\d{2}$/);
     expect(data!.customer.phones.every((p) => /^05\*{7}\d{2}$/.test(p.phoneMasked))).toBe(true);
+  });
+
+  it("القطاعات تُكتب فعليًا: at_risk وhigh_rto بأساسي واحد كحد أقصى", async () => {
+    const customer = await createCustomer(tag);
+    // 4 طلبات مُسلَّمة منها 2 مرتجعة = 50% ≥ عتبة 30% وعيّنة ≥ 3
+    for (let i = 0; i < 4; i++) {
+      await createOrder(tag, {
+        customerId: customer.id,
+        wilayaCode,
+        status: "delivered",
+        totalDzd: 5_000,
+        deliveredAt: new Date(),
+        returnedAt: i < 2 ? new Date() : null,
+        itemUnitCostDzd: 0,
+      });
+    }
+    // آخر طلب داخل نافذة الإنذار (بين at_risk_days وinactive_days)
+    await prisma.customer.update({
+      where: { id: customer.id },
+      data: { lastOrderAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) },
+    });
+
+    const segments = await recomputeCustomerSegments(customer.id);
+    expect(segments).toContain("high_rto");
+    expect(segments).toContain("at_risk");
+    expect(segments).not.toContain("inactive");
+
+    const rows = await prisma.customerSegment.findMany({
+      where: { customerId: customer.id },
+      select: { segment: true, isPrimary: true },
+    });
+    expect(rows.map((r) => r.segment).sort()).toEqual([...segments].sort());
+    expect(rows.filter((r) => r.isPrimary)).toHaveLength(1); // القيد الجزئي 0..1
+
+    // إعادة التشغيل حتمية: نفس النتيجة بلا تكرار صفوف
+    const again = await recomputeCustomerSegments(customer.id);
+    expect([...again].sort()).toEqual([...segments].sort());
+    expect(await prisma.customerSegment.count({ where: { customerId: customer.id } })).toBe(
+      rows.length,
+    );
   });
 
   it("عميل غير موجود → null لا استثناء", async () => {
