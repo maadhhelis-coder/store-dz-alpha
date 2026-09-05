@@ -136,7 +136,7 @@ maybeDescribe("دمج وفصل العملاء (integration)", () => {
       data: { orderId, customerId: merged.id, outcome: "no_answer" },
     });
     await prisma.task.create({
-      data: { type: "follow_up", orderId, customerId: merged.id, source: "test" },
+      data: { type: "follow_up", orderId, customerId: merged.id, source: "manual" },
     });
     await prisma.communication.create({
       data: { customerId: merged.id, orderId, channel: "sms", provider: "test" },
@@ -227,7 +227,7 @@ maybeDescribe("دمج وفصل العملاء (integration)", () => {
     const outsider = await createCustomer(tag);
     const movedOrderId = await createOrder(tag, { customerId: merged.id, wilayaCode });
     await prisma.task.create({
-      data: { type: "follow_up", orderId: movedOrderId, customerId: merged.id, source: "test" },
+      data: { type: "follow_up", orderId: movedOrderId, customerId: merged.id, source: "manual" },
     });
 
     await mergeCustomers({ survivorId: survivor.id, mergedId: merged.id, actorId: adminId });
