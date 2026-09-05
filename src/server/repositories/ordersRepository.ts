@@ -1,5 +1,11 @@
 import { prisma } from "@/server/db/prisma";
+import { normalizeAlgerianPhone } from "@/lib/phone";
 import type { OrderStatus, Prisma } from "@prisma/client";
+
+/** طباعة الهاتف للصيغة القانونية — يغلف src/lib/phone.ts (التنفيذ الوحيد). */
+export function normalizePhone(raw: string): string | null {
+  return normalizeAlgerianPhone(raw);
+}
 
 export type OrdersFilter = {
   status?: OrderStatus;

@@ -3,10 +3,12 @@ import { prisma } from "@/server/db/prisma";
 import * as ordersRepository from "@/server/repositories/ordersRepository";
 import { findWilayaByCode } from "@/server/repositories/wilayasRepository";
 import { fireWebhookEvent } from "@/server/services/webhooksService";
-import { sendMetaCapiPurchase, sendMetaCapiOrderConfirmed, sendMetaCapiOrderDelivered } from "@/server/services/metaCapiService";
-import { sendTikTokCompletePayment, sendTikTokOrderConfirmed, sendTikTokOrderDelivered } from "@/server/services/tiktokEventsApiService";
+import { sendMetaCapiPurchase } from "@/server/services/metaCapiService";
+import { sendTikTokCompletePayment } from "@/server/services/tiktokEventsApiService";
 import { assertCouponUsable, computeCouponDiscountDzd, InvalidCouponError } from "@/lib/validation/couponRules";
 import type { OrderCreateInput } from "@/lib/validation/orderSchema";
+import { matchOrCreateCustomerInTx } from "@/server/modules/customers/identityService";
+import { createOutboxEvent, transitionOrderStatus } from "@/server/modules/orders/statusService";
 import { Prisma } from "@prisma/client";
 import type { OrderStatus } from "@prisma/client";
 
@@ -172,12 +174,31 @@ async function createOrderTransaction(
 
     const totalDzd = Math.max(0, itemsSubtotalDzd + deliveryPriceDzd - discountDzd);
 
+    // هوية العميل — مطابقة حتمية بالهاتف داخل نفس المعاملة (طلبات الإنتاج فقط).
+    // طلبات isTest لا تنشئ عملاء ولا تُربط (قيد قاعدة بيانات + قاعدة مقفلة).
+    // الطلب الحالي من الواجهة العامة = إنتاجي (isTest false)؛ وسم الاختبار
+    // يُدار حصرًا عبر عملية متميزة موثّقة (ليس عبر هذا المسار).
+    const customerMatch = await matchOrCreateCustomerInTx(tx, {
+      phone: input.phone,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      wilayaCode: wilaya.code,
+      commune: input.commune,
+      address: input.address,
+    });
+
     const order = await tx.order.create({
       data: {
         orderNumber: "TEMP", // يُستبدل بالأسفل بعد ما نعرف orderSeq
         customerFirstName: input.firstName,
         customerLastName: input.lastName,
         phone: input.phone,
+        phoneNormalized: ordersRepository.normalizePhone(input.phone),
+        customerId: customerMatch.customerId,
+        customerMatchSource: customerMatch.matchSource,
+        matchedPhoneId: customerMatch.matchedPhoneId,
+        packagingCostDzd: 0, // الافتراضي التشغيلي — يُعدَّل من الإعدادات في P6
+        otherCostDzd: 0,
         wilayaCode: wilaya.code,
         wilayaName: wilaya.name,
         commune: input.commune,
@@ -211,6 +232,23 @@ async function createOrderTransaction(
       where: { id: order.id },
       data: { orderNumber },
       include: { items: true },
+    });
+
+    // outbox معاملاتي: الحدث يلتزم مع الطلب نفسه — الإرسال الفعلي (webhook/
+    // CAPI/TikTok) يبقى بعد الالتزام عبر after() كما هو الآن حتى P7 يوحّدها
+    // عبر مشغّل الـoutbox.
+    await createOutboxEvent(tx, {
+      eventType: "order.created",
+      entityType: "order",
+      entityId: finalOrder.id,
+      payload: {
+        orderNumber: finalOrder.orderNumber,
+        status: finalOrder.status,
+        totalDzd: finalOrder.totalDzd,
+        customerId: customerMatch.customerId,
+        isTest: finalOrder.isTest,
+      },
+      actorType: "system",
     });
 
     // خصم مشروط (WHERE inventoryCount >= الكمية) بدل تحديث أعمى — يمنع البيع الزائد
@@ -316,152 +354,17 @@ export async function getOrder(id: string) {
   return order;
 }
 
-// حالات "الطلب لن يُنفَّذ نهائيًا" — المخزون المحجوز له وقت الإنشاء يجب أن يعود متاحًا،
-// وإلا فكل طلب يُلغى/يُكتشف مكررًا/وهميًا يُنقِص المخزون الظاهر للأبد بلا أي بيع فعلي —
-// مع نسب الإلغاء المعتادة فتجارة الدفع عند الاستلام هذا يُصغِّر المخزون المتاح تدريجيًا
-// حتى يظهر المنتج "نافد" رغم توفره فعليًا.
-// returned مضافة هنا (لا فقط cancelled/fake/duplicate/wrong_number) — الطلب المُرجَع يعني
-// عودة القطعة فعليًا للمخزون المتاح، تمامًا كطلب مُلغى، بعكس shipped/delivered العاديين
-// حيث تبقى القطعة "خارج الباب" فعلًا.
-const STOCK_RELEASING_STATUSES: OrderStatus[] = ["cancelled", "fake", "duplicate", "wrong_number", "returned"];
-
-function isStockReleasingStatus(status: OrderStatus): boolean {
-  return STOCK_RELEASING_STATUSES.includes(status);
-}
-
-// يُستدعى فقط عند عبور فعلي لحدود "محجوز/متاح" (وليس عند كل تغيير حالة) — يمنع استرجاعًا
-// أو حجزًا مزدوجًا لو تنقّل الطلب بين حالتين من نفس الجهة (مثلاً cancelled → fake).
-async function adjustStockForStatusTransition(
-  tx: Prisma.TransactionClient,
-  items: { productId: string | null; variantId: string | null; quantity: number }[],
-  direction: "restore" | "reclaim",
-) {
-  for (const item of items) {
-    if (direction === "restore") {
-      // استرجاع: زيادة بسيطة بلا شرط — لا يمكن أن تُنتِج قيمة سالبة.
-      if (item.variantId) {
-        await tx.productVariant.update({
-          where: { id: item.variantId },
-          data: { inventoryCount: { increment: item.quantity } },
-        }).catch(() => {}); // المتغيّر قد يكون حُذف لاحقًا (onDelete: SetNull) — نتجاهل بأمان.
-      } else if (item.productId) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { inventoryCount: { increment: item.quantity } },
-        }).catch(() => {});
-      }
-    } else {
-      // استرداد (إعادة تفعيل طلب كان مُلغى): نفس نمط الحجز الذَّرِّي وقت الإنشاء —
-      // WHERE inventoryCount >= الكمية يمنع سحب المخزون تحت الصفر لو نفد المخزون
-      // فمكان آخر منذ الإلغاء.
-      if (item.variantId) {
-        const result = await tx.productVariant.updateMany({
-          where: { id: item.variantId, inventoryCount: { gte: item.quantity } },
-          data: { inventoryCount: { decrement: item.quantity } },
-        });
-        if (result.count === 0) throw new InsufficientStockError();
-      } else if (item.productId) {
-        const result = await tx.product.updateMany({
-          where: { id: item.productId, inventoryCount: { gte: item.quantity } },
-          data: { inventoryCount: { decrement: item.quantity } },
-        });
-        if (result.count === 0) throw new InsufficientStockError();
-      }
-    }
-  }
-}
-
-const MAX_STATUS_UPDATE_ATTEMPTS = 3;
-
+// حالات "الطلب لن يُنفَّذ نهائيًا" — المنطق انتقل إلى statusService (آلة الحالات
+// الموحدة). هذه الدالة الآن تفوّض لها حصرًا حتى لا يوجد مسار ثانٍ يغيّر الحالة.
 export async function updateOrderStatus(
   id: string,
   status: OrderStatus,
   notes?: string,
 ): Promise<NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>> {
-  for (let attempt = 1; attempt <= MAX_STATUS_UPDATE_ATTEMPTS; attempt++) {
-    const existing = await ordersRepository.findOrderById(id);
-    if (!existing) throw new OrderNotFoundError();
-
-    const wasReleasing = isStockReleasingStatus(existing.status);
-    const willRelease = isStockReleasingStatus(status);
-
-    if (wasReleasing === willRelease) {
-      const updated = await ordersRepository.updateOrderStatus(id, status, notes);
-      return finalizeStatusUpdate(existing, updated);
-    }
-
-    // نحمي التحويل بمقارنة-وتبديل (compare-and-swap) على الحالة نفسها: القراءة أعلاه
-    // (existing.status) خارج أي معاملة، فطلبَين متزامنين لإلغاء نفس الطلب قد يقرآن
-    // نفس الحالة القديمة معًا، فيُنفِّذ كلاهما استرجاع المخزون (زيادة بلا شرط) — مخزون
-    // وهمي مضاعف يُباع لاحقًا فعليًا. updateMany بشرط status=existing.status داخل نفس
-    // المعاملة يضمن أن طلبًا واحدًا فقط يفوز؛ الخاسر يُعاد تشغيله (retry) على الحالة
-    // الفعلية الجديدة بدل تكرار تعديل المخزون.
-    const updated = await prisma.$transaction(async (tx) => {
-      const guarded = await tx.order.updateMany({
-        where: { id, status: existing.status },
-        data: {
-          status,
-          ...(notes !== undefined ? { notes } : {}),
-          ...ordersRepository.confirmedAtUpdate(status),
-          ...ordersRepository.deliveredAtUpdate(status),
-          ...ordersRepository.cancelledAtUpdate(status),
-          ...ordersRepository.returnedAtUpdate(status),
-          ...ordersRepository.callAttemptsUpdate(status),
-        },
-      });
-      if (guarded.count === 0) return null;
-
-      await adjustStockForStatusTransition(tx, existing.items, willRelease ? "restore" : "reclaim");
-      return tx.order.findUniqueOrThrow({ where: { id }, include: { items: true, wilaya: true } });
-    });
-
-    if (updated) return finalizeStatusUpdate(existing, updated);
-    // guarded.count === 0: حالة الطلب تغيّرت بين القراءة أعلاه وبدء المعاملة — نعيد
-    // المحاولة على أحدث حالة فعلية بدل رمي خطأ للمستخدم بلا داعٍ. أي خطأ آخر (مثل
-    // InsufficientStockError الحقيقي عند نفاد المخزون فعليًا) يخرج من الحلقة فورًا،
-    // ماشي إعادة محاولة — هذا خطأ عمل حقيقي، ليس تسابقًا عابرًا يستحق retry.
-  }
-  throw new Error("تعذّر تحديث حالة الطلب بعد عدة محاولات متزامنة، حاول من جديد");
-}
-
-function finalizeStatusUpdate(
-  existing: NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>,
-  updated: NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>,
-) {
-  // لا نُطلق أي حدث (webhook أو CAPI/TikTok) إذا لم تتغيّر الحالة فعليًا (مثلاً تحديث
-  // ملاحظات فقط، أو إعادة تطبيق نفس الحالة عبر تأكيد جماعي) — كان الـwebhook يُرسَل
-  // بلا شرط، فيصل لأي تكامل خارجي حدث "تغيّرت الحالة" وهميًا رغم أنها لم تتغيّر.
-  if (existing.status !== updated.status) {
-    fireWebhookEvent("order_status_changed", {
-      orderId: updated.id,
-      orderNumber: updated.orderNumber,
-      previousStatus: existing.status,
-      status: updated.status,
-    });
-
-    const capiOrderContext = {
-      orderNumber: updated.orderNumber,
-      totalDzd: updated.totalDzd,
-      phone: updated.phone,
-      firstName: updated.customerFirstName,
-      lastName: updated.customerLastName,
-    };
-    const tiktokOrderContext = {
-      orderNumber: updated.orderNumber,
-      totalDzd: updated.totalDzd,
-      phone: updated.phone,
-    };
-    if (updated.status === "confirmed") {
-      after(() => sendMetaCapiOrderConfirmed(capiOrderContext).catch((error) => console.error("meta capi confirmed error", error)));
-      after(() => sendTikTokOrderConfirmed(tiktokOrderContext).catch((error) => console.error("tiktok confirmed error", error)));
-    }
-    if (updated.status === "delivered") {
-      after(() => sendMetaCapiOrderDelivered(capiOrderContext).catch((error) => console.error("meta capi delivered error", error)));
-      after(() => sendTikTokOrderDelivered(tiktokOrderContext).catch((error) => console.error("tiktok delivered error", error)));
-    }
-  }
-
-  return updated;
+  return transitionOrderStatus(id, status, {
+    actor: { type: "system" },
+    reason: notes ?? null,
+  });
 }
 
 // نعيد استعمال updateOrderStatus لكل معرّف بدل updateMany مباشر — updateMany كان يتجاوز

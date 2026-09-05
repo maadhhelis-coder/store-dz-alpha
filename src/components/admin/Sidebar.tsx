@@ -6,9 +6,11 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   ShoppingCart,
+  PhoneCall,
   Package,
   FolderTree,
   Users,
+  UserPlus,
   Layers,
   BarChart3,
   Gift,
@@ -30,10 +32,12 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { label: "الرئيسية", href: "/admin", icon: LayoutDashboard },
+  { label: "مركز التأكيد", href: "/admin/confirmation", icon: PhoneCall },
   { label: "الطلبات", href: "/admin/orders", icon: ShoppingCart },
   { label: "المنتجات", href: "/admin/products", icon: Package },
   { label: "التصنيفات", href: "/admin/categories", icon: FolderTree },
-  { label: "العملاء المحتملون", href: "/admin/leads", icon: Users },
+  { label: "العملاء", href: "/admin/customers", icon: Users },
+  { label: "العملاء المحتملون", href: "/admin/leads", icon: UserPlus },
   { label: "صفحات الهبوط", href: "/admin/funnels", icon: Layers },
   { label: "التحليلات", href: "/admin/analytics", icon: BarChart3 },
   { label: "العروض الإضافية", href: "/admin/offers", icon: Gift },

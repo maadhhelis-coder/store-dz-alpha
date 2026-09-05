@@ -1,0 +1,74 @@
+name: Integration Tests
+
+# اختبارات تكامل CRM (سباق الإسناد CAS + idempotency الدائم) — قاعدة postgres
+# حقيقية معزولة في خدمة CI (وليس أي قاعدة مشتركة). مستقلة تمامًا عن e2e.yml
+# (قاعدة Supabase تجريبية) — الأسرار منفصلة والتشغيل متزامن بلا تضارب.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: store_test
+          POSTGRES_PASSWORD: store_test_pw
+          POSTGRES_DB: store_test
+        ports:
+          - 5432:5432
+        # فحص الصحة — لا تبدأ الاختبارات قبل جاهزية postgres الفعلية
+        options: >-
+          --health-cmd "pg_isready -U store_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # تطابق tests/integration/support/setup.ts: TEST_DATABASE_URL يصبح
+      # DATABASE_URL قبل أي استيراد للـprisma singleton — العنوان الوحيد المقبول.
+      TEST_DATABASE_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # الترحيلات تشمل زرع role_permissions (seed SQL ضمن 20260901120110) —
+      # المرجع النهائي للـRBAC يجيء مع الترحيلات لا من seed.ts.
+      # DIRECT_URL مطلوب لاتصال CLI (prisma.config.ts) — نفس قاعدة الاختبار هنا.
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+        env:
+          DIRECT_URL: postgresql://store_test:store_test_pw@localhost:5432/store_test
+
+      # الولايات مرجعية للـFK في طلبات الاختبار (upsert idempotent — آمن كل تشغيلة)
+      - name: Seed baseline data (wilayas)
+        run: node --import tsx prisma/seed.ts
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # الاختبارات تتطلب TEST_DATABASE_URL صراحة — عند غيابه تتخطى وتفشل البوابة،
+      # فالوجود هنا إلزامي وليس افتراضًا.
+      - name: Run integration suite
+        run: npm run test:integration

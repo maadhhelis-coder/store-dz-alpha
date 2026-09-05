@@ -21,21 +21,30 @@ export const orderCreateSchema = z.object({
 
 export type OrderCreateInput = z.infer<typeof orderCreateSchema>;
 
+// الحالات القابلة للكتابة عبر API — الحالات القديمة no_answer/callback/voicemail
+// محذوفة عمدًا (توافق قرائي فقط): نتائج الاتصال تعيش في confirmation_attempts
+// عبر مركز التأكيد، ولا يُسمح بأي كتابة جديدة لها في OrderStatus إطلاقًا.
+export const writableOrderStatusSchema = z.enum([
+  "pending",
+  "confirmed",
+  "preparing",
+  "ready_to_ship",
+  "shipped",
+  "in_transit",
+  "out_for_delivery",
+  "delivered",
+  "cod_collected",
+  "return_to_origin",
+  "returned",
+  "cancelled",
+  "fake",
+  "wrong_number",
+  "duplicate",
+  "fraud_suspected",
+]);
+
 export const orderStatusSchema = z.object({
-  status: z.enum([
-    "pending",
-    "confirmed",
-    "no_answer",
-    "callback",
-    "voicemail",
-    "fake",
-    "wrong_number",
-    "duplicate",
-    "cancelled",
-    "shipped",
-    "delivered",
-    "returned",
-  ]),
+  status: writableOrderStatusSchema,
   notes: z.string().max(2000).optional(),
 });
 
