@@ -39,8 +39,17 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
       raw: {},
     }));
     statusMock.mockResolvedValue({ tracking: "x", status: null });
-    await drainOutbox();
+    await drainAll();
   });
+
+  /** التصريف دفعته 20 حدثًا: مع تراكم ملفات الاختبار الأخرى في نفس القاعدة قد
+   * لا يصل حدثنا في تصريفة واحدة. نصرّف حتى يفرغ الصندوق. */
+  async function drainAll(maxRounds = 12): Promise<void> {
+    for (let i = 0; i < maxRounds; i++) {
+      const { processed, failed } = await drainOutbox();
+      if (processed === 0 && failed === 0) return;
+    }
+  }
 
   afterAll(async () => {
     const orders = await prisma.order.findMany({
@@ -95,8 +104,10 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
       await transitionOrderStatus(order.id, next, { actor: { type: "system" } });
     }
     const shipment = await createShipment({ orderId: order.id, actor: { type: "admin", id: adminId } });
-    await drainOutbox();
+    await drainAll();
     const dispatched = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
+    // شرط مسبق صريح: بقية الاختبار بلا معنى بلا إرسال ناجح
+    expect(dispatched.trackingNumber).not.toBeNull();
     return { orderId: order.id, orderNumber: order.orderNumber, shipment: dispatched };
   }
 

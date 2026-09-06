@@ -45,9 +45,18 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
       tracking: `TRK-${input.reference}`,
       raw: { mocked: true },
     }));
-    await drainOutbox();
+    await drainAll();
     dispatchMock.mockClear();
   });
+
+  /** التصريف دفعته 20 حدثًا: مع تراكم ملفات الاختبار الأخرى في نفس القاعدة قد
+   * تبقى أحداث معلّقة بعد تصريفة واحدة. نصرّف حتى يفرغ الصندوق. */
+  async function drainAll(maxRounds = 12): Promise<void> {
+    for (let i = 0; i < maxRounds; i++) {
+      const { processed, failed } = await drainOutbox();
+      if (processed === 0 && failed === 0) return;
+    }
+  }
 
   afterAll(async () => {
     const orders = await prisma.order.findMany({
