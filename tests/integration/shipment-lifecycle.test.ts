@@ -61,12 +61,30 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     }
   }
 
+
+  /** عدد نداءات الناقل الخاصة بهذا الطلب وحده — العدّ العالمي غير حتمي في قاعدة
+   * مشتركة بين ملفات الاختبار (أحداث سابقة قد تُصرَّف في نفس النافذة). */
+  async function dispatchCallsFor(orderId: string): Promise<number> {
+    const { orderNumber } = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      select: { orderNumber: true },
+    });
+    return dispatchMock.mock.calls.filter((c) => c[0].reference === orderNumber).length;
+  }
+
   afterAll(async () => {
     const orders = await prisma.order.findMany({
       where: { orderNumber: { contains: tag } },
       select: { id: true },
     });
     const ids = orders.map((o) => o.id);
+    // أحداث الصندوق للشحنات entityId = معرّف الشحنة لا الطلب — بلا هذا السطر
+    // تبقى أحداث يتيمة معلّقة تصرّفها ملفات لاحقة على شحنات محذوفة.
+    const shipmentIds = (
+      await prisma.shipment.findMany({ where: { orderId: { in: ids } }, select: { id: true } })
+    ).map((s) => s.id);
+    await prisma.automationRun.deleteMany({ where: { event: { entityId: { in: shipmentIds } } } });
+    await prisma.domainEvent.deleteMany({ where: { entityId: { in: shipmentIds } } });
     await prisma.shipmentEvent.deleteMany({ where: { shipment: { orderId: { in: ids } } } });
     await prisma.shipmentItem.deleteMany({ where: { orderId: { in: ids } } });
     await prisma.shipment.deleteMany({ where: { orderId: { in: ids } } });
@@ -187,10 +205,10 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
     await drainOutbox();
 
-    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(await dispatchCallsFor(orderId)).toBe(1);
     // المرجع الثابت المرسَل للمزود هو رقم الطلب
     const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
-    expect(dispatchMock.mock.calls[0][0].reference).toBe(order.orderNumber);
+    expect(dispatchMock.mock.calls.some((c) => c[0].reference === order.orderNumber)).toBe(true);
 
     const saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.trackingNumber).toBe(`TRK-${tag}-A`);
@@ -223,14 +241,14 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     await drainOutbox(); // المحاولة الثانية تنجح
     saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.trackingNumber).toBe(`TRK-${tag}-B`);
-    expect(dispatchMock).toHaveBeenCalledTimes(2);
+    expect(await dispatchCallsFor(orderId)).toBe(2);
 
     // شحنة واحدة للطلب، لا ثانية
     expect(await prisma.shipment.count({ where: { orderId } })).toBe(1);
 
     // تصريف ثالث: البوابة ناجحة ⇒ لا نداء إضافي إطلاقًا
     await drainOutbox();
-    expect(dispatchMock).toHaveBeenCalledTimes(2);
+    expect(await dispatchCallsFor(orderId)).toBe(2);
   });
 
   // --------------------------------------------------------- 4 فشل غامض
@@ -245,7 +263,7 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     await drainOutbox();
 
     // نداء واحد فقط رغم ثلاث تصريفات — مصير الشحنة عند الناقل مجهول
-    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(await dispatchCallsFor(orderId)).toBe(1);
 
     const saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.trackingNumber).toBeNull();
@@ -267,7 +285,7 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     await drainOutbox();
     await drainOutbox();
 
-    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(await dispatchCallsFor(orderId)).toBe(1);
     const saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.status).toBe("error");
     await prisma.systemAlert.findFirstOrThrow({

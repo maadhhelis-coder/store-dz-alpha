@@ -95,11 +95,14 @@ export async function dispatchShipment(event: DomainEvent): Promise<void> {
 
     const adapter = getCarrierAdapter(shipment.provider);
 
-    // توثيق أن نداءً خارجيًا بدأ — قبل النداء، لا بعده
-    await prisma.shipment.update({
-      where: { id: shipment.id },
+    // توثيق أن نداءً خارجيًا بدأ — قبل النداء، لا بعده.
+    // الشحنة قد تختفي بين القراءة وهذه الكتابة (حذف إداري، تنظيف): لا نداء
+    // خارجي على صف غير موجود، ولا خطأ يستهلك محاولات — لا شيء يُرسَل ببساطة.
+    const marked = await prisma.shipment.updateMany({
+      where: { id: shipment.id, status: "created" },
       data: { retryCount: { increment: 1 } },
     });
+    if (marked.count === 0) return;
 
     let trackingNumber: string;
     try {

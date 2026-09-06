@@ -60,6 +60,13 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
       select: { id: true },
     });
     const ids = orders.map((o) => o.id);
+    // أحداث الصندوق للشحنات entityId = معرّف الشحنة لا الطلب — بلا هذا السطر
+    // تبقى أحداث يتيمة معلّقة تصرّفها ملفات لاحقة على شحنات محذوفة.
+    const shipmentIds = (
+      await prisma.shipment.findMany({ where: { orderId: { in: ids } }, select: { id: true } })
+    ).map((s) => s.id);
+    await prisma.automationRun.deleteMany({ where: { event: { entityId: { in: shipmentIds } } } });
+    await prisma.domainEvent.deleteMany({ where: { entityId: { in: shipmentIds } } });
     await prisma.shipmentEvent.deleteMany({ where: { shipment: { orderId: { in: ids } } } });
     await prisma.shipmentItem.deleteMany({ where: { orderId: { in: ids } } });
     await prisma.shipment.deleteMany({ where: { orderId: { in: ids } } });
