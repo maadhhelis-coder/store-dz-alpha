@@ -18,6 +18,10 @@ import {
 // نداء ناقل داخل الطلب. رقم التتبّع يظهر بعد أن يصرّف المشغّل الحدث — لذلك
 // الرد 202 لا 200، وحالة الشحنة "created" حتى ينجح الإرسال.
 
+// نبضة تصريف الصندوق تعمل بعد الرد داخل نفس التشغيلة (after) — تحتاج مهلة
+// تكفي نداء الناقل، وإلا قُطعت قبل أن تُرسل الشحنة.
+export const maxDuration = 30;
+
 const paramsSchema = z.object({ id: z.string().uuid() });
 const bodySchema = z.object({
   provider: z.string().trim().min(1).max(50).optional(),

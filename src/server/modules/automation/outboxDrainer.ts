@@ -166,9 +166,24 @@ export async function drainOutbox(maxEvents = BATCH_SIZE): Promise<{ processed: 
  * التزامن آمن أصلًا: claim CAS على lease يضمن مطالبًا واحدًا لكل حدث. */
 export function nudgeOutbox(): void {
   try {
-    after(() => drainOutbox().catch((error) => console.error("outbox nudge failed", error)));
+    after(async () => {
+      try {
+        const result = await drainOutbox();
+        console.log(
+          JSON.stringify({ event: "outbox_nudge_drained", ...result, timestamp: new Date().toISOString() }),
+        );
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "outbox_nudge_failed",
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString(),
+          }),
+        );
+      }
+    });
   } catch {
-    // خارج نطاق طلب — لا نبضة
+    // خارج نطاق طلب — لا نبضة، والـcron يتكفّل
   }
 }
 
@@ -189,16 +204,14 @@ async function processEvent(event: DomainEvent): Promise<void> {
     // ينتهك UNIQUE(event_id, handler) ⇒ تخطٍّ صامت ⇒ الحدث يُعلَّم processed بلا
     // تنفيذ. أي: فشل عابر واحد = أثر خارجي لا يقع أبدًا (أُثبت باختبار).
     //
-    // finished_at = null تعني "قيد التنفيذ الآن": لا نُقحم أنفسنا عليها حتى لو
-    // انتهى lease الحدث — نرمي فيبقى الحدث pending لمحاولة لاحقة.
-    // ponytail: عامل ينهار وسط المعالِج يترك صفًا عالقًا؛ يظهر بصوت عالٍ عبر
-    // استنفاد محاولات الحدث ⇒ dead_letter + SystemAlert، لا صمت.
+    // التزامن آمن بلا حارس إضافي: claim CAS على lease الحدث يضمن أن عاملًا
+    // واحدًا فقط يعالج هذا الحدث، فأي سجل غير ناجح هنا هو محاولة سابقة انتهت
+    // (أو عامل انهار) — يُستأنف. dead_letter منتهٍ بالسياسة فلا يُستأنف.
     const resumed = await prisma.automationRun.updateMany({
       where: {
         eventId: event.id,
         handler: handlerName,
         status: { notIn: ["success", "dead_letter"] },
-        finishedAt: { not: null },
       },
       data: { attempts: { increment: 1 }, error: null, startedAt: new Date(), finishedAt: null },
     });
@@ -210,16 +223,8 @@ async function processEvent(event: DomainEvent): Promise<void> {
           data: { eventId: event.id, handler: handlerName, status: "failed", startedAt: new Date() },
         })
         .catch(() => null);
-      if (!created) {
-        const prior = await prisma.automationRun.findUnique({
-          where: { eventId_handler: { eventId: event.id, handler: handlerName } },
-          select: { status: true },
-        });
-        // ناجح سابقًا أو منتهٍ بالسياسة ⇒ تخطٍّ حتمي
-        if (prior?.status === "success" || prior?.status === "dead_letter") continue;
-        // قيد التنفيذ عند عامل آخر ⇒ لا نعلّم الحدث processed
-        throw new Error(`بوابة المعالِج ${handlerName} قيد التنفيذ — يُعاد لاحقًا`);
-      }
+      // فشل الإنشاء ⇒ السجل موجود وهو success أو dead_letter ⇒ تخطٍّ حتمي
+      if (!created) continue;
     }
 
     try {

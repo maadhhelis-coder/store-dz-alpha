@@ -236,7 +236,9 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
       where: { entityId: shipment.id },
       select: { status: true },
     });
-    expect(eventAfterFail.status).toBe("pending"); // لم يُعلَّم processed
+    // العقد: فشل المعالِج لا يُعلّم الحدث processed. (pending أو processing تحت
+    // مطالبة أخرى — كلاهما يفي؛ إثبات إعادة المحاولة نفسه في outbox-handler-retry)
+    expect(eventAfterFail.status).not.toBe("processed");
 
     await drainOutbox(); // المحاولة الثانية تنجح
     saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
