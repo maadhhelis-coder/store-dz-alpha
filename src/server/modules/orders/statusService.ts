@@ -1,4 +1,4 @@
-import { after } from "next/server";
+import { runAfterResponse } from "@/lib/afterResponse";
 import { prisma } from "@/server/db/prisma";
 import * as ordersRepository from "@/server/repositories/ordersRepository";
 import { writeAuditInTx } from "@/server/services/auditService";
@@ -112,7 +112,7 @@ export async function transitionOrderStatus(
       const updated = await prisma.$transaction(async (tx) => {
         const guarded = await tx.order.updateMany({
           where: { id, status: existing.status },
-          data: statusTimestampFields(to),
+          data: statusUpdateFields(to),
         });
         if (guarded.count === 0) return null;
 
@@ -163,7 +163,7 @@ export async function transitionOrderStatus(
     const updated = await prisma.$transaction(async (tx) => {
       const guarded = await tx.order.updateMany({
         where: { id, status: existing.status },
-        data: statusTimestampFields(to),
+        data: statusUpdateFields(to),
       });
       if (guarded.count === 0) return null;
 
@@ -219,9 +219,15 @@ export async function transitionOrderStatus(
 const DOWNSTREAM_OF_CONFIRMED: OrderStatus[] = ["confirmed", "preparing", "ready_to_ship", "shipped", "in_transit", "out_for_delivery", "delivered", "cod_collected", "return_to_origin", "returned"];
 const DOWNSTREAM_OF_DELIVERED: OrderStatus[] = ["delivered", "cod_collected", "returned"];
 
-function statusTimestampFields(to: OrderStatus): Prisma.OrderUpdateManyMutationInput {
+// حقول التحديث الكاملة للانتقال: الحالة نفسها + طوابعها.
+// اكتُشف فعليًا: كانت تُرجع الطوابع وحدها بلا status، فيطابق updateMany الصف
+// (count=1) ويكتب الطوابع دون تغيير الحالة — بينما تُكتب order_status_history
+// وaudit وحدث outbox مدّعية التغيير، وfinalizeStatusSideEffects يخرج مبكرًا
+// (existing.status === updated.status) فلا webhook ولا أحداث تحويل إعلاني.
+// أي أن كل انتقال حالة كان بلا أثر على العمود، مع سجلّ يقول عكس ذلك.
+function statusUpdateFields(to: OrderStatus): Prisma.OrderUpdateManyMutationInput {
   const now = new Date();
-  const fields: Prisma.OrderUpdateManyMutationInput = {};
+  const fields: Prisma.OrderUpdateManyMutationInput = { status: to };
   if (to === "confirmed") fields.confirmedAt = now;
   else if (!DOWNSTREAM_OF_CONFIRMED.includes(to)) fields.confirmedAt = null;
   if (to === "delivered") fields.deliveredAt = now;
@@ -259,12 +265,12 @@ function finalizeStatusSideEffects(existing: OrderWithItems, updated: OrderWithI
       phone: updated.phone,
     };
     if (updated.status === "confirmed") {
-      after(() => sendMetaCapiOrderConfirmed(capiOrderContext).catch((error) => console.error("meta capi confirmed error", error)));
-      after(() => sendTikTokOrderConfirmed(tiktokOrderContext).catch((error) => console.error("tiktok confirmed error", error)));
+      runAfterResponse("meta capi confirmed error", () => sendMetaCapiOrderConfirmed(capiOrderContext));
+      runAfterResponse("tiktok confirmed error", () => sendTikTokOrderConfirmed(tiktokOrderContext));
     }
     if (updated.status === "delivered") {
-      after(() => sendMetaCapiOrderDelivered(capiOrderContext).catch((error) => console.error("meta capi delivered error", error)));
-      after(() => sendTikTokOrderDelivered(tiktokOrderContext).catch((error) => console.error("tiktok delivered error", error)));
+      runAfterResponse("meta capi delivered error", () => sendMetaCapiOrderDelivered(capiOrderContext));
+      runAfterResponse("tiktok delivered error", () => sendTikTokOrderDelivered(tiktokOrderContext));
     }
   }
 }
