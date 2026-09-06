@@ -35,6 +35,19 @@ export async function sweepAllE2EData(): Promise<{
     await testPrisma.returnItem.deleteMany({ where: { returnRecord: { orderId: { in: orderIds } } } });
     await testPrisma.returnRecord.deleteMany({ where: { orderId: { in: orderIds } } });
     await testPrisma.shipmentItem.deleteMany({ where: { orderId: { in: orderIds } } });
+    // أحداث الصندوق تُشير بـentityId إلى الطلب أو الشحنة ولا رابط أجنبي لها،
+    // فبدون هذا تتراكم أحداث يتيمة معلّقة إلى ما لا نهاية وتزاحم الأحداث
+    // الجديدة على دفعة التصريف (ظهر في CI: نبضة صرّفت 20 حدثًا قديمًا ولم تصل
+    // حدث الشحنة المنشأة للتو).
+    const entityIds = [
+      ...orderIds,
+      ...(await testPrisma.shipment.findMany({
+        where: { orderId: { in: orderIds } },
+        select: { id: true },
+      })).map((s) => s.id),
+    ];
+    await testPrisma.automationRun.deleteMany({ where: { event: { entityId: { in: entityIds } } } });
+    await testPrisma.domainEvent.deleteMany({ where: { entityId: { in: entityIds } } });
     await testPrisma.shipment.deleteMany({ where: { orderId: { in: orderIds } } });
   }
   const orderItemsDeleted = orderIds.length

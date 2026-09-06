@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db/prisma";
-import { drainOutbox } from "@/server/modules/automation/outboxDrainer";
+import { drainOutboxUntilEmpty } from "@/server/modules/automation/outboxDrainer";
 import { transitionOrderStatus } from "@/server/modules/orders/statusService";
 import { createShipment } from "@/server/modules/shipping/shipmentService";
 import { ingestCarrierEvent } from "@/server/modules/shipping/shipmentEvents";
@@ -42,17 +42,9 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
     await drainAll();
   });
 
-  /** التصريف دفعته 20 حدثًا: مع تراكم ملفات الاختبار الأخرى في نفس القاعدة قد
-   * لا يصل حدثنا في تصريفة واحدة. نصرّف حتى يفرغ الصندوق. */
-  async function drainAll(maxRounds = 40): Promise<void> {
-    for (let i = 0; i < maxRounds; i++) {
-      const pending = await prisma.domainEvent.count({
-        where: { status: { in: ["pending", "processing"] } },
-      });
-      if (pending === 0) return;
-      await drainOutbox();
-    }
-  }
+  // نستعمل مصرّف المنتج نفسه: الصندوق مشترك بين كل ملفات الاختبار، ودفعة
+  // واحدة (20) لا تصل حدثنا مع أي تراكم.
+  const drainAll = () => drainOutboxUntilEmpty(100);
 
   afterAll(async () => {
     const orders = await prisma.order.findMany({

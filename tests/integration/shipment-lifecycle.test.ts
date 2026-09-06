@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db/prisma";
-import { drainOutbox } from "@/server/modules/automation/outboxDrainer";
+import { drainOutbox, drainOutboxUntilEmpty } from "@/server/modules/automation/outboxDrainer";
 import { transitionOrderStatus } from "@/server/modules/orders/statusService";
 import {
   createShipment,
@@ -49,18 +49,9 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     dispatchMock.mockClear();
   });
 
-  /** التصريف دفعته 20 حدثًا: مع تراكم ملفات الاختبار الأخرى في نفس القاعدة قد
-   * تبقى أحداث معلّقة بعد تصريفة واحدة. نصرّف حتى يفرغ الصندوق. */
-  async function drainAll(maxRounds = 40): Promise<void> {
-    for (let i = 0; i < maxRounds; i++) {
-      const pending = await prisma.domainEvent.count({
-        where: { status: { in: ["pending", "processing"] } },
-      });
-      if (pending === 0) return;
-      await drainOutbox();
-    }
-  }
-
+  // نستعمل مصرّف المنتج نفسه: الصندوق مشترك بين كل ملفات الاختبار، ودفعة
+  // واحدة (20) لا تصل حدثنا مع أي تراكم.
+  const drainAll = () => drainOutboxUntilEmpty(100);
 
   /** عدد نداءات الناقل الخاصة بهذا الطلب وحده — العدّ العالمي غير حتمي في قاعدة
    * مشتركة بين ملفات الاختبار (أحداث سابقة قد تُصرَّف في نفس النافذة). */

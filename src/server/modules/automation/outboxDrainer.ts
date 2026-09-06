@@ -164,11 +164,32 @@ export async function drainOutbox(maxEvents = BATCH_SIZE): Promise<{ processed: 
  * غير حتمي. فداخل معالج طلب: after(). خارجه: لا شيء، والـcron كل 5 دقائق يتكفّل.
  *
  * التزامن آمن أصلًا: claim CAS على lease يضمن مطالبًا واحدًا لكل حدث. */
+/** تصريف متكرر حتى يفرغ الصندوق أو ينفد سقف الجولات.
+ *
+ * دفعة drainOutbox الواحدة 20 حدثًا والترتيب FIFO، فمع أي تراكم لا يصل الحدث
+ * الجديد أبدًا في تصريفة واحدة — أُثبت في CI: نبضة أعادت processed=20 بينما
+ * حدث الشحنة المنشأة للتو لم يُعالَج. تشغيلة واحدة (نبضة أو cron) يجب أن
+ * تستنزف ما تستطيع، لا دفعة واحدة. */
+export async function drainOutboxUntilEmpty(
+  maxRounds = 10,
+): Promise<{ processed: number; failed: number; rounds: number }> {
+  let processed = 0;
+  let failed = 0;
+  let rounds = 0;
+  for (; rounds < maxRounds; rounds++) {
+    const result = await drainOutbox();
+    processed += result.processed;
+    failed += result.failed;
+    if (result.processed === 0 && result.failed === 0) break;
+  }
+  return { processed, failed, rounds };
+}
+
 export function nudgeOutbox(): void {
   try {
     after(async () => {
       try {
-        const result = await drainOutbox();
+        const result = await drainOutboxUntilEmpty();
         console.log(
           JSON.stringify({ event: "outbox_nudge_drained", ...result, timestamp: new Date().toISOString() }),
         );
