@@ -118,18 +118,20 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
 
     // الإرسال يقع بعد الرد عبر مشغّل صندوق الأحداث — ننتظر ظهور رقم التتبّع.
     // البادئة E2E-MOCK- تُثبت أن حارس E2E اعترض النداء قبل الوصول لـDHD الحقيقي.
+    // ننتظر الحالة النهائية للتدفق (نقل الطلب) لا أول أثر: رقم التتبّع يُحفظ في
+    // معاملة، ونقل الطلب عبر آلة الحالات يقع بعدها — الانتظار على الأول سباق.
     await expect
       .poll(
         async () => {
-          const row = await testPrisma.shipment.findUnique({
-            where: { id: body.shipment.id },
-            select: { trackingNumber: true },
+          const row = await testPrisma.order.findUnique({
+            where: { id: order.id },
+            select: { status: true },
           });
-          return row?.trackingNumber ?? null;
+          return row?.status ?? null;
         },
-        { timeout: 20_000 },
+        { timeout: 30_000 },
       )
-      .toMatch(/^E2E-MOCK-/);
+      .toBe("shipped");
 
     const dispatched = await testPrisma.shipment.findUniqueOrThrow({
       where: { id: body.shipment.id },
