@@ -28,6 +28,15 @@ export async function sweepAllE2EData(): Promise<{
     select: { id: true },
   });
   const orderIds = orders.map((o) => o.id);
+  // الشحنات أولًا: shipment_items ترتبط بأسطر الطلب بمفتاح أجنبي مركّب
+  // ON DELETE RESTRICT (قيد مقصود يفرض "نفس الطلب")، فحذف الأسطر قبلها يفشل.
+  if (orderIds.length) {
+    await testPrisma.shipmentEvent.deleteMany({ where: { shipment: { orderId: { in: orderIds } } } });
+    await testPrisma.returnItem.deleteMany({ where: { returnRecord: { orderId: { in: orderIds } } } });
+    await testPrisma.returnRecord.deleteMany({ where: { orderId: { in: orderIds } } });
+    await testPrisma.shipmentItem.deleteMany({ where: { orderId: { in: orderIds } } });
+    await testPrisma.shipment.deleteMany({ where: { orderId: { in: orderIds } } });
+  }
   const orderItemsDeleted = orderIds.length
     ? (await testPrisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } })).count
     : 0;

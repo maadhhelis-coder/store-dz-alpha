@@ -144,5 +144,12 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     });
     expect(shipped.status).toBe("shipped");
     expect(shipped.courierTrackingId).toMatch(/^E2E-MOCK-/);
+
+    // دخان الواجهة: لوحة الشحن تعرض الدورة الحقيقية للمسؤول (لا شاشة بلا بيانات)
+    await ownerPage.goto(`/admin/orders/${order.id}`);
+    const panel = ownerPage.getByText("دورات الشحن");
+    await expect(panel).toBeVisible();
+    await expect(ownerPage.getByText(shipped.courierTrackingId!)).toBeVisible();
+    await expect(ownerPage.getByText("سُلّمت للناقل").first()).toBeVisible();
   });
 });

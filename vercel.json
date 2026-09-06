@@ -14,11 +14,11 @@
     },
     {
       "path": "/api/cron/automation-drain",
-      "schedule": "0 * * * *"
+      "schedule": "45 3 * * *"
     },
     {
       "path": "/api/cron/shipment-reconcile",
-      "schedule": "0 6 * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
