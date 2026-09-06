@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { couponUpdateSchema } from "@/lib/validation/couponSchema";
 import { updateCoupon, deleteCoupon } from "@/server/services/couponsService";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = couponUpdateSchema.safeParse(body);
@@ -19,6 +20,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("update coupon error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

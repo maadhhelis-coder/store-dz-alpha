@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { getDhdCommunes, suggestDhdCommune, DhdNotConfiguredError } from "@/server/services/dhdService";
 
 export async function GET(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("shipments.read");
     const { searchParams } = new URL(request.url);
     const wilayaCode = Number(searchParams.get("wilayaCode"));
     const arabicCommune = searchParams.get("arabicCommune") ?? "";
@@ -19,6 +20,9 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof DhdNotConfiguredError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

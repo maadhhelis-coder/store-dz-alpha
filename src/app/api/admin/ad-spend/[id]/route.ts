@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requireOwner, UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { adSpendUpdateSchema } from "@/lib/validation/adSpendSchema";
 import { updateAdSpendEntry, deleteAdSpendEntry } from "@/server/services/adSpendService";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    await requirePermission("integrations.manage");
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = adSpendUpdateSchema.safeParse(body);
@@ -19,6 +20,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("update ad spend error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

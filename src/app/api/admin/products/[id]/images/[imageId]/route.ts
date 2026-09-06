@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabaseAdminClient";
 import { prisma } from "@/server/db/prisma";
 
@@ -7,7 +8,7 @@ type RouteParams = { params: Promise<{ id: string; imageId: string }> };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const { imageId } = await params;
     const body = await request.json().catch(() => null);
     const sortOrder = Number(body?.sortOrder);
@@ -22,6 +23,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("update product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
   }
@@ -29,7 +33,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
 export async function DELETE(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const { imageId } = await params;
 
     const image = await prisma.productImage.delete({ where: { id: imageId } });
@@ -54,6 +58,9 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("delete product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

@@ -99,7 +99,9 @@ export async function listAuditLogs(params: {
   const [items, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      // فاصل تعادل بالـid: بدونه صفّان بنفس الطابع الزمني يتذبذب ترتيبهما بين
+      // الصفحات فيتكرر صف ويختفي آخر — نفس سياسة الترتيب الحتمي في بقية الخدمات.
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       skip: (params.page - 1) * params.pageSize,
       take: params.pageSize,
     }),

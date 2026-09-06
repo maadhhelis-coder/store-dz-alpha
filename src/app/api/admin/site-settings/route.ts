@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { siteSettingsUpdateSchema } from "@/lib/validation/siteSettingsSchema";
 import { getSiteSettings, updateSiteSettings } from "@/server/services/siteSettingsService";
 
@@ -25,12 +26,15 @@ function maskAdTokens<T extends Record<string, unknown>>(settings: T) {
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requirePermission("settings.read");
     const settings = await getSiteSettings();
     return NextResponse.json({ settings: maskAdTokens(settings) });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("get site settings error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { orderBulkStatusSchema } from "@/lib/validation/orderSchema";
 import { bulkUpdateOrderStatus } from "@/server/services/ordersService";
 
@@ -10,7 +11,7 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("orders.status_change");
     const body = await request.json().catch(() => null);
     const parsed = orderBulkStatusSchema.safeParse(body);
 
@@ -26,6 +27,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("bulk update order status error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

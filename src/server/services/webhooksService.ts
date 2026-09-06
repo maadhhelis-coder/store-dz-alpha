@@ -1,7 +1,7 @@
+import { runAfterResponse } from "@/lib/afterResponse";
 import dns from "node:dns/promises";
 import { isIP } from "node:net";
 import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
-import { after } from "next/server";
 import { Prisma } from "@prisma/client";
 import * as webhooksRepository from "@/server/repositories/webhooksRepository";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/secretBox";
@@ -101,11 +101,7 @@ export function deleteWebhook(id: string) {
 // Vercel serverless يقتل الـ function فور إرسال الرد — أي عمل غير منتظر (fire-and-forget
 // عادي) قد لا يكتمل أبدًا؛ after() يضمن اكتمال الإرسال حتى بعد رجوع الرد للعميل.
 export function fireWebhookEvent(event: WebhookEvent, payload: Record<string, unknown>): void {
-  after(() =>
-    dispatchWebhookEvent(event, payload).catch((error) => {
-      console.error("webhook dispatch error", error);
-    }),
-  );
+  runAfterResponse("webhook dispatch", () => dispatchWebhookEvent(event, payload));
 }
 
 function signPayload(secret: string, timestamp: string, rawBody: string): string {

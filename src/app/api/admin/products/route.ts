@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { requireAdminOrApiKey } from "@/lib/auth/requireAdminOrApiKey";
 import { productCreateSchema } from "@/lib/validation/productSchema";
 import { listProducts, createProduct } from "@/server/services/productsService";
@@ -40,7 +41,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const body = await request.json().catch(() => null);
     const parsed = productCreateSchema.safeParse(body);
 
@@ -56,6 +57,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("create product error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

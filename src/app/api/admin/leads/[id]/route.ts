@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { leadUpdateSchema } from "@/lib/validation/leadSchema";
 import { updateLeadStatus, deleteLead, LeadNotFoundError } from "@/server/services/leadsService";
 
@@ -7,7 +8,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("marketing.read");
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = leadUpdateSchema.safeParse(body);
@@ -24,6 +25,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof LeadNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });

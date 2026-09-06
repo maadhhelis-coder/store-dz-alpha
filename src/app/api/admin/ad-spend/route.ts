@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { adSpendCreateSchema } from "@/lib/validation/adSpendSchema";
 import { listAdSpendEntries, createAdSpendEntry, DuplicateAdSpendEntryError } from "@/server/services/adSpendService";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requirePermission("marketing.read");
     const entries = await listAdSpendEntries();
     return NextResponse.json({ entries });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("list ad spend error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
@@ -19,7 +23,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("integrations.manage");
     const body = await request.json().catch(() => null);
     const parsed = adSpendCreateSchema.safeParse(body);
 
@@ -32,6 +36,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof DuplicateAdSpendEntryError) {
       return NextResponse.json({ error: error.message }, { status: 400 });

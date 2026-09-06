@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabaseAdminClient";
 import { matchesImageMagicBytes } from "@/lib/validateImageMagicBytes";
 
@@ -8,7 +9,7 @@ const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
 
     const formData = await request.formData();
     const file = formData.get("file");
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("upload media error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

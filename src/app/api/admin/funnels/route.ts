@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { funnelCreateSchema } from "@/lib/validation/funnelSchema";
 import {
   listFunnels,
@@ -11,7 +12,7 @@ import {
 
 export async function GET(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("marketing.read");
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, Number(searchParams.get("page") ?? 1));
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
+    }
     console.error("list funnels error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
   }
@@ -31,7 +35,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const body = await request.json().catch(() => null);
     const parsed = funnelCreateSchema.safeParse(body);
 
@@ -47,6 +51,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof FunnelSlugTakenError) {
       return NextResponse.json({ error: error.message }, { status: 409 });

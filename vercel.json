@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/crm-recompute",
       "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/automation-drain",
+      "schedule": "45 3 * * *"
     }
   ]
 }

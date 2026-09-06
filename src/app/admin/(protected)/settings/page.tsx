@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
+import { getAllCrmSettings } from "@/server/modules/settings/crmSettingsService";
 import SettingsTabs from "@/components/admin/SettingsTabs";
 import DeliveryPricingTable from "@/components/admin/DeliveryPricingTable";
 import AccountSettingsForm from "@/components/admin/AccountSettingsForm";
@@ -13,6 +14,7 @@ import WebhooksSettings from "@/components/admin/WebhooksSettings";
 import ApiKeysSettings from "@/components/admin/ApiKeysSettings";
 import MessagingIntegrationSettings from "@/components/admin/MessagingIntegrationSettings";
 import SecuritySettingsForm from "@/components/admin/SecuritySettingsForm";
+import CrmSettingsForm from "@/components/admin/CrmSettingsForm";
 import TrackingPixelsSettingsForm from "@/components/admin/TrackingPixelsSettingsForm";
 
 // دائمًا ديناميكية بلا أي تخزين مؤقت — إعدادات حسّاسة (مفاتيح API، توكنات) يجب أن تعكس
@@ -22,6 +24,9 @@ export const dynamic = "force-dynamic";
 export default async function AdminSettingsPage() {
   const admin = await requireAdmin();
   const rawSiteSettings = await getSiteSettings();
+  // إعدادات CRM التشغيلية — تُقرأ هنا لأن تبويبها يعرضها فورًا بلا نداء إضافي.
+  // لا أسرار فيها (أرقام وعتبات فقط) بعكس توكنات الإعلانات المحذوفة أدناه.
+  const crmSettings = await getAllCrmSettings();
   // لا تُمرَّر توكنات Meta/TikTok الفعلية لأي مكوّن عميل (Client Component) — Next.js
   // يُسلسل (serialize) الكائن كاملًا فحمولة RSC المرسلة للمتصفح مهما كانت الحقول التي
   // يقرؤها المكوّن فعليًا، فكشفها هنا أخطر من كشفها عبر endpoint عادي.
@@ -99,6 +104,11 @@ export default async function AdminSettingsPage() {
       id: "messaging",
       label: "تكامل المراسلة",
       content: <MessagingIntegrationSettings />,
+    },
+    {
+      id: "crm",
+      label: "إعدادات CRM",
+      content: <CrmSettingsForm initialSettings={crmSettings} />,
     },
     {
       id: "security",

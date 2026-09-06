@@ -76,7 +76,7 @@ export async function listTasks(params: {
       : {}),
   };
 
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.task.findMany({
       where,
       // ترتيب حتمي — breaker بid (سياسة 89)
@@ -86,6 +86,15 @@ export async function listTasks(params: {
     }),
     prisma.task.count({ where }),
   ]);
+  // "متأخرة" حكم نطاق لا عرض: يُحسب هنا مقابل ساعة واحدة لكل الصفوف، فلا يقرأ
+  // المستهلك الساعة بنفسه (ولا يختلف صفّان في نفس الصفحة على معنى التأخر).
+  const items = rows.map((task) => ({
+    ...task,
+    isOverdue:
+      task.dueAt !== null &&
+      task.dueAt.getTime() < now.getTime() &&
+      (task.status === "open" || task.status === "in_progress"),
+  }));
   return { items, total };
 }
 

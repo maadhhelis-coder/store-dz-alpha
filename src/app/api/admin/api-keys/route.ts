@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
 import { apiKeyCreateSchema } from "@/lib/validation/apiKeySchema";
 import { getApiKeys, generateApiKey } from "@/server/services/apiKeysService";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requireOwner();
     const apiKeys = await getApiKeys();
     return NextResponse.json({ apiKeys });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("list api keys error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
