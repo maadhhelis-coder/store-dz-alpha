@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db/prisma";
-import { drainOutbox, drainOutboxUntilEmpty } from "@/server/modules/automation/outboxDrainer";
+import { drainOutboxUntilEmpty } from "@/server/modules/automation/outboxDrainer";
+import { dispatchShipment } from "@/server/modules/shipping/shipmentDispatch";
 import { transitionOrderStatus } from "@/server/modules/orders/statusService";
 import {
   createShipment,
@@ -52,6 +53,16 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
   // نستعمل مصرّف المنتج نفسه: الصندوق مشترك بين كل ملفات الاختبار، ودفعة
   // واحدة (20) لا تصل حدثنا مع أي تراكم.
   const drainAll = () => drainOutboxUntilEmpty(100);
+
+  /** استدعاء المعالِج مباشرة لحدث هذه الشحنة — حتمي ولا يعتمد على تراكم صندوق
+   * مشترك بين ملفات الاختبار. توصيل الحدث←المعالِج مثبت في اختبار مستقل
+   * (المشغّل يُرسل...) وفي E2E؛ هنا نختبر دلالات الإرسال نفسها. */
+  async function dispatchNow(shipmentId: string): Promise<void> {
+    const event = await prisma.domainEvent.findFirstOrThrow({
+      where: { entityId: shipmentId, eventType: 'shipment.created' },
+    });
+    await dispatchShipment(event);
+  }
 
   /** عدد نداءات الناقل الخاصة بهذا الطلب وحده — العدّ العالمي غير حتمي في قاعدة
    * مشتركة بين ملفات الاختبار (أحداث سابقة قد تُصرَّف في نفس النافذة). */
@@ -194,7 +205,8 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     dispatchMock.mockResolvedValue({ tracking: `TRK-${tag}-A`, raw: { ok: true } });
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
-    await drainOutbox();
+    // هذا الاختبار وحده يثبت التوصيل الكامل: الحدث ← المصرّف ← المعالِج ← الناقل
+    await drainAll();
 
     expect(await dispatchCallsFor(orderId)).toBe(1);
     // المرجع الثابت المرسَل للمزود هو رقم الطلب
@@ -219,19 +231,12 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
 
-    await drainOutbox(); // المحاولة الأولى تفشل
+    await dispatchNow(shipment.id).catch(() => {}); // المحاولة الأولى تفشل
     let saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.trackingNumber).toBeNull();
     expect(saved.lastError).toContain("503");
-    const eventAfterFail = await prisma.domainEvent.findFirstOrThrow({
-      where: { entityId: shipment.id },
-      select: { status: true },
-    });
-    // العقد: فشل المعالِج لا يُعلّم الحدث processed. (pending أو processing تحت
-    // مطالبة أخرى — كلاهما يفي؛ إثبات إعادة المحاولة نفسه في outbox-handler-retry)
-    expect(eventAfterFail.status).not.toBe("processed");
 
-    await drainOutbox(); // المحاولة الثانية تنجح
+    await dispatchNow(shipment.id); // المحاولة الثانية تنجح
     saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     expect(saved.trackingNumber).toBe(`TRK-${tag}-B`);
     expect(await dispatchCallsFor(orderId)).toBe(2);
@@ -239,8 +244,8 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     // شحنة واحدة للطلب، لا ثانية
     expect(await prisma.shipment.count({ where: { orderId } })).toBe(1);
 
-    // تصريف ثالث: البوابة ناجحة ⇒ لا نداء إضافي إطلاقًا
-    await drainOutbox();
+    // استدعاء ثالث: الشحنة لديها رقم تتبّع ⇒ لا نداء إضافي إطلاقًا
+    await dispatchNow(shipment.id);
     expect(await dispatchCallsFor(orderId)).toBe(2);
   });
 
@@ -251,9 +256,11 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     dispatchMock.mockRejectedValue(timeout);
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
-    await drainOutbox();
-    await drainOutbox();
-    await drainOutbox();
+    // البوابة (automation_runs) هي ما يمنع الإرسال الأعمى الثاني — لذلك هنا
+    // نمر بالمصرّف الحقيقي لا باستدعاء المعالِج مباشرة.
+    await drainAll();
+    await drainAll();
+    await drainAll();
 
     // نداء واحد فقط رغم ثلاث تصريفات — مصير الشحنة عند الناقل مجهول
     expect(await dispatchCallsFor(orderId)).toBe(1);
@@ -275,8 +282,8 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     dispatchMock.mockRejectedValue(new DhdValidationError("Commune غير مقبولة"));
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
-    await drainOutbox();
-    await drainOutbox();
+    await dispatchNow(shipment.id);
+    await dispatchNow(shipment.id);
 
     expect(await dispatchCallsFor(orderId)).toBe(1);
     const saved = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
@@ -361,8 +368,8 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
   it("إعادة الشحن تُعيد الطلب المرتجع للدورة بسبب موثّق، وسباقها ينتهي بفائز واحد", async () => {
     const orderId = await readyOrder();
     dispatchMock.mockResolvedValue({ tracking: `TRK-${tag}-E`, raw: {} });
-    await createShipment({ orderId, actor: { type: "admin", id: adminId } });
-    await drainOutbox();
+    const first = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
+    await dispatchNow(first.id);
 
     // مسار رسمي حتى الإرجاع: shipped → return_to_origin → returned
     await transitionOrderStatus(orderId, "return_to_origin", { actor: { type: "carrier" } });

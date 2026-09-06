@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/server/db/prisma";
 import { drainOutboxUntilEmpty } from "@/server/modules/automation/outboxDrainer";
+import { dispatchShipment } from "@/server/modules/shipping/shipmentDispatch";
 import { transitionOrderStatus } from "@/server/modules/orders/statusService";
 import { createShipment } from "@/server/modules/shipping/shipmentService";
 import { ingestCarrierEvent } from "@/server/modules/shipping/shipmentEvents";
@@ -45,6 +46,16 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
   // نستعمل مصرّف المنتج نفسه: الصندوق مشترك بين كل ملفات الاختبار، ودفعة
   // واحدة (20) لا تصل حدثنا مع أي تراكم.
   const drainAll = () => drainOutboxUntilEmpty(100);
+
+  /** استدعاء المعالِج مباشرة لحدث هذه الشحنة — حتمي ولا يعتمد على تراكم صندوق
+   * مشترك بين ملفات الاختبار. توصيل الحدث←المعالِج مثبت في اختبار مستقل
+   * (المشغّل يُرسل...) وفي E2E؛ هنا نختبر دلالات الإرسال نفسها. */
+  async function dispatchNow(shipmentId: string): Promise<void> {
+    const event = await prisma.domainEvent.findFirstOrThrow({
+      where: { entityId: shipmentId, eventType: 'shipment.created' },
+    });
+    await dispatchShipment(event);
+  }
 
   afterAll(async () => {
     const orders = await prisma.order.findMany({
@@ -106,7 +117,7 @@ maybeDescribe("أحداث الناقل والمطابقة (integration)", () => 
       await transitionOrderStatus(order.id, next, { actor: { type: "system" } });
     }
     const shipment = await createShipment({ orderId: order.id, actor: { type: "admin", id: adminId } });
-    await drainAll();
+    await dispatchNow(shipment.id);
     const dispatched = await prisma.shipment.findUniqueOrThrow({ where: { id: shipment.id } });
     // شرط مسبق صريح: بقية الاختبار بلا معنى بلا إرسال ناجح
     expect(dispatched.trackingNumber).not.toBeNull();
