@@ -149,7 +149,8 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     await ownerPage.goto(`/admin/orders/${order.id}`);
     const panel = ownerPage.getByText("دورات الشحن");
     await expect(panel).toBeVisible();
-    await expect(ownerPage.getByText(shipped.courierTrackingId!)).toBeVisible();
+    // يظهر مرتين: بطاقة الناقل التوافقية ولوحة الشحن — كلاهما مشروع
+    await expect(ownerPage.getByText(shipped.courierTrackingId!).first()).toBeVisible();
     await expect(ownerPage.getByText("سُلّمت للناقل").first()).toBeVisible();
   });
 });
