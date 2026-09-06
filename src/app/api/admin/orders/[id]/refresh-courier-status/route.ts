@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { getOrder, updateOrderFields, OrderNotFoundError } from "@/server/services/ordersService";
 import { fetchDhdOrderStatus, DhdNotConfiguredError } from "@/server/services/dhdService";
 
@@ -7,7 +8,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("orders.update");
     const { id } = await params;
     const order = await getOrder(id);
 
@@ -24,6 +25,9 @@ export async function POST(_request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof OrderNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });

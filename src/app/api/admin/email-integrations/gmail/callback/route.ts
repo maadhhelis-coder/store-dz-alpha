@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { handleGmailCallback } from "@/server/services/emailIntegrationsService";
 import { OAUTH_STATE_COOKIE } from "@/app/api/admin/email-integrations/[provider]/connect/route";
 
@@ -20,13 +21,15 @@ export async function GET(request: Request) {
   settingsUrl.searchParams.set("tab", "messaging");
 
   try {
-    await requireAdmin();
+    await requirePermission("integrations.manage");
   } catch (error) {
     // أي خطأ آخر غير UnauthorizedError (مثلًا عطل عابر بقاعدة البيانات أثناء التحقق من
     // الجلسة) كان يُرمى بلا معالجة هنا فيظهر صفحة خطأ عامة بدل إعادة توجيه متسقة مع بقية
     // مسارات هذا الملف — لا يمكن إثبات صلاحية المدير فنعامله كغير مسجَّل دخول بأمان.
-    if (!(error instanceof UnauthorizedError)) {
-      console.error("gmail oauth callback: requireAdmin failed unexpectedly", error);
+    // رفض الصلاحية (ForbiddenError) ليس عطلًا غير متوقع — مسؤول بلا
+    // integrations.manage نتيجة مشروعة، فلا تُسجَّل كخطأ نظام.
+    if (!(error instanceof UnauthorizedError) && !(error instanceof ForbiddenError)) {
+      console.error("gmail oauth callback: permission check failed unexpectedly", error);
     }
     return NextResponse.redirect(new URL("/admin/login", url.origin));
   }

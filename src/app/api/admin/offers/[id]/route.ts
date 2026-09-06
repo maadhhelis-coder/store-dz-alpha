@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { offerUpdateSchema } from "@/lib/validation/offerSchema";
 import {
   getOffer,
@@ -13,13 +14,16 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("products.read");
     const { id } = await params;
     const offer = await getOffer(id);
     return NextResponse.json({ offer });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof OfferNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
@@ -48,6 +52,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof OfferNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });

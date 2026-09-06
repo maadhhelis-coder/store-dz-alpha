@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { requireOwnerOrApiKey } from "@/lib/auth/requireAdminOrApiKey";
 import { webhookCreateSchema } from "@/lib/validation/webhookSchema";
 import { listWebhooksPage, createWebhook, PrivateWebhookHostError, WebhookUrlTakenError } from "@/server/services/webhooksService";
 
 export async function GET(request: Request) {
   try {
-    await requireAdmin();
+    await requirePermission("integrations.read");
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, Number(searchParams.get("page") ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? 20)));
@@ -16,6 +17,9 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("list webhooks error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

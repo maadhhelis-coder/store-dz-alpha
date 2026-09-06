@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin, requireOwner, ForbiddenError, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { funnelUpdateSchema } from "@/lib/validation/funnelSchema";
 import {
   getFunnel,
@@ -15,13 +16,16 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("marketing.read");
     const { id } = await params;
     const funnel = await getFunnel(id);
     return NextResponse.json({ funnel });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof FunnelNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
@@ -50,6 +54,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     if (error instanceof FunnelNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });

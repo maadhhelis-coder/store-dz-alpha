@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, UnauthorizedError } from "@/lib/auth/requireAdmin";
+import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabaseAdminClient";
 import { matchesImageMagicBytes } from "@/lib/validateImageMagicBytes";
 import { prisma } from "@/server/db/prisma";
@@ -12,7 +13,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 export async function POST(request: Request, { params }: RouteParams) {
   try {
-    await requireAdmin();
+    await requirePermission("products.manage");
     const { id: productId } = await params;
 
     // productId يُستعمل كـ prefix لمسار التخزين أدناه — تحقّق من صيغته أولًا بدل تمريره
@@ -73,6 +74,9 @@ export async function POST(request: Request, { params }: RouteParams) {
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("upload product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireAdmin, requireOwner, UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requireOwner, UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
+import { requirePermission } from "@/lib/auth/requirePermission";
 import { wilayaPricingUpdateSchema } from "@/lib/validation/wilayaSchema";
 import { listWilayas, updateWilayaPricing } from "@/server/services/wilayasService";
 
 export async function GET() {
   try {
-    await requireAdmin();
+    await requirePermission("shipments.read");
     const wilayas = await listWilayas();
     return NextResponse.json({ wilayas });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof ForbiddenError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
     console.error("list wilayas error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
