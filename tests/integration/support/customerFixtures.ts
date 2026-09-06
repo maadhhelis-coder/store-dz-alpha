@@ -10,13 +10,18 @@ export function newTag(prefix: string): FixtureTag {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+// قاعدة عشوائية لكل وحدة + عدّاد تصاعدي — بلا أي اعتماد على ساعة الحائط.
+// النسخة السابقة اشتقت الرقم من Date.now()%1e6 مع عدّاد يُصفَّر لكل ملف اختبار
+// (vitest يعيد إنشاء الوحدة لكل ملف)، فملفان يولّدان رقمًا في نفس الميلي ثانية
+// ينتجان نفس الهاتف ⇒ انتهاك القيد الفريد phone_normalized. فشل فعليًا على main.
+const PHONE_BASE = 10_000_000 + Math.floor(Math.random() * 89_000_000);
 let phoneSeq = 0;
 
 /** هاتف جزائري صالح الشكل وفريد داخل التشغيلة (10 أرقام تبدأ 05). */
 export function nextPhone(): string {
   phoneSeq += 1;
-  const seq = (Date.now() % 1_000_000) * 100 + (phoneSeq % 100);
-  return `05${seq.toString().padStart(8, "0").slice(-8)}`;
+  const value = (PHONE_BASE + phoneSeq) % 100_000_000;
+  return `05${value.toString().padStart(8, "0")}`;
 }
 
 export async function ensureWilayaCode(): Promise<number> {
