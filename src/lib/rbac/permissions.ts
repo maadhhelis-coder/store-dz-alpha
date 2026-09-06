@@ -48,6 +48,9 @@ export const PERMISSION_CATALOG = [
   "is_test.manage",
   "risk.read",
   "fraud.review",
+  // إعادة الشحن (P5): إجراء متميز يفتح استثناء returned→confirmed بسبب إلزامي —
+  // ليست shipments.create ولا orders.status_change، فلا تُشتق من أيهما.
+  "shipments.reship",
 ] as const;
 
 export type Permission = (typeof PERMISSION_CATALOG)[number];
@@ -117,6 +120,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
     "shipments.read",
     "shipments.create",
     "shipments.update",
+    "shipments.reship",
     "returns.read",
     "returns.manage",
     "tasks.read",

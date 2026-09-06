@@ -9,16 +9,16 @@
       "schedule": "0 4 * * 0"
     },
     {
-      "path": "/api/cron/sync-dhd-status",
-      "schedule": "0 9 * * *"
-    },
-    {
       "path": "/api/cron/crm-recompute",
       "schedule": "30 2 * * *"
     },
     {
       "path": "/api/cron/automation-drain",
       "schedule": "45 3 * * *"
+    },
+    {
+      "path": "/api/cron/shipment-reconcile",
+      "schedule": "0 9 * * *"
     }
   ]
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import OrderDetailForm from "@/components/admin/OrderDetailForm";
+import ShipmentPanel from "@/components/admin/crm/ShipmentPanel";
 import { getOrder, OrderNotFoundError } from "@/server/services/ordersService";
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -30,6 +31,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         الطلب {order.orderNumber}
       </h1>
       <OrderDetailForm order={order} />
+      <ShipmentPanel orderId={order.id} orderStatus={order.status} />
     </div>
   );
 }

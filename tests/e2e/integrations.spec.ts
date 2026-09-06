@@ -81,7 +81,8 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     const order = await testPrisma.order.create({
       data: {
         orderNumber: `E2E-DHD-${Date.now()}`,
-        status: "confirmed",
+        // الشحنة تُنشأ من ready_to_ship حصرًا (آلة الحالات — لا تجاوز)
+        status: "ready_to_ship",
         customerFirstName: "زبون",
         customerLastName: e2eLastName(),
         phone: e2ePhone(),
@@ -108,12 +109,50 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
       },
     });
 
-    const res = await ownerPage.request.post(`/api/admin/orders/${order.id}/send-to-dhd`, { data: {} });
-    expect(res.status()).toBe(200);
+    // P5: المسار يكتب النية محليًا ويعود 202 فورًا — لا نداء ناقل داخل الطلب.
+    const res = await ownerPage.request.post(`/api/admin/orders/${order.id}/shipments`, { data: {} });
+    expect(res.status()).toBe(202);
     const body = await res.json();
-    // البادئة E2E-MOCK- تُثبت أن حارس E2E اعترض النداء قبل الوصول لـDHD الحقيقي فعليًا —
-    // رقم تتبع حقيقي لا يمكن أن يحمل هذه البادئة أبدًا.
-    expect(body.order.courierTrackingId).toMatch(/^E2E-MOCK-/);
-    expect(body.order.courierProvider).toBe("DHD");
+    expect(body.shipment.status).toBe("created");
+    expect(body.shipment.trackingNumber).toBeNull();
+
+    // الإرسال يقع بعد الرد عبر مشغّل صندوق الأحداث — ننتظر ظهور رقم التتبّع.
+    // البادئة E2E-MOCK- تُثبت أن حارس E2E اعترض النداء قبل الوصول لـDHD الحقيقي.
+    // ننتظر الحالة النهائية للتدفق (نقل الطلب) لا أول أثر: رقم التتبّع يُحفظ في
+    // معاملة، ونقل الطلب عبر آلة الحالات يقع بعدها — الانتظار على الأول سباق.
+    await expect
+      .poll(
+        async () => {
+          const row = await testPrisma.order.findUnique({
+            where: { id: order.id },
+            select: { status: true },
+          });
+          return row?.status ?? null;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe("shipped");
+
+    const dispatched = await testPrisma.shipment.findUniqueOrThrow({
+      where: { id: body.shipment.id },
+      select: { status: true, provider: true },
+    });
+    expect(dispatched.status).toBe("handed_over");
+    expect(dispatched.provider).toBe("DHD");
+
+    const shipped = await testPrisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { status: true, courierTrackingId: true },
+    });
+    expect(shipped.status).toBe("shipped");
+    expect(shipped.courierTrackingId).toMatch(/^E2E-MOCK-/);
+
+    // دخان الواجهة: لوحة الشحن تعرض الدورة الحقيقية للمسؤول (لا شاشة بلا بيانات)
+    await ownerPage.goto(`/admin/orders/${order.id}`);
+    const panel = ownerPage.getByText("دورات الشحن");
+    await expect(panel).toBeVisible();
+    // يظهر مرتين: بطاقة الناقل التوافقية ولوحة الشحن — كلاهما مشروع
+    await expect(ownerPage.getByText(shipped.courierTrackingId!).first()).toBeVisible();
+    await expect(ownerPage.getByText("سُلّمت للناقل").first()).toBeVisible();
   });
 });
