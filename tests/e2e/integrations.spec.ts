@@ -81,7 +81,8 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     const order = await testPrisma.order.create({
       data: {
         orderNumber: `E2E-DHD-${Date.now()}`,
-        status: "confirmed",
+        // الشحنة تُنشأ من ready_to_ship حصرًا (آلة الحالات — لا تجاوز)
+        status: "ready_to_ship",
         customerFirstName: "زبون",
         customerLastName: e2eLastName(),
         phone: e2ePhone(),
@@ -108,12 +109,40 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
       },
     });
 
-    const res = await ownerPage.request.post(`/api/admin/orders/${order.id}/send-to-dhd`, { data: {} });
-    expect(res.status()).toBe(200);
+    // P5: المسار يكتب النية محليًا ويعود 202 فورًا — لا نداء ناقل داخل الطلب.
+    const res = await ownerPage.request.post(`/api/admin/orders/${order.id}/shipments`, { data: {} });
+    expect(res.status()).toBe(202);
     const body = await res.json();
-    // البادئة E2E-MOCK- تُثبت أن حارس E2E اعترض النداء قبل الوصول لـDHD الحقيقي فعليًا —
-    // رقم تتبع حقيقي لا يمكن أن يحمل هذه البادئة أبدًا.
-    expect(body.order.courierTrackingId).toMatch(/^E2E-MOCK-/);
-    expect(body.order.courierProvider).toBe("DHD");
+    expect(body.shipment.status).toBe("created");
+    expect(body.shipment.trackingNumber).toBeNull();
+
+    // الإرسال يقع بعد الرد عبر مشغّل صندوق الأحداث — ننتظر ظهور رقم التتبّع.
+    // البادئة E2E-MOCK- تُثبت أن حارس E2E اعترض النداء قبل الوصول لـDHD الحقيقي.
+    await expect
+      .poll(
+        async () => {
+          const row = await testPrisma.shipment.findUnique({
+            where: { id: body.shipment.id },
+            select: { trackingNumber: true },
+          });
+          return row?.trackingNumber ?? null;
+        },
+        { timeout: 20_000 },
+      )
+      .toMatch(/^E2E-MOCK-/);
+
+    const dispatched = await testPrisma.shipment.findUniqueOrThrow({
+      where: { id: body.shipment.id },
+      select: { status: true, provider: true },
+    });
+    expect(dispatched.status).toBe("handed_over");
+    expect(dispatched.provider).toBe("DHD");
+
+    const shipped = await testPrisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+      select: { status: true, courierTrackingId: true },
+    });
+    expect(shipped.status).toBe("shipped");
+    expect(shipped.courierTrackingId).toMatch(/^E2E-MOCK-/);
   });
 });

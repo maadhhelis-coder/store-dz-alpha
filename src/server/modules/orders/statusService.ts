@@ -14,6 +14,7 @@ import {
   sendTikTokOrderDelivered,
 } from "@/server/services/tiktokEventsApiService";
 import { assertTransition, InvalidTransitionError, isCarrierDrivenStatus } from "@/server/modules/orders/stateMachine";
+import { nudgeOutbox } from "@/server/modules/automation/outboxDrainer";
 import type { OrderStatus, Prisma } from "@prisma/client";
 
 // خدمة تغيير حالة الطلب الموحدة — كل المسارات (UI/status route، bulk، محاولات
@@ -35,6 +36,9 @@ export type StatusChangeContext = {
   reason?: string | null;
   metadata?: Record<string, unknown>;
   correlationId?: string | null;
+  /** يفتح استثناء returned→confirmed الموثّق في stateMachine — لخدمة الـreship
+   * وحدها. أي مستدعٍ آخر يتركه فيبقى الانتقال مرفوضًا. */
+  allowReship?: boolean;
 };
 
 export type OrderWithItems = NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>;
@@ -103,7 +107,7 @@ export async function transitionOrderStatus(
     if (!existing) throw new OrderNotFoundError();
 
     // فشل سريع قبل أي كتابة — رسالة INVALID_TRANSITION مفهومة بدل retry عشوائي
-    assertTransition(existing.status, to);
+    assertTransition(existing.status, to, { allowReship: context.allowReship });
 
     const wasReleasing = isStockReleasingStatus(existing.status);
     const willRelease = isStockReleasingStatus(to);
@@ -242,6 +246,9 @@ function statusUpdateFields(to: OrderStatus): Prisma.OrderUpdateManyMutationInpu
 // آثار ما بعد الالتزام — نفس المنطق الحالي (webhook + CAPI/TikTok بشرط تغيّر فعلي)
 function finalizeStatusSideEffects(existing: OrderWithItems, updated: OrderWithItems) {
   if (existing.status === updated.status) return;
+
+  // حدث outbox التُزم مع الانتقال — نبضة تصريف بعد الرد (الـcron احتياط)
+  nudgeOutbox();
 
   fireWebhookEvent("order_status_changed", {
     orderId: updated.id,

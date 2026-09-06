@@ -26,6 +26,17 @@ export async function requirePermission(permission: Permission): Promise<AdminUs
   return adminUser;
 }
 
+/** فحص بلا رمي — لإخفاء/إظهار عنصر واجهة فقط. التفويض الفعلي يبقى على
+ * المسار (requirePermission)؛ إخفاء زر ليس حماية. */
+export async function hasPermission(permission: Permission): Promise<boolean> {
+  try {
+    await requirePermission(permission);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** تحقق من عدة صلاحيات معًا (كلها مطلوبة). */
 export async function requireAllPermissions(permissions: Permission[]): Promise<AdminUser> {
   const adminUser = await requireAdmin();

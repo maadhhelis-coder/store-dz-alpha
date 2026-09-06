@@ -2,10 +2,14 @@ import { findCourierIntegrationByProvider } from "@/server/repositories/courierI
 import { getCommuneLatinName, getCommuneArabicName } from "@/data/communes";
 import { decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
-import { prisma } from "@/server/db/prisma";
-import { fireWebhookEvent } from "@/server/services/webhooksService";
 
 const DHD_BASE_URL = "https://platform.dhd-dz.com/api/v1";
+
+// مهلة صريحة لكل نداء خارجي: fetch بلا signal ينتظر إلى أجل غير مسمّى، فيُعلّق
+// عامل الـoutbox حتى ينتهي lease الحدث (120 ثانية) ثم يُعاد الإرسال — أي نداء
+// مزدوج على الناقل. المهلة أقصر من الـlease عمدًا.
+const DHD_TIMEOUT_MS = 20_000;
+const dhdSignal = () => AbortSignal.timeout(DHD_TIMEOUT_MS);
 
 export class DhdNotConfiguredError extends Error {
   constructor() {
@@ -14,10 +18,16 @@ export class DhdNotConfiguredError extends Error {
   }
 }
 
+/** status = null يعني "لا بيانات حالة عند الناقل بعد" — ليست حالة ولا خطأ،
+ * فلا تُترجَم ولا تُرفع كحالة مجهولة (كانت نصًا عربيًا يُفسَّر خطأً كحالة). */
 export type DhdOrderStatus = {
   tracking: string;
-  status: string;
+  status: string | null;
 };
+
+/** علامة ثابتة لرد بشكل غير متوقّع — ثابتة عمدًا كي تبقى بصمة الحدث مستقرة
+ * فيُرفع تنبيه واحد لا تنبيه لكل استعلام. */
+export const DHD_UNPARSED_STATUS = "__dhd_unparsed_response__";
 
 // يجلب حالة الشحن الحقيقية من DHD (عبر منصة EcoTrack) لرقم تتبع واحد. يُعيد الحالة
 // الخام كما ترجعها DHD (بدون ترجمة) لتجنّب عرض ترجمة خاطئة لحالة غير موثّقة بالكامل.
@@ -41,6 +51,7 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
 
   const res = await fetch(`${DHD_BASE_URL}/get/orders/status?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal: dhdSignal(),
   });
 
   if (!res.ok) {
@@ -55,7 +66,7 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
   // عادةً)، وليس عطلًا فطلبنا. رسالة واضحة للمسؤول (تُعرَض مباشرة فواجهة الإدارة)
   // بدل تفريغ رد JSON خام غير مفهوم.
   if (rows.length === 0) {
-    return { tracking: trackingId, status: "لم تُسجَّل حالة الشحنة بعد عند DHD" };
+    return { tracking: trackingId, status: null };
   }
 
   const row =
@@ -70,134 +81,11 @@ export async function fetchDhdOrderStatus(trackingId: string): Promise<DhdOrderS
     (row?.etat as string | undefined);
 
   if (!status) {
-    return { tracking: trackingId, status: `شكل رد غير متوقّع من DHD: ${JSON.stringify(data).slice(0, 200)}` };
+    console.error("dhd status: unexpected response shape", JSON.stringify(data).slice(0, 300));
+    return { tracking: trackingId, status: DHD_UNPARSED_STATUS };
   }
 
   return { tracking: trackingId, status };
-}
-
-// حالة "لم تُسجَّل بعد" مؤقتة بطبيعتها (تعكس أن DHD لم تُحدِّث الشحنة بعد، وليس أن
-// حالتنا المخزَّنة خاطئة) — إن كانت لدينا بالفعل حالة حقيقية سابقة مختلفة، لا نستبدلها
-// بهذه الرسالة المؤقتة عند مزامنة لاحقة تُرجع نفس الرد الفارغ مجددًا (يمنع تراجع
-// المعلومة المعروضة للمسؤول من حالة حقيقية إلى "غير معروفة" بسبب رد عابر فارغ).
-const PENDING_DHD_STATUS = "لم تُسجَّل حالة الشحنة بعد عند DHD";
-
-// منطق مشترك بين المزامنة الدورية (cron) واستقبال الـwebhook — يحدّث courierStatus
-// فقط إن تغيّرت القيمة فعليًا وبدون التراجع لحالة "لم تُسجَّل بعد" المؤقتة إن كانت لدينا
-// أصلًا حالة حقيقية سابقة (نفس حماية syncAllDhdOrderStatuses أدناه).
-async function applyDhdCourierStatusUpdate(
-  order: { id: string; orderNumber: string; courierStatus: string | null },
-  newStatus: string,
-): Promise<boolean> {
-  const isRegressionToPending =
-    newStatus === PENDING_DHD_STATUS && !!order.courierStatus && order.courierStatus !== PENDING_DHD_STATUS;
-  if (newStatus === order.courierStatus || isRegressionToPending) return false;
-  await prisma.order.update({ where: { id: order.id }, data: { courierStatus: newStatus } });
-  // لا نُطلق الحدث لحالة "لم تُسجَّل بعد" المؤقتة (PENDING_DHD_STATUS) — هذه ليست تحديثًا
-  // حقيقيًا من DHD يستحق إشعار الزبون، بل غياب بيانات مؤقت (راجع التعليق أعلى الدالة).
-  if (newStatus !== PENDING_DHD_STATUS) {
-    fireWebhookEvent("courier_status_changed", {
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      courierStatus: newStatus,
-    });
-  }
-  return true;
-}
-
-export type DhdStatusSyncResult = {
-  checked: number;
-  updated: number;
-  errors: { orderNumber: string; error: string }[];
-};
-
-// يمرّ على كل الطلبات النشطة (لم تصل لحالة نهائية بعد) التي أُرسلت فعليًا لـDHD ولديها رقم
-// تتبّع، ويحدّث حقل courierStatus (الحقل المعلوماتي الخام فقط) تلقائيًا لكل واحدة. **لا
-// يُغيّر حالة الطلب نفسها (status) تلقائيًا عمدًا** — نفس مبدأ fetchDhdOrderStatus أعلاه
-// (لا نترجم/نخمّن حالة DHD الخام لحالة نهائية فمتجرنا بلا مفردات DHD الحقيقية مؤكَّدة أولًا)؛
-// هذا يُبقي courierStatus محدَّثًا للمسؤول ليقرر بنفسه، بدل تغيير تلقائي قد يكون خاطئًا على
-// طلب حقيقي. يُشغَّل عبر cron (راجع vercel.json) وأيضًا يدويًا إن لزم.
-export async function syncAllDhdOrderStatuses(): Promise<DhdStatusSyncResult> {
-  const orders = await prisma.order.findMany({
-    where: {
-      courierProvider: "DHD",
-      courierTrackingId: { not: null },
-      status: { notIn: ["delivered", "returned", "cancelled"] },
-    },
-    select: { id: true, orderNumber: true, courierTrackingId: true, courierStatus: true },
-  });
-
-  const errors: { orderNumber: string; error: string }[] = [];
-  let updated = 0;
-
-  for (const order of orders) {
-    try {
-      const result = await fetchDhdOrderStatus(order.courierTrackingId!);
-      if (await applyDhdCourierStatusUpdate(order, result.status)) {
-        updated += 1;
-      }
-    } catch (error) {
-      errors.push({ orderNumber: order.orderNumber, error: error instanceof Error ? error.message : "خطأ غير معروف" });
-    }
-  }
-
-  return { checked: orders.length, updated, errors };
-}
-
-export type DhdWebhookResult =
-  | { outcome: "invalid_payload" }
-  | { outcome: "order_not_found"; tracking: string; reference: string | null }
-  | { outcome: "updated" | "unchanged"; tracking: string; orderNumber: string; status: string };
-
-// شكل الحمولة والتوقيع موثَّقان رسميًا الآن (صفحة "Lire la documentation" فلوحة DHD،
-// منصة EcoTrack) — event بصيغة "order.{action}"، وdata.state.{id,code,title,title_en}،
-// وdata.tracking/data.reference. نستعمل title (الاسم الفرنسي المقروء) كحقل courierStatus
-// المعلوماتي، نفس ما كان يُعرَض سابقًا كنص خام للمسؤول.
-//
-// المطابقة: أولًا بـcourierTrackingId (data.tracking، مصدرها نفس رقم التتبّع الذي أعادته
-// DHD عند إنشاء الشحنة). احتياطيًا بـorderNumber (data.reference) — نُرسله نحن كـ"reference"
-// عند إنشاء كل شحنة (راجع createDhdShipment)، فيُفترض تطابقه دائمًا مع courierTrackingId
-// المحفوظ أصلًا؛ يبقى احتياطًا فقط لحالة نادرة (مثلاً حُفظ tracking خاطئ يدويًا).
-//
-// لا حاجة لقفل idempotency منفصل رغم توصية التوثيق (retries قد تُعيد نفس الحدث): التحديث
-// نفسه idempotent فعليًا — نفس القيمة الواردة مرتين تُعطي "unchanged" فكلتا المرتين
-// (applyDhdCourierStatusUpdate)، بلا أي أثر جانبي إضافي لتكرار نفس الحدث.
-export async function processDhdWebhookPayload(payload: unknown): Promise<DhdWebhookResult> {
-  const body = payload as {
-    data?: {
-      tracking?: string;
-      reference?: string;
-      state?: { title?: string };
-    };
-  } | null;
-
-  const tracking = body?.data?.tracking;
-  const status = body?.data?.state?.title;
-  if (!tracking || !status) {
-    console.error("dhd webhook: unexpected payload shape", JSON.stringify(payload).slice(0, 500));
-    return { outcome: "invalid_payload" };
-  }
-  const reference = body?.data?.reference ?? null;
-
-  const order =
-    (await prisma.order.findFirst({
-      where: { courierProvider: "DHD", courierTrackingId: tracking },
-      select: { id: true, orderNumber: true, courierStatus: true },
-    })) ??
-    (reference
-      ? await prisma.order.findFirst({
-          where: { courierProvider: "DHD", orderNumber: reference },
-          select: { id: true, orderNumber: true, courierStatus: true },
-        })
-      : null);
-
-  if (!order) {
-    console.error("dhd webhook: no matching order for tracking/reference", tracking, reference);
-    return { outcome: "order_not_found", tracking, reference };
-  }
-
-  const updated = await applyDhdCourierStatusUpdate(order, status);
-  return { outcome: updated ? "updated" : "unchanged", tracking, orderNumber: order.orderNumber, status };
 }
 
 export class DhdValidationError extends Error {
@@ -230,6 +118,7 @@ export async function getDhdCommunes(wilayaCode: number): Promise<DhdCommune[]> 
 
   const res = await fetch(`${DHD_BASE_URL}/get/communes?wilaya_id=${wilayaCode}`, {
     headers: { Authorization: `Bearer ${token}` },
+    signal: dhdSignal(),
   });
   if (!res.ok) {
     throw new Error(`تعذر جلب قائمة البلديات من DHD (رمز الخطأ ${res.status})`);
@@ -373,6 +262,7 @@ export async function createDhdShipment(input: CreateDhdShipmentInput): Promise<
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    signal: dhdSignal(),
   });
 
   const data = await res.json().catch(() => null);

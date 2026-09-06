@@ -61,17 +61,35 @@ const TRANSITIONS: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   voicemail: [],
 };
 
+/** الاستثناء الوحيد الموثّق للجدول أعلاه: إعادة الشحن تُعيد طلبًا مرتجعًا إلى
+ * الدورة. ليس انتقالًا عامًا — لا يُفتح إلا بعلم صريح من خدمة الـreship وحدها
+ * (صلاحية shipments.reship + سبب إلزامي + توثيق)، ويبقى مرفوضًا لكل مستدعٍ آخر. */
+const RESHIP_TRANSITION = { from: "returned" as OrderStatus, to: "confirmed" as OrderStatus };
+
+export type TransitionOptions = { allowReship?: boolean };
+
 /** هل الانتقال مسموح؟ (بدون تنفيذ) */
-export function isTransitionAllowed(from: OrderStatus, to: OrderStatus): boolean {
+export function isTransitionAllowed(
+  from: OrderStatus,
+  to: OrderStatus,
+  options: TransitionOptions = {},
+): boolean {
   if (from === to) return false;
   if (LEGACY_READ_ONLY_STATUSES.includes(to)) return false;
+  if (options.allowReship && from === RESHIP_TRANSITION.from && to === RESHIP_TRANSITION.to) {
+    return true;
+  }
   return TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 /** يتحقق من الانتقال ويرمي InvalidTransitionError عند الرفض — يُستدعى داخل
  * خدمة تغيير الحالة قبل الـCAS (فشل سريع برسالة مفهومة قبل أي كتابة). */
-export function assertTransition(from: OrderStatus, to: OrderStatus): void {
-  if (!isTransitionAllowed(from, to)) {
+export function assertTransition(
+  from: OrderStatus,
+  to: OrderStatus,
+  options: TransitionOptions = {},
+): void {
+  if (!isTransitionAllowed(from, to, options)) {
     throw new InvalidTransitionError(from, to);
   }
 }

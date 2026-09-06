@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { prisma } from "@/server/db/prisma";
 import { redactErrorMessage } from "@/lib/redact";
 import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
@@ -31,6 +32,17 @@ export function registerHandler(handlerName: string, handler: DomainEventHandler
   handlers.set(handlerName, handler);
 }
 
+// تسجيل المعالِجات: استيراد ديناميكي مرة واحدة لكل نسخة تشغيل. ديناميكي لأن
+// المعالِج يستورد هذه الوحدة (دورة عند الاستيراد الساكن)، وإلزامي لأن أي مسار
+// يصرّف — نبضة after() أو cron — لو لم يستورد المعالِجات لعلّم الأحداث
+// processed بلا أي تنفيذ. الفشل يُرمى بصوت عالٍ ولا يُبتلع.
+let handlersRegistered = false;
+async function ensureHandlersRegistered(): Promise<void> {
+  if (handlersRegistered) return;
+  await import("@/server/modules/shipping/shipmentDispatch");
+  handlersRegistered = true;
+}
+
 /** هل السبب الدائرى؟ — يصعد سلسلة causation ويبحث عن الـid الحالي. */
 async function isCyclicCausation(event: DomainEvent): Promise<boolean> {
   let currentCausationId = event.causationId;
@@ -52,6 +64,7 @@ async function isCyclicCausation(event: DomainEvent): Promise<boolean> {
 /** صرف دفعة من الأحداث المعلقة — تُستدعى من after() وcron. آمنة للاستدعاء المتزامن
  * (claim CAS على lease). تُرجع عدد الأحداث التي عولجت بالكامل. */
 export async function drainOutbox(maxEvents = BATCH_SIZE): Promise<{ processed: number; failed: number }> {
+  await ensureHandlersRegistered();
   const now = new Date();
 
   // استعادة: pending أو processing انتهى leaseه (عامل انهار) — claim CAS فائز واحد
@@ -143,6 +156,22 @@ export async function drainOutbox(maxEvents = BATCH_SIZE): Promise<{ processed: 
   return { processed, failed };
 }
 
+/** نبضة زمن-منخفض بعد التزام معاملة كتبت حدثًا: تصريف بعد إرسال الرد.
+ *
+ * لا نستعمل runAfterResponse هنا عمدًا رغم وجوده: احتياطه هو التنفيذ الفوري
+ * خارج نطاق الطلب، وتصريف الصندوق خارج نطاق طلب هو **عمل الـcron بالضبط** —
+ * تشغيله من داخل خدمة تُستدعى مباشرة (cron، اختبار، مهمة خلفية) يجعل التصريف
+ * غير حتمي. فداخل معالج طلب: after(). خارجه: لا شيء، والـcron كل 5 دقائق يتكفّل.
+ *
+ * التزامن آمن أصلًا: claim CAS على lease يضمن مطالبًا واحدًا لكل حدث. */
+export function nudgeOutbox(): void {
+  try {
+    after(() => drainOutbox().catch((error) => console.error("outbox nudge failed", error)));
+  } catch {
+    // خارج نطاق طلب — لا نبضة
+  }
+}
+
 /** تنفيذ كل المعالِجات المسجلة للحدث — كل معالِج عبر بوابة UNIQUE(event,handler). */
 async function processEvent(event: DomainEvent): Promise<void> {
   // أمان السببية: سلسلة دائرية = خطأ برمجي — لا تنفيذ إطلاقًا
@@ -154,13 +183,44 @@ async function processEvent(event: DomainEvent): Promise<void> {
   if (relevant.length === 0) return; // لا معالِجات بعد — الحدث "processed" بلا عمل
 
   for (const [handlerName, handler] of relevant) {
-    // بوابة الـidempotency: INSERT فريد — الفائز فقط ينفّذ؛ إعادة التسليم لا تضاعف
-    const gate = await prisma.automationRun
-      .create({
-        data: { eventId: event.id, handler: handlerName, status: "success", startedAt: new Date() },
-      })
-      .catch(() => null);
-    if (!gate) continue; // نُفِّذ سابقًا لهذا الحدث — تجاهل حتمي
+    // بوابة الـidempotency: **النجاح السابق وحده** يمنع إعادة التنفيذ.
+    //
+    // كانت البوابة تُنشأ بحالة success قبل التنفيذ، فأي فشل يجعل INSERT التالي
+    // ينتهك UNIQUE(event_id, handler) ⇒ تخطٍّ صامت ⇒ الحدث يُعلَّم processed بلا
+    // تنفيذ. أي: فشل عابر واحد = أثر خارجي لا يقع أبدًا (أُثبت باختبار).
+    //
+    // finished_at = null تعني "قيد التنفيذ الآن": لا نُقحم أنفسنا عليها حتى لو
+    // انتهى lease الحدث — نرمي فيبقى الحدث pending لمحاولة لاحقة.
+    // ponytail: عامل ينهار وسط المعالِج يترك صفًا عالقًا؛ يظهر بصوت عالٍ عبر
+    // استنفاد محاولات الحدث ⇒ dead_letter + SystemAlert، لا صمت.
+    const resumed = await prisma.automationRun.updateMany({
+      where: {
+        eventId: event.id,
+        handler: handlerName,
+        status: { notIn: ["success", "dead_letter"] },
+        finishedAt: { not: null },
+      },
+      data: { attempts: { increment: 1 }, error: null, startedAt: new Date(), finishedAt: null },
+    });
+
+    if (resumed.count === 0) {
+      // لا سجل بعد ⇒ ننشئه بحالة failed (= "حوول ولم ينجح") ونرقّيه عند النجاح
+      const created = await prisma.automationRun
+        .create({
+          data: { eventId: event.id, handler: handlerName, status: "failed", startedAt: new Date() },
+        })
+        .catch(() => null);
+      if (!created) {
+        const prior = await prisma.automationRun.findUnique({
+          where: { eventId_handler: { eventId: event.id, handler: handlerName } },
+          select: { status: true },
+        });
+        // ناجح سابقًا أو منتهٍ بالسياسة ⇒ تخطٍّ حتمي
+        if (prior?.status === "success" || prior?.status === "dead_letter") continue;
+        // قيد التنفيذ عند عامل آخر ⇒ لا نعلّم الحدث processed
+        throw new Error(`بوابة المعالِج ${handlerName} قيد التنفيذ — يُعاد لاحقًا`);
+      }
+    }
 
     try {
       // عمق الأتمتة: أحداث تُنشأ من معالِج ترث العمق+1 وتحمل causation — يتجاوز
@@ -168,19 +228,19 @@ async function processEvent(event: DomainEvent): Promise<void> {
       const nextDepth = event.automationDepth + 1;
       if (nextDepth > DEFAULT_MAX_DEPTH && event.originatingHandler) {
         await prisma.automationRun.update({
-          where: { id: gate.id },
+          where: { eventId_handler: { eventId: event.id, handler: handlerName } },
           data: { status: "dead_letter", error: "تجاوز عمق الأتمتة الأقصى", finishedAt: new Date() },
         });
         continue;
       }
       await handler(event);
       await prisma.automationRun.update({
-        where: { id: gate.id },
+        where: { eventId_handler: { eventId: event.id, handler: handlerName } },
         data: { status: "success", finishedAt: new Date() },
       });
     } catch (error) {
       await prisma.automationRun.update({
-        where: { id: gate.id },
+        where: { eventId_handler: { eventId: event.id, handler: handlerName } },
         data: {
           status: "failed",
           error: error instanceof Error ? error.message.slice(0, 2000) : String(error),

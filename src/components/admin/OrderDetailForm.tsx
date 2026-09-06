@@ -152,22 +152,24 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
     setCourierError(null);
     setSendingToDhd(true);
     try {
-      const res = await fetch(`/api/admin/orders/${order.id}/send-to-dhd`, {
+      // المسار الجديد: يكتب النية محليًا ويعود 202؛ الإرسال الفعلي للناقل يقع
+      // بعد الرد عبر مشغّل صندوق الأحداث، فرقم التتبّع يظهر بعد لحظات.
+      const res = await fetch(`/api/admin/orders/${order.id}/shipments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(communeOverride ? { communeOverride } : {}),
       });
       const data = await res.json();
       if (!res.ok) {
-        const message: string = data.error ?? "تعذر إرسال الشحنة إلى DHD";
+        const message: string = data.error ?? "تعذر إنشاء الشحنة";
         setCourierError(message);
-        if (/commune/i.test(message)) {
+        if (/commune|بلدية/i.test(message)) {
           void loadDhdCommunes();
         }
         return;
       }
-      setOrder(data.order);
       setDhdCommunes(null);
+      router.refresh();
     } catch {
       setCourierError("تعذر الاتصال بالخادم — تحقق من اتصالك بالإنترنت وحاول مجددًا");
     } finally {
@@ -238,7 +240,10 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
         setCourierError(data.error ?? "تعذر تحديث حالة الشحن");
         return;
       }
-      setOrder(data.order);
+      if (data.outcome === "no_carrier_data") {
+        setCourierError("لم يسجّل الناقل أي حالة لهذه الشحنة بعد");
+      }
+      router.refresh();
     } catch {
       setCourierError("تعذر الاتصال بالخادم — تحقق من اتصالك بالإنترنت وحاول مجددًا");
     } finally {
@@ -596,7 +601,7 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
                 </button>
               )}
 
-              {!order.courierTrackingId && (
+              {order.status === "ready_to_ship" && !order.courierTrackingId && (
                 <button
                   type="button"
                   onClick={() => handleSendToDhd()}
@@ -604,8 +609,14 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
                   className="mt-3 w-full gold-gradient text-ink text-xs font-semibold py-2 rounded-lg disabled:opacity-60 flex items-center justify-center gap-1.5"
                 >
                   {sendingToDhd ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  إرسال الشحنة إلى DHD
+                  إنشاء الشحنة وإرسالها
                 </button>
+              )}
+              {order.status !== "ready_to_ship" && !order.courierTrackingId && (
+                <p className="mt-3 text-xs text-cream-dim/80 leading-relaxed">
+                  الشحنة تُنشأ عندما يصبح الطلب &quot;جاهز للشحن&quot; — الحالة الآن:{" "}
+                  {order.status}
+                </p>
               )}
               {courierError && <p className="text-xs text-red-400 mt-2">{courierError}</p>}
 

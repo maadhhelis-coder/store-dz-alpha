@@ -141,3 +141,22 @@ describe("assertTransition", () => {
     }
   });
 });
+
+describe("استثناء إعادة الشحن (P5)", () => {
+  it("returned→confirmed مرفوض افتراضيًا لكل مستدعٍ", () => {
+    expect(isTransitionAllowed("returned", "confirmed")).toBe(false);
+    expect(() => assertTransition("returned", "confirmed")).toThrow(InvalidTransitionError);
+  });
+
+  it("يُسمح به فقط بعلم allowReship الصريح", () => {
+    expect(isTransitionAllowed("returned", "confirmed", { allowReship: true })).toBe(true);
+    expect(() => assertTransition("returned", "confirmed", { allowReship: true })).not.toThrow();
+  });
+
+  it("العلم لا يفتح أي انتقال آخر — استثناء واحد لا باب خلفي", () => {
+    expect(isTransitionAllowed("returned", "shipped", { allowReship: true })).toBe(false);
+    expect(isTransitionAllowed("cancelled", "confirmed", { allowReship: true })).toBe(false);
+    expect(isTransitionAllowed("delivered", "confirmed", { allowReship: true })).toBe(false);
+    expect(isTransitionAllowed("returned", "no_answer", { allowReship: true })).toBe(false);
+  });
+});

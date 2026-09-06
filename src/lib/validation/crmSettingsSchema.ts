@@ -69,6 +69,16 @@ export const crmSettingSchemas = {
       customer_support: z.number().int().min(5).default(480),
     })
     .prefault({}),
+  // مطابقة الشحن مع الناقل (P5) — لا عتبة ثابتة داخل الكود.
+  // stale_dispatch_minutes: شحنة بقيت بلا رقم تتبّع بعد محاولة إرسال أطول من
+  // هذه المدة = تباعد يستحق تنبيهًا (لا إعادة إرسال — مصيرها عند الناقل مجهول).
+  shipping_reconciliation: z
+    .object({
+      lookback_days: z.number().int().min(1).max(90).default(14),
+      stale_dispatch_minutes: z.number().int().min(5).default(30),
+      max_shipments_per_run: z.number().int().min(1).max(1000).default(200),
+    })
+    .prefault({}),
   // تكلفة التغليف الافتراضية للطلب الجديد (لقطة وقت الإنشاء)
   packaging_cost_dzd: z.number().int().min(0).default(0),
   // نافذة العزو last-touch بالأيام
