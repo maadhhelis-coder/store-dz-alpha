@@ -126,15 +126,15 @@ export default function ProductDetail({ product, orderSettings }: ProductDetailP
         </ul>
       </div>
 
-      {product.inStock && (
-        // شريط ثابت لا يختفي مع التمرير — أصغر من السابق، والسعر بجانب الزر
-        <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-2.5">
-          <div className="container-page flex items-center gap-3">
-            <span className="shrink-0 text-lg font-bold text-gold">{formatPrice(product.price)}</span>
-            <OrderNowButton product={product} variant="sticky-bar" target="form" className="flex-1" />
-          </div>
+      {/* شريط ثابت لا يختفي مع التمرير — أصغر من السابق، والسعر بجانب الزر.
+          يظهر أيضًا للمنتج النافد: الزر معطَّل بنص "نفذ من المخزون"، وهو الإشارة
+          الوحيدة المتبقية للتوفّر بعد حذف سطر "متوفر حاليًا". */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-2.5">
+        <div className="container-page flex items-center gap-3">
+          <span className="shrink-0 text-lg font-bold text-gold">{formatPrice(product.price)}</span>
+          <OrderNowButton product={product} variant="sticky-bar" target="form" className="flex-1" />
         </div>
-      )}
+      </div>
     </div>
   );
 }
