@@ -10,6 +10,7 @@ import {
   getCategoryBySlug,
 } from "@/lib/storefrontData";
 import { buildMetadata, productJsonLd } from "@/lib/seo";
+import { getSiteSettings } from "@/server/services/siteSettingsService";
 
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
@@ -44,13 +45,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getPublishedProductBySlug(slug);
   if (!product) notFound();
 
-  const [category, related] = await Promise.all([
+  const [category, related, settings] = await Promise.all([
     getCategoryBySlug(product.categorySlug),
     getRelatedProducts(product),
+    getSiteSettings(),
   ]);
 
+  // حشو سفلي يقابل الشريط الثابت أسفل الصفحة فلا يغطي آخر المحتوى
   return (
-    <div className="container-page py-10 md:py-14">
+    <div className="container-page py-10 md:py-14 pb-28 md:pb-32">
       <JsonLd data={productJsonLd(product)} />
       <Breadcrumbs
         items={[
@@ -62,7 +65,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
         ]}
       />
       <div className="mt-6">
-        <ProductDetail product={product} />
+        <ProductDetail
+          product={product}
+          orderSettings={{
+            thankYouMessage: settings.thankYouMessage,
+            thankYouPageUrl: settings.thankYouPageUrl,
+            privacyPolicyText: settings.privacyPolicyText,
+          }}
+        />
       </div>
       <RelatedProducts products={related} />
     </div>

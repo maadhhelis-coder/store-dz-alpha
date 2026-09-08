@@ -35,6 +35,12 @@ async function attachConsoleGuard(page: Page) {
 // resolved بنجاح لكن بلا الخيار المطلوب بعد) — ينتظر Playwright جهوزية العنصر نفسه فقط، لا
 // وجود قيمة <option> معيّنة بداخله. الانتظار الصريح هنا على <option> الهدف يزيل هذا التسابق
 // جذريًا بدل الاعتماد على توقيت الشبكة العرضي.
+/** اختيار نوع التوصيل — لم يعد لأي خيار قيمة افتراضية (الزبون هو من يقرر)،
+ * فبدون هذا النقر تُرفض الاستمارة، ويبقى حقل العنوان مخفيًا. */
+export async function chooseHomeDelivery(page: Page) {
+  await page.getByText("توصيل للمنزل", { exact: true }).click();
+}
+
 export async function selectOrderWilaya(page: Page, wilayaCode: number) {
   const select = page.getByTestId("order-wilaya");
   try {

@@ -1,4 +1,4 @@
-import { test, expect, selectOrderWilaya } from "./support/fixtures";
+import { test, expect, chooseHomeDelivery, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone, e2eVisitorId } from "./support/testData";
 import { getActiveWilaya, createTestProduct, createTestCoupon } from "./support/seedFixtures";
@@ -28,6 +28,7 @@ test.describe("سباقات التزامن عبر الواجهة", () => {
       } else {
         await communeEl.fill("بلدية اختبار");
       }
+      await chooseHomeDelivery(page);
       const addressField = page.getByTestId("order-address");
       if (await addressField.isVisible().catch(() => false)) {
         await addressField.fill("شارع الاختبار، رقم 1");

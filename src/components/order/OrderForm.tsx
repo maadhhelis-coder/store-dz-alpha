@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { X, CheckCircle2, Loader2, Minus, Plus } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import BrandImage from "@/components/brand/BrandImage";
 import type { Product } from "@/data/products";
 import type { DeliveryOption } from "@/data/delivery";
@@ -24,16 +24,21 @@ import {
 import { useProductOffer } from "@/hooks/useProductOffer";
 import { useDeliveryWilayas } from "@/hooks/useDeliveryWilayas";
 
-type OrderModalProps = {
+// استمارة الطلب — مدمجة في صفحة المنتج لا نافذة منبثقة: الزبون ينزل فيجدها،
+// أو يضغط الزر الثابت فينزل إليها. لا حاجز ولا زر إغلاق ولا حبس تركيز.
+
+type OrderFormProps = {
   product: Product;
   pageKind?: PageKindValue;
-  onClose: () => void;
   thankYouMessage?: string | null;
   thankYouPageUrl?: string | null;
   privacyPolicyText?: string | null;
 };
 
 type Step = "form" | "submitting" | "success" | "error";
+
+// الكمية ليست حقلًا: كل طلب قطعة واحدة (طلب صريح — الحقل حُذف من الاستمارة).
+const ORDER_QUANTITY = 1;
 
 type FormState = {
   firstName: string;
@@ -42,8 +47,8 @@ type FormState = {
   wilayaCode: string;
   commune: string;
   address: string;
-  quantity: string;
-  deliveryOption: DeliveryOption;
+  /** "" = لم يختر الزبون بعد. لا خيار افتراضي — هو من يقرر. */
+  deliveryOption: DeliveryOption | "";
 };
 
 const INITIAL_FORM: FormState = {
@@ -53,21 +58,17 @@ const INITIAL_FORM: FormState = {
   wilayaCode: "",
   commune: "",
   address: "",
-  quantity: "1",
-  deliveryOption: "home",
+  deliveryOption: "",
 };
 
-export default function OrderModal({
+export default function OrderForm({
   product,
   pageKind = "product",
-  onClose,
   thankYouMessage,
   thankYouPageUrl,
   privacyPolicyText,
-}: OrderModalProps) {
+}: OrderFormProps) {
   const pathname = usePathname();
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [communeManual, setCommuneManual] = useState(false);
   const [step, setStep] = useState<Step>("form");
@@ -114,8 +115,16 @@ export default function OrderModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function handleClose() {
-    if (step === "form") {
+  // التقاط "الطلب المتروك": الزبون عبّأ شيئًا ثم غادر بلا إرسال. كان مربوطًا
+  // بإغلاق النافذة المنبثقة؛ بلا نافذة صار مربطه مغادرة الصفحة. pagehide يغطي
+  // الإغلاق والتنقّل وانتقال التبويب للخلفية على الجوال (بعكس beforeunload).
+  const abandonSentRef = useRef(false);
+
+  function captureAbandonIfAny() {
+    if (abandonSentRef.current || step !== "form") return;
+    if (!form.firstName.trim() && !form.lastName.trim() && !form.phone.trim()) return;
+    abandonSentRef.current = true;
+    {
       captureAbandonedLead({
         firstName: form.firstName.trim() || undefined,
         lastName: form.lastName.trim() || undefined,
@@ -127,53 +136,23 @@ export default function OrderModal({
         productName: product.name,
       });
     }
-    onClose();
   }
 
-  // نُخزّن أحدث نسخة من handleClose فـref بدل تضمين step/form فمصفوفة الاعتماديات —
-  // يمنع إعادة تركيب مستمع لوحة المفاتيح مع كل ضغطة حرف أثناء تعبئة الاستمارة. التحديث
-  // داخل effect بلا مصفوفة اعتماديات (يعمل بعد كل render) بدل أثناء الـrender نفسه.
-  const handleCloseRef = useRef(handleClose);
+  // نُخزّن أحدث نسخة فـref بدل تضمين step/form فمصفوفة الاعتماديات — يمنع إعادة
+  // تركيب المستمع مع كل ضغطة حرف أثناء التعبئة. التحديث داخل effect بلا مصفوفة
+  // اعتماديات (يعمل بعد كل render) بدل أثناء الـrender نفسه.
+  const captureAbandonRef = useRef(captureAbandonIfAny);
   useEffect(() => {
-    handleCloseRef.current = handleClose;
+    captureAbandonRef.current = captureAbandonIfAny;
   });
 
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-
-    // حفظ العنصر الذي كان يحمل التركيز قبل الفتح (زر "اطلب الآن")، لإعادته إليه عند الإغلاق.
-    previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
-    // نقل التركيز لداخل النافذة فور فتحها — عنصر لوحة الحوار نفسها (بلا حقل محدد مسبقًا،
-    // آمن أيضًا لحالتي النجاح/الخطأ اللتين لا تحتويان استمارة).
-    dialogRef.current?.focus();
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleCloseRef.current();
-        return;
-      }
-      // حبس تركيز بسيط: Tab لا يخرج من النافذة لمحتوى الصفحة الخلفي.
-      if (e.key === "Tab" && dialogRef.current) {
-        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
+    const onPageHide = () => captureAbandonRef.current();
+    window.addEventListener("pagehide", onPageHide);
     return () => {
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", onKeyDown);
-      previouslyFocusedRef.current?.focus();
+      window.removeEventListener("pagehide", onPageHide);
+      // تنقّل داخلي (لا pagehide) — نفس الالتقاط، والعلَم يمنع الازدواج
+      captureAbandonRef.current();
     };
   }, []);
 
@@ -187,15 +166,13 @@ export default function OrderModal({
     [form.wilayaCode],
   );
 
+  // بلا اختيار توصيل لا سعر توصيل ولا مجموع نهائي — لا نعرض رقمًا لم يقرره الزبون
   const deliveryPrice = useMemo(() => {
-    if (!selectedWilaya) return null;
+    if (!selectedWilaya || !form.deliveryOption) return null;
     return form.deliveryOption === "office" ? selectedWilaya.officePriceDzd : selectedWilaya.homePriceDzd;
   }, [selectedWilaya, form.deliveryOption]);
 
-  // lowStockCount هو المخزون الحقيقي الوحيد المكشوف للعميل (فقط عند الاقتراب من النفاد) —
-  // يُستعمل كسقف لمنع طلب كمية أكبر من المتوفر فعليًا.
-  const maxQuantity = product.lowStockCount;
-  const quantity = Math.max(1, Number(form.quantity) || 1);
+  const quantity = ORDER_QUANTITY;
   const productLineTotal = unitPrice * quantity;
   const offerApplied = offerAccepted && offer ? offer.offerPriceDzd : 0;
 
@@ -206,7 +183,11 @@ export default function OrderModal({
       const next = { ...prev, [key]: value };
       if (key === "wilayaCode") {
         const w = remoteWilayas.find((rw) => rw.code === Number(value));
-        if (w && w.officePriceDzd === null) next.deliveryOption = "home";
+        // مكتب غير متوفر بالولاية الجديدة: نُلغي اختياره ولا نفرض بديلًا —
+        // الزبون يختار من جديد
+        if (w && w.officePriceDzd === null && next.deliveryOption === "office") {
+          next.deliveryOption = "";
+        }
         next.commune = "";
         setCommuneManual(false);
       }
@@ -224,12 +205,9 @@ export default function OrderModal({
     }
     if (!form.wilayaCode) next.wilayaCode = "اختر الولاية";
     if (!form.commune.trim()) next.commune = "البلدية مطلوبة";
+    if (!form.deliveryOption) next.deliveryOption = "اختر نوع التوصيل";
     if (form.deliveryOption === "home" && !form.address.trim()) {
       next.address = "العنوان مطلوب عند التوصيل للمنزل";
-    }
-    if (!form.quantity || Number(form.quantity) < 1) next.quantity = "الكمية غير صحيحة";
-    else if (maxQuantity !== undefined && quantity > maxQuantity) {
-      next.quantity = `الكمية المتوفرة فقط ${maxQuantity}`;
     }
 
     if (product.variants.length > 0 && !selectedVariantId) {
@@ -244,7 +222,7 @@ export default function OrderModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!validate() || !selectedWilaya || deliveryPrice === null) return;
+    if (!validate() || !selectedWilaya || deliveryPrice === null || !form.deliveryOption) return;
 
     const order: OrderPayload = {
       firstName: form.firstName.trim(),
@@ -328,34 +306,11 @@ export default function OrderModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
-      <button
-        type="button"
-        aria-label="إغلاق"
-        onClick={handleClose}
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-      />
-
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="order-modal-title"
-        className="relative w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-ink gold-border p-5 sm:p-7 focus:outline-none"
-      >
-        <button
-          type="button"
-          onClick={handleClose}
-          aria-label="إغلاق نافذة الطلب"
-          className="absolute top-4 start-4 text-cream-dim hover:text-gold transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
+    <section id="order-form" aria-labelledby="order-form-title" className="scroll-mt-24">
+      <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border p-5 sm:p-7">
         {(step === "form" || step === "submitting") && (
           <>
-            <h2 id="order-modal-title" className="font-display text-xl font-bold text-cream pe-8">
+            <h2 id="order-form-title" className="font-display text-xl font-bold text-cream">
               إتمام الطلب
             </h2>
             <p className="text-sm text-cream-dim mt-1">{product.name}</p>
@@ -427,7 +382,6 @@ export default function OrderModal({
                 <input
                   type="tel"
                   dir="ltr"
-                  placeholder="0562848812"
                   value={form.phone}
                   onChange={(e) => updateField("phone", e.target.value)}
                   className={inputClass(!!errors.phone) + " text-right"}
@@ -514,54 +468,6 @@ export default function OrderModal({
                 </Field>
               )}
 
-              <Field label="الكمية" error={errors.quantity}>
-                {/* صف مستقل بعرضه الكامل (وليس عمودًا داخل شبكة مع العنوان) — كان الحقل
-                    يُضغَط لعرض ضئيل جدًا (26px فعليًا) عند مشاركته صفًا مع العنوان، فيختفي
-                    الرقم عمليًا رغم وجوده فالـDOM. راجع أيضًا min-w على الحقل نفسه أسفله. */}
-                <div className="flex items-center gap-2 max-w-[240px]">
-                  <button
-                    type="button"
-                    onClick={() => updateField("quantity", String(Math.max(1, quantity - 1)))}
-                    aria-label="إنقاص الكمية"
-                    className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors"
-                  >
-                    <Minus className="w-5 h-5" />
-                  </button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={maxQuantity}
-                    value={form.quantity}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      const capped =
-                        maxQuantity !== undefined && Number(raw) > maxQuantity
-                          ? String(maxQuantity)
-                          : raw;
-                      updateField("quantity", capped);
-                    }}
-                    className={inputClass(!!errors.quantity) + " h-12 min-w-[64px] text-center text-xl font-bold"}
-                    data-testid="order-quantity"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateField(
-                        "quantity",
-                        String(maxQuantity !== undefined ? Math.min(maxQuantity, quantity + 1) : quantity + 1),
-                      )
-                    }
-                    disabled={maxQuantity !== undefined && quantity >= maxQuantity}
-                    aria-label="زيادة الكمية"
-                    className="w-12 h-12 shrink-0 rounded-lg border border-gold/25 text-cream flex items-center justify-center hover:border-gold transition-colors disabled:opacity-60 disabled:hover:border-gold/25"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-                {maxQuantity !== undefined && (
-                  <p className="text-xs text-cream-dim/80 mt-1">الكمية المتوفرة: {maxQuantity} فقط</p>
-                )}
-              </Field>
 
               <fieldset>
                 <legend className="text-xs text-cream-dim mb-2">نوع التوصيل</legend>
@@ -592,6 +498,9 @@ export default function OrderModal({
                     توصيل للمكتب
                   </label>
                 </div>
+                {errors.deliveryOption && (
+                  <p className="text-[11px] text-red-400 mt-2">{errors.deliveryOption}</p>
+                )}
                 {!officeAvailable && selectedWilaya && (
                   <p className="text-xs text-cream-dim/80 mt-2">
                     التوصيل للمكتب غير متوفر حاليًا فولاية {selectedWilaya.name}.
@@ -631,7 +540,7 @@ export default function OrderModal({
 
               <div className="rounded-xl gold-border bg-black/40 p-4 space-y-2 text-sm">
                 <div className="flex justify-between text-cream-dim">
-                  <span>سعر المنتج {quantity > 1 ? `× ${quantity}` : ""}</span>
+                  <span>سعر المنتج</span>
                   <span>{formatPrice(productLineTotal)}</span>
                 </div>
                 {offerAccepted && offer && (
@@ -653,7 +562,11 @@ export default function OrderModal({
               <button
                 type="submit"
                 disabled={step === "submitting"}
-                className="w-full gold-gradient text-ink font-bold py-3.5 rounded-xl hover:brightness-110 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                className={cn(
+                  "w-full gold-gradient text-ink font-bold py-3.5 rounded-xl hover:brightness-110 transition disabled:opacity-60 flex items-center justify-center gap-2",
+                  // نفس حركة "اطلب الآن" — تتوقف أثناء الإرسال فلا تنافس المؤشّر
+                  step !== "submitting" && "cta-attention",
+                )}
                 data-testid="order-submit"
               >
                 {step === "submitting" ? (
@@ -710,7 +623,6 @@ export default function OrderModal({
               <p>
                 {lastOrder.productName}
                 {lastOrder.variantLabel ? ` (${lastOrder.variantLabel})` : ""}
-                {lastOrder.quantity > 1 ? ` × ${lastOrder.quantity}` : ""}
               </p>
               {lastOrder.offerProductName && (
                 <p>+ {lastOrder.offerProductName} ({formatPrice(lastOrder.offerPriceDzd ?? 0)})</p>
@@ -722,13 +634,6 @@ export default function OrderModal({
               <p className="text-gold font-bold">{formatPrice(lastOrder.totalPrice)}</p>
             </div>
 
-            <button
-              type="button"
-              onClick={handleClose}
-              className="mt-5 text-sm text-cream-dim hover:text-gold transition-colors"
-            >
-              إغلاق
-            </button>
           </div>
         )}
 
@@ -764,7 +669,7 @@ export default function OrderModal({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
