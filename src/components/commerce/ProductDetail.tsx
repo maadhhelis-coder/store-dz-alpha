@@ -2,8 +2,8 @@ import Image from "next/image";
 import { CheckCircle2 } from "lucide-react";
 import { sanitizeProductHtml } from "@/lib/sanitizeHtml";
 import ProductGallery from "@/components/commerce/ProductGallery";
-import OrderNowButton from "@/components/order/OrderNowButton";
 import OrderForm from "@/components/order/OrderForm";
+import StickyOrderBar from "@/components/commerce/StickyOrderBar";
 import CreativeViewTracker from "@/components/tracking/CreativeViewTracker";
 import type { Product } from "@/data/products";
 import { formatPrice } from "@/lib/format";
@@ -126,15 +126,9 @@ export default function ProductDetail({ product, orderSettings }: ProductDetailP
         </ul>
       </div>
 
-      {/* شريط ثابت لا يختفي مع التمرير — أصغر من السابق، والسعر بجانب الزر.
-          يظهر أيضًا للمنتج النافد: الزر معطَّل بنص "نفذ من المخزون"، وهو الإشارة
+      {/* يظهر أيضًا للمنتج النافد: الزر معطَّل بنص "نفذ من المخزون"، وهو الإشارة
           الوحيدة المتبقية للتوفّر بعد حذف سطر "متوفر حاليًا". */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-2.5">
-        <div className="container-page flex items-center gap-3">
-          <span className="shrink-0 text-lg font-bold text-gold">{formatPrice(product.price)}</span>
-          <OrderNowButton product={product} variant="sticky-bar" target="form" className="flex-1" />
-        </div>
-      </div>
+      <StickyOrderBar product={product} />
     </div>
   );
 }
