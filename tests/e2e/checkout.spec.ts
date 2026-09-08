@@ -27,8 +27,7 @@ test.describe("رحلة الشراء الأساسية", () => {
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
-    await page.getByTestId("order-first-name").fill("زبون");
-    await page.getByTestId("order-last-name").fill(lastName);
+    await page.getByTestId("order-full-name").fill(`زبون ${lastName}`);
     await page.getByTestId("order-phone").fill(phone);
     await selectOrderWilaya(page, wilaya.code);
     await page.getByTestId("order-commune").fill("بلدية اختبار").catch(() => {});
@@ -76,8 +75,7 @@ test.describe("رحلة الشراء الأساسية", () => {
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
-    await page.getByTestId("order-first-name").fill("زبون");
-    await page.getByTestId("order-last-name").fill(lastName);
+    await page.getByTestId("order-full-name").fill(`زبون ${lastName}`);
     await page.getByTestId("order-phone").fill(phone);
     await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
@@ -122,8 +120,7 @@ test.describe("رحلة الشراء الأساسية", () => {
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
-    await page.getByTestId("order-first-name").fill("زبون");
-    await page.getByTestId("order-last-name").fill(lastName);
+    await page.getByTestId("order-full-name").fill(`زبون ${lastName}`);
     await page.getByTestId("order-phone").fill(phone);
     await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");

@@ -40,9 +40,15 @@ type Step = "form" | "submitting" | "success" | "error";
 // الكمية ليست حقلًا: كل طلب قطعة واحدة (طلب صريح — الحقل حُذف من الاستمارة).
 const ORDER_QUANTITY = 1;
 
+/** الاسم واللقب في خانة واحدة (طلب صريح) — يُقسَّم عند الإرسال: أول كلمة اسم
+ * والباقي لقب. الطلب يخزّنهما منفصلين، فالقسمة تبقى هنا لا في القاعدة. */
+function splitFullName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/);
+  return { firstName: parts[0] ?? "", lastName: parts.slice(1).join(" ") };
+}
+
 type FormState = {
-  firstName: string;
-  lastName: string;
+  fullName: string;
   phone: string;
   wilayaCode: string;
   commune: string;
@@ -52,8 +58,7 @@ type FormState = {
 };
 
 const INITIAL_FORM: FormState = {
-  firstName: "",
-  lastName: "",
+  fullName: "",
   phone: "",
   wilayaCode: "",
   commune: "",
@@ -122,12 +127,13 @@ export default function OrderForm({
 
   function captureAbandonIfAny() {
     if (abandonSentRef.current || step !== "form") return;
-    if (!form.firstName.trim() && !form.lastName.trim() && !form.phone.trim()) return;
+    if (!form.fullName.trim() && !form.phone.trim()) return;
     abandonSentRef.current = true;
     {
+      const { firstName, lastName } = splitFullName(form.fullName);
       captureAbandonedLead({
-        firstName: form.firstName.trim() || undefined,
-        lastName: form.lastName.trim() || undefined,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
         phone: form.phone.trim() || undefined,
         wilayaCode: form.wilayaCode ? Number(form.wilayaCode) : undefined,
         commune: form.commune.trim() || undefined,
@@ -198,8 +204,9 @@ export default function OrderForm({
 
   function validate(): boolean {
     const next: Partial<Record<keyof FormState, string>> = {};
-    if (!form.firstName.trim()) next.firstName = "الاسم مطلوب";
-    if (!form.lastName.trim()) next.lastName = "اللقب مطلوب";
+    const { firstName, lastName } = splitFullName(form.fullName);
+    if (!firstName) next.fullName = "الاسم واللقب مطلوبان";
+    else if (!lastName) next.fullName = "اكتب الاسم واللقب معًا";
     if (!/^0[5-7][0-9]{8}$/.test(form.phone.trim())) {
       next.phone = "رقم هاتف غير صحيح (مثال: 0562848812)";
     }
@@ -224,9 +231,10 @@ export default function OrderForm({
     e.preventDefault();
     if (!validate() || !selectedWilaya || deliveryPrice === null || !form.deliveryOption) return;
 
+    const { firstName, lastName } = splitFullName(form.fullName);
     const order: OrderPayload = {
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
+      firstName,
+      lastName,
       phone: form.phone.trim(),
       wilayaCode: selectedWilaya.code,
       wilayaName: selectedWilaya.name,
@@ -310,10 +318,9 @@ export default function OrderForm({
       <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border p-5 sm:p-7">
         {(step === "form" || step === "submitting") && (
           <>
-            <h2 id="order-form-title" className="font-display text-xl font-bold text-cream">
-              إتمام الطلب
+            <h2 id="order-form-title" className="font-display text-base font-bold text-cream text-center leading-relaxed">
+              للطلب يرجى ملء هذا النموذج سنتصل بكم في أقرب وقت ممكن!
             </h2>
-            <p className="text-sm text-cream-dim mt-1">{product.name}</p>
 
             {variantGroups.length > 0 && (
               <div className="mt-4 space-y-3">
@@ -355,28 +362,16 @@ export default function OrderForm({
             )}
 
             <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="الاسم" error={errors.firstName}>
-                  <input
-                    type="text"
-                    value={form.firstName}
-                    onChange={(e) => updateField("firstName", e.target.value)}
-                    className={inputClass(!!errors.firstName)}
-                    autoComplete="given-name"
-                    data-testid="order-first-name"
-                  />
-                </Field>
-                <Field label="اللقب" error={errors.lastName}>
-                  <input
-                    type="text"
-                    value={form.lastName}
-                    onChange={(e) => updateField("lastName", e.target.value)}
-                    className={inputClass(!!errors.lastName)}
-                    autoComplete="family-name"
-                    data-testid="order-last-name"
-                  />
-                </Field>
-              </div>
+              <Field label="الاسم واللقب" error={errors.fullName}>
+                <input
+                  type="text"
+                  value={form.fullName}
+                  onChange={(e) => updateField("fullName", e.target.value)}
+                  className={inputClass(!!errors.fullName)}
+                  autoComplete="name"
+                  data-testid="order-full-name"
+                />
+              </Field>
 
               <Field label="رقم الهاتف" error={errors.phone}>
                 <input
@@ -577,10 +572,6 @@ export default function OrderForm({
                   "تأكيد الطلبية"
                 )}
               </button>
-              <p className="text-[11px] text-cream-dim/80 text-center">
-                الدفع عند الاستلام — لا حاجة لأي دفع الآن
-              </p>
-
               {privacyPolicyText && (
                 <div className="text-center">
                   <button

@@ -17,8 +17,7 @@ test.describe("سباقات التزامن عبر الواجهة", () => {
 
     async function fillOrderForm(page: typeof pageA) {
       await page.goto(`/products/${product.slug}`);
-      await page.getByTestId("order-first-name").fill("زبون");
-      await page.getByTestId("order-last-name").fill(e2eLastName());
+      await page.getByTestId("order-full-name").fill(`زبون ${e2eLastName()}`);
       await page.getByTestId("order-phone").fill(e2ePhone());
       await selectOrderWilaya(page, wilaya.code);
       const communeEl = page.getByTestId("order-commune");

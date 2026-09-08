@@ -24,8 +24,7 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
-    await page.getByTestId("order-first-name").fill("زبون");
-    await page.getByTestId("order-last-name").fill(lastName);
+    await page.getByTestId("order-full-name").fill(`زبون ${lastName}`);
     await page.getByTestId("order-phone").fill(phone);
     await selectOrderWilaya(page, wilaya.code);
     const communeEl = page.getByTestId("order-commune");
