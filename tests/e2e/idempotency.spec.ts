@@ -98,7 +98,6 @@ test.describe("منع الطلبات المكررة (Idempotency)", () => {
     const product = await createTestProduct({ inventoryCount: 10, priceDzd: 1500 });
 
     await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
 
     const lastName = e2eLastName();
     const phone = e2ePhone();

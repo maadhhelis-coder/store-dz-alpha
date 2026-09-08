@@ -54,6 +54,19 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
   // واحدة (20) لا تصل حدثنا مع أي تراكم.
   const drainAll = () => drainOutboxUntilEmpty(100);
 
+  /** تصريف حتى يستقر حدث **هذه** الشحنة تحديدًا. "حتى يفرغ الصندوق" يعتمد على
+   * حالة عالمية يشاركها كل ملفات الاختبار فيصير غير حتمي؛ هذا يقيس ما يخصّنا. */
+  async function drainUntilSettled(shipmentId: string, maxRounds = 60): Promise<void> {
+    for (let i = 0; i < maxRounds; i++) {
+      const event = await prisma.domainEvent.findFirst({
+        where: { entityId: shipmentId, eventType: "shipment.created" },
+        select: { status: true },
+      });
+      if (!event || event.status === "processed" || event.status === "failed") return;
+      await drainOutboxUntilEmpty(5);
+    }
+  }
+
   /** استدعاء المعالِج مباشرة لحدث هذه الشحنة — حتمي ولا يعتمد على تراكم صندوق
    * مشترك بين ملفات الاختبار. توصيل الحدث←المعالِج مثبت في اختبار مستقل
    * (المشغّل يُرسل...) وفي E2E؛ هنا نختبر دلالات الإرسال نفسها. */
@@ -206,7 +219,7 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
     // هذا الاختبار وحده يثبت التوصيل الكامل: الحدث ← المصرّف ← المعالِج ← الناقل
-    await drainAll();
+    await drainUntilSettled(shipment.id);
 
     expect(await dispatchCallsFor(orderId)).toBe(1);
     // المرجع الثابت المرسَل للمزود هو رقم الطلب
@@ -258,7 +271,7 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
     // البوابة (automation_runs) هي ما يمنع الإرسال الأعمى الثاني — لذلك هنا
     // نمر بالمصرّف الحقيقي لا باستدعاء المعالِج مباشرة.
-    await drainAll();
+    await drainUntilSettled(shipment.id);
     await drainAll();
     await drainAll();
 

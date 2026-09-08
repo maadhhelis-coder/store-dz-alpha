@@ -21,7 +21,6 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     let capturedBody: Record<string, unknown> | null = null;
 
     await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
