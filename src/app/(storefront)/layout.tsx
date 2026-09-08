@@ -6,6 +6,7 @@ import BrandBar from "@/components/layout/BrandBar";
 import PageViewTracker from "@/components/layout/PageViewTracker";
 import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
+import TrustIconsRow from "@/components/trust/TrustIconsRow";
 import JsonLd from "@/components/shared/JsonLd";
 import { organizationJsonLd } from "@/lib/seo";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
@@ -61,6 +62,7 @@ export default async function StorefrontLayout({
           الآن أصلاً تتطلب أي اعتبار خاص). */}
       <BrandBar />
       <main id="main-content" className="flex-1">{children}</main>
+      <TrustIconsRow />
       <Footer
         logoUrl={settings.logoUrl}
         instagramUrl={settings.instagramUrl}

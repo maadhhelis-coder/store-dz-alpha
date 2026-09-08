@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import SectionHeading from "@/components/shared/SectionHeading";
-import { getCategories } from "@/lib/storefrontData";
+import ProductCard from "@/components/commerce/ProductCard";
+import { getCategories, getPublishedProducts } from "@/lib/storefrontData";
 import { buildMetadata } from "@/lib/seo";
 
 type ProductsPageProps = {
@@ -39,12 +40,24 @@ export async function generateMetadata({ searchParams }: ProductsPageProps): Pro
   return meta;
 }
 
-// اكتُشف فعليًا (طلب صريح): هذه الصفحة أصبحت تعرض العنوان فقط ("كل المنتجات" /
-// "تشكيلتنا الكاملة") — لا Breadcrumbs، لا وصف، لا شبكة منتجات، لا تصنيفات، لا ترقيم صفحات.
+// العنوان ثم المنتجات مباشرة تحته في الوسط (طلب صريح) — بلا Breadcrumbs ولا
+// تصنيفات ولا ترقيم صفحات. البطاقات مقيَّدة العرض ومتمركزة مهما كان عددها.
 export default async function ProductsPage() {
+  const products = await getPublishedProducts();
+
   return (
     <div className="container-page py-10 md:py-14">
       <SectionHeading as="h1" eyebrow="كل المنتجات" title="تشكيلتنا الكاملة" />
+
+      {products.length > 0 && (
+        <div className="mt-8 flex flex-wrap justify-center gap-6">
+          {products.map((product) => (
+            <div key={product.slug} className="w-full max-w-xs">
+              <ProductCard product={product} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -270,10 +270,12 @@ maybeDescribe("دورة حياة الشحنة (integration)", () => {
 
     const shipment = await createShipment({ orderId, actor: { type: "admin", id: adminId } });
     // البوابة (automation_runs) هي ما يمنع الإرسال الأعمى الثاني — لذلك هنا
-    // نمر بالمصرّف الحقيقي لا باستدعاء المعالِج مباشرة.
+    // نمر بالمصرّف الحقيقي لا باستدعاء المعالِج مباشرة. التصريف موجَّه لحدث هذه
+    // الشحنة: "حتى يفرغ الصندوق" حالة عالمية تشاركها كل ملفات الاختبار، وقد
+    // ترجع صفرًا بينما حدثنا محجوز بـlease من تصريفة سابقة (أُثبت في CI).
     await drainUntilSettled(shipment.id);
-    await drainAll();
-    await drainAll();
+    await drainUntilSettled(shipment.id);
+    await drainUntilSettled(shipment.id);
 
     // نداء واحد فقط رغم ثلاث تصريفات — مصير الشحنة عند الناقل مجهول
     expect(await dispatchCallsFor(orderId)).toBe(1);

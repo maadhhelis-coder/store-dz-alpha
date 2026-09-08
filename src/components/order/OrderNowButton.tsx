@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 // خارج صفحة المنتج (بطاقات، صفحة هبوط): رابط لصفحة المنتج — لا نافذة تنبثق فوق
 // الصفحة. داخل صفحة المنتج: ينزل بالزبون إلى الاستمارة المدمجة أسفلها.
 
-type Variant = "inline" | "primary-large";
+type Variant = "inline" | "primary-large" | "sticky-bar";
 
 type OrderNowButtonProps = {
   product: Product;
@@ -29,6 +29,9 @@ const VARIANT_STYLES: Record<Variant, string> = {
     "gold-gradient text-ink font-semibold px-4 py-2.5 rounded-lg text-sm w-full hover:brightness-110 transition",
   "primary-large":
     "gold-gradient text-ink font-bold px-6 py-4 rounded-xl text-base w-full hover:brightness-110 transition gold-glow",
+  // الشريط الثابت: أصغر من primary-large لأن السعر يشاركه نفس السطر
+  "sticky-bar":
+    "gold-gradient text-ink font-bold px-4 py-2.5 rounded-lg text-sm w-full hover:brightness-110 transition gold-glow",
 };
 
 export const ORDER_FORM_ID = "order-form";
@@ -65,11 +68,12 @@ export default function OrderNowButton({
     VARIANT_STYLES[variant],
     className,
   );
+  // النقزة على المحتوى لا على الزر — مساحة النقر تبقى ثابتة (راجع globals.css)
   const content = (
-    <>
+    <span className="cta-nudge">
       <ShoppingBag className="w-4 h-4" strokeWidth={2.2} />
       <span>{label}</span>
-    </>
+    </span>
   );
 
   if (target === "form") {

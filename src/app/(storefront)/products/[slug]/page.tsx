@@ -1,14 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Breadcrumbs from "@/components/shared/Breadcrumbs";
 import JsonLd from "@/components/shared/JsonLd";
 import ProductDetail from "@/components/commerce/ProductDetail";
 import RelatedProducts from "@/components/commerce/RelatedProducts";
-import {
-  getPublishedProductBySlug,
-  getRelatedProducts,
-  getCategoryBySlug,
-} from "@/lib/storefrontData";
+import { getPublishedProductBySlug, getRelatedProducts } from "@/lib/storefrontData";
 import { buildMetadata, productJsonLd } from "@/lib/seo";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
 
@@ -45,8 +40,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getPublishedProductBySlug(slug);
   if (!product) notFound();
 
-  const [category, related, settings] = await Promise.all([
-    getCategoryBySlug(product.categorySlug),
+  const [related, settings] = await Promise.all([
     getRelatedProducts(product),
     getSiteSettings(),
   ]);
@@ -55,15 +49,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <div className="container-page py-10 md:py-14 pb-28 md:pb-32">
       <JsonLd data={productJsonLd(product)} />
-      <Breadcrumbs
-        items={[
-          { name: "المنتجات", path: "/products" },
-          ...(category
-            ? [{ name: category.name, path: `/category/${category.slug}` }]
-            : []),
-          { name: product.name, path: `/products/${product.slug}` },
-        ]}
-      />
       <div className="mt-6">
         <ProductDetail
           product={product}
