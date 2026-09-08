@@ -1,4 +1,4 @@
-import { test, expect, selectOrderWilaya } from "./support/fixtures";
+import { test, expect, chooseHomeDelivery, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone, e2eVisitorId } from "./support/testData";
 import { getActiveWilaya, createTestProduct } from "./support/seedFixtures";
@@ -98,7 +98,6 @@ test.describe("منع الطلبات المكررة (Idempotency)", () => {
     const product = await createTestProduct({ inventoryCount: 10, priceDzd: 1500 });
 
     await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
@@ -112,6 +111,7 @@ test.describe("منع الطلبات المكررة (Idempotency)", () => {
     } else {
       await communeEl.fill("بلدية اختبار");
     }
+    await chooseHomeDelivery(page);
     const addressField = page.getByTestId("order-address");
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");

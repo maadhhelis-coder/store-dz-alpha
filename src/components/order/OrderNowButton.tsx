@@ -1,17 +1,26 @@
 "use client";
 
+import Link from "next/link";
 import { ShoppingBag } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { Product } from "@/data/products";
-import { useOrderModal } from "@/components/order/OrderModalProvider";
-import { trackCreativeEvent } from "@/lib/tracking";
+import { trackCreativeEvent, type PageKindValue } from "@/lib/tracking";
 import { cn } from "@/lib/utils";
+
+// زر "اطلب الآن".
+//
+// خارج صفحة المنتج (بطاقات، صفحة هبوط): رابط لصفحة المنتج — لا نافذة تنبثق فوق
+// الصفحة. داخل صفحة المنتج: ينزل بالزبون إلى الاستمارة المدمجة أسفلها.
 
 type Variant = "inline" | "primary-large";
 
 type OrderNowButtonProps = {
   product: Product;
   variant?: Variant;
+  /** "form" داخل صفحة المنتج (نزول للاستمارة)، وإلا رابط لصفحة المنتج. */
+  target?: "product-page" | "form";
+  pageKind?: PageKindValue;
+  label?: string;
   className?: string;
 };
 
@@ -22,12 +31,16 @@ const VARIANT_STYLES: Record<Variant, string> = {
     "gold-gradient text-ink font-bold px-6 py-4 rounded-xl text-base w-full hover:brightness-110 transition gold-glow",
 };
 
+export const ORDER_FORM_ID = "order-form";
+
 export default function OrderNowButton({
   product,
   variant = "inline",
+  target = "product-page",
+  pageKind = "product",
+  label = "اطلب الآن",
   className,
 }: OrderNowButtonProps) {
-  const { openOrderModal } = useOrderModal();
   const pathname = usePathname();
 
   if (!product.inStock) {
@@ -47,22 +60,45 @@ export default function OrderNowButton({
     );
   }
 
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        trackCreativeEvent("cta_click", "product", pathname, product.slug);
-        openOrderModal(product, "product");
-      }}
-      data-testid="order-now-button"
-      className={cn(
-        "inline-flex items-center justify-center gap-2 cta-attention",
-        VARIANT_STYLES[variant],
-        className,
-      )}
-    >
+  const classes = cn(
+    "inline-flex items-center justify-center gap-2 cta-attention",
+    VARIANT_STYLES[variant],
+    className,
+  );
+  const content = (
+    <>
       <ShoppingBag className="w-4 h-4" strokeWidth={2.2} />
-      <span>اطلب الآن</span>
-    </button>
+      <span>{label}</span>
+    </>
+  );
+
+  if (target === "form") {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          trackCreativeEvent("cta_click", pageKind, pathname, product.slug);
+          document.getElementById(ORDER_FORM_ID)?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }}
+        data-testid="order-now-button"
+        className={classes}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={`/products/${product.slug}`}
+      onClick={() => trackCreativeEvent("cta_click", pageKind, pathname, product.slug)}
+      data-testid="order-now-button"
+      className={classes}
+    >
+      {content}
+    </Link>
   );
 }

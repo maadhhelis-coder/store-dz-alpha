@@ -1,4 +1,4 @@
-import { test, expect, selectOrderWilaya } from "./support/fixtures";
+import { test, expect, chooseHomeDelivery, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2eLastName, e2ePhone } from "./support/testData";
 import { getActiveWilaya, createTestProduct } from "./support/seedFixtures";
@@ -21,7 +21,6 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     let capturedBody: Record<string, unknown> | null = null;
 
     await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
@@ -35,6 +34,7 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
     } else {
       await communeEl.fill("بلدية اختبار");
     }
+    await chooseHomeDelivery(page);
     const addressField = page.getByTestId("order-address");
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");

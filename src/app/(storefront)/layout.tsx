@@ -6,7 +6,6 @@ import BrandBar from "@/components/layout/BrandBar";
 import PageViewTracker from "@/components/layout/PageViewTracker";
 import WebVitalsReporter from "@/components/layout/WebVitalsReporter";
 import TrackingPixels from "@/components/layout/TrackingPixels";
-import OrderModalProvider from "@/components/order/OrderModalProvider";
 import JsonLd from "@/components/shared/JsonLd";
 import { organizationJsonLd } from "@/lib/seo";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
@@ -24,13 +23,7 @@ export default async function StorefrontLayout({
   const nonce = requestHeaders.get("x-nonce") ?? undefined;
 
   return (
-    <OrderModalProvider
-      settings={{
-        thankYouMessage: settings.thankYouMessage,
-        thankYouPageUrl: settings.thankYouPageUrl,
-        privacyPolicyText: settings.privacyPolicyText,
-      }}
-    >
+    <>
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:start-4 focus:z-[100] gold-gradient text-ink font-bold px-4 py-2 rounded-lg"
@@ -74,6 +67,6 @@ export default async function StorefrontLayout({
         facebookUrl={settings.facebookUrl}
         tiktokUrl={settings.tiktokUrl}
       />
-    </OrderModalProvider>
+    </>
   );
 }

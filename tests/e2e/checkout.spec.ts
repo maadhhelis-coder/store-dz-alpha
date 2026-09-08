@@ -1,4 +1,4 @@
-import { test, expect, selectOrderWilaya } from "./support/fixtures";
+import { test, expect, chooseHomeDelivery, selectOrderWilaya } from "./support/fixtures";
 import { testPrisma } from "./support/testPrisma";
 import { e2ePhone, e2eLastName, e2eVisitorId } from "./support/testData";
 import {
@@ -24,7 +24,6 @@ test.describe("رحلة الشراء الأساسية", () => {
     await page.goto(`/products/${product.slug}`);
     // زر "اطلب الآن" قد يظهر مرتين (الزر الرئيسي + الشريط اللاصق أسفل الصفحة) — نستهدف الأول دائمًا.
     await expect(page.getByTestId("order-now-button").first()).toBeVisible();
-    await page.getByTestId("order-now-button").first().click();
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
@@ -38,6 +37,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     if ((await communeEl.evaluate((el) => el.tagName)) === "SELECT") {
       await communeEl.selectOption({ index: 1 });
     }
+    await chooseHomeDelivery(page);
     const addressField = page.getByTestId("order-address");
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");
@@ -71,7 +71,6 @@ test.describe("رحلة الشراء الأساسية", () => {
     const { product, variant } = await createTestProductWithVariant({ inventoryCount: 5 });
 
     await page.goto(`/products/${product.slug}`);
-    await page.getByTestId("order-now-button").first().click();
 
     await page.getByTestId("order-variant-option").first().click();
 
@@ -87,6 +86,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     } else {
       await communeEl.fill("بلدية اختبار");
     }
+    await chooseHomeDelivery(page);
     const addressField = page.getByTestId("order-address");
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");
@@ -115,8 +115,10 @@ test.describe("رحلة الشراء الأساسية", () => {
     const funnel = await createTestFunnel(product.id, { pageType: "funnel" });
 
     await page.goto(`/lp/${funnel.slug}`);
+    // الزر صار رابطًا لصفحة المنتج (لا نافذة تنبثق) — ننتظر الانتقال قبل التعبئة
     await expect(page.getByTestId("order-now-button").first()).toBeVisible();
     await page.getByTestId("order-now-button").first().click();
+    await page.waitForURL(`**/products/${product.slug}**`);
 
     const lastName = e2eLastName();
     const phone = e2ePhone();
@@ -130,6 +132,7 @@ test.describe("رحلة الشراء الأساسية", () => {
     } else {
       await communeEl.fill("بلدية اختبار");
     }
+    await chooseHomeDelivery(page);
     const addressField = page.getByTestId("order-address");
     if (await addressField.isVisible().catch(() => false)) {
       await addressField.fill("شارع الاختبار، رقم 1");

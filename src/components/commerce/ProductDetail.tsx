@@ -2,6 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 import { sanitizeProductHtml } from "@/lib/sanitizeHtml";
 import ProductGallery from "@/components/commerce/ProductGallery";
 import OrderNowButton from "@/components/order/OrderNowButton";
+import OrderForm from "@/components/order/OrderForm";
 import TrustBadgeStrip from "@/components/trust/TrustBadgeStrip";
 import GuaranteeCard from "@/components/trust/GuaranteeCard";
 import CreativeViewTracker from "@/components/tracking/CreativeViewTracker";
@@ -10,9 +11,14 @@ import { formatPrice } from "@/lib/format";
 
 type ProductDetailProps = {
   product: Product;
+  orderSettings?: {
+    thankYouMessage?: string | null;
+    thankYouPageUrl?: string | null;
+    privacyPolicyText?: string | null;
+  };
 };
 
-export default function ProductDetail({ product }: ProductDetailProps) {
+export default function ProductDetail({ product, orderSettings }: ProductDetailProps) {
   return (
     <div className="grid md:grid-cols-2 gap-10">
       <CreativeViewTracker pageKind="product" productSlug={product.slug} productName={product.name} price={product.price} />
@@ -57,7 +63,7 @@ export default function ProductDetail({ product }: ProductDetailProps) {
         )}
 
         <div className="mt-6">
-          <OrderNowButton product={product} variant="primary-large" />
+          <OrderNowButton product={product} variant="primary-large" target="form" />
         </div>
 
         <div className="mt-8 space-y-3">
@@ -89,9 +95,32 @@ export default function ProductDetail({ product }: ProductDetailProps) {
         <GuaranteeCard />
       </div>
 
-      <div className="sticky bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-3 md:hidden">
-        <OrderNowButton product={product} variant="primary-large" />
-      </div>
+      {/* الاستمارة مدمجة في الصفحة نفسها — الزبون ينزل فيجدها، ولا نافذة تنبثق.
+          لا تُعرض لمنتج نافد: استمارة لطلب لا يمكن تنفيذه. */}
+      {product.inStock && (
+        <>
+          <div className="md:col-span-2 mt-10">
+            <h2 className="font-display text-lg font-bold text-gold text-center mb-4">
+              أكمل طلبك الآن
+            </h2>
+            <OrderForm
+              product={product}
+              pageKind="product"
+              thankYouMessage={orderSettings?.thankYouMessage}
+              thankYouPageUrl={orderSettings?.thankYouPageUrl}
+              privacyPolicyText={orderSettings?.privacyPolicyText}
+            />
+          </div>
+
+          {/* شريط ثابت لا يختفي مع التمرير على أي مقاس (طلب صريح) — النزول
+              للاستمارة. الصفحة تحمل حشوًا سفليًا يقابل ارتفاعه فلا يغطي محتوى. */}
+          <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-3">
+            <div className="container-page">
+              <OrderNowButton product={product} variant="primary-large" target="form" />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

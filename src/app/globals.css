@@ -96,8 +96,32 @@ h6 {
   }
 }
 
+/* نقزة في المكان — الوهج وحده كان خافتًا على الشاشات الساطعة، والحركة هي ما
+   يلتقط العين فعلًا. transform فقط (بلا خصائص تُعيد التخطيط) فلا تكلفة إطارات. */
+@keyframes cta-attention-nudge {
+  0%,
+  62%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  70% {
+    transform: translateY(-7px) scale(1.03);
+  }
+  78% {
+    transform: translateY(0) scale(0.985);
+  }
+  86% {
+    transform: translateY(-3px) scale(1.01);
+  }
+  93% {
+    transform: translateY(0) scale(1);
+  }
+}
+
 .cta-attention {
-  animation: cta-attention-pulse 2.2s ease-in-out infinite;
+  animation:
+    cta-attention-pulse 2.2s ease-in-out infinite,
+    cta-attention-nudge 2.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
