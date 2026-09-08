@@ -68,11 +68,12 @@ export default function OrderNowButton({
     VARIANT_STYLES[variant],
     className,
   );
+  // النقزة على المحتوى لا على الزر — مساحة النقر تبقى ثابتة (راجع globals.css)
   const content = (
-    <>
+    <span className="cta-nudge">
       <ShoppingBag className="w-4 h-4" strokeWidth={2.2} />
       <span>{label}</span>
-    </>
+    </span>
   );
 
   if (target === "form") {

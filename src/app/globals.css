@@ -118,14 +118,24 @@ h6 {
   }
 }
 
+/* الوهج على الزر نفسه، والنقزة على محتواه الداخلي فقط: تحريك صندوق الزر يزحزح
+   مساحة النقر 7px فتضيع نقرة سريعة (ظهر في CI على زر تأكيد الطلبية تحديدًا،
+   وهو أسوأ زر يمكن أن تضيع نقرته). المستعمل يرى نفس الحركة، والهدف لا يتحرك. */
 .cta-attention {
-  animation:
-    cta-attention-pulse 2.2s ease-in-out infinite,
-    cta-attention-nudge 2.2s ease-in-out infinite;
+  animation: cta-attention-pulse 2.2s ease-in-out infinite;
+}
+
+.cta-nudge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  animation: cta-attention-nudge 2.2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cta-attention {
+  .cta-attention,
+  .cta-nudge {
     animation: none;
   }
 }

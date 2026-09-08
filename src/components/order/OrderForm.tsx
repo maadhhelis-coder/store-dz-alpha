@@ -569,7 +569,8 @@ export default function OrderForm({
                     <Loader2 className="w-4 h-4 animate-spin" /> جارٍ التأكيد...
                   </>
                 ) : (
-                  "تأكيد الطلبية"
+                  // النقزة على المحتوى لا على الزر — مساحة النقر ثابتة
+                  <span className="cta-nudge">تأكيد الطلبية</span>
                 )}
               </button>
               {privacyPolicyText && (
