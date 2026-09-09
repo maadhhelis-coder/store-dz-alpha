@@ -40,17 +40,13 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         <p className="text-xs md:text-sm text-cream-dim line-clamp-2 flex-1">
           {product.shortDescription}
         </p>
-        <div className="flex items-center gap-2">
-          <span className="text-gold font-bold">{formatPrice(product.price)}</span>
+        {/* السعر الرسمي، وتحته السعر القديم مشطوبًا (طلب صريح) */}
+        <div className="flex flex-col items-center gap-0.5">
+          <span className="text-gold font-bold text-lg">{formatPrice(product.price)}</span>
           {product.oldPrice && (
-            <>
-              <span className="text-cream-dim/80 text-xs line-through">
-                {formatPrice(product.oldPrice)}
-              </span>
-              <span className="text-[11px] font-bold text-red-400 bg-red-400/10 px-1.5 py-0.5 rounded">
-                -{Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100)}%
-              </span>
-            </>
+            <span className="text-cream-dim/80 text-sm line-through">
+              {formatPrice(product.oldPrice)}
+            </span>
           )}
         </div>
         {product.lowStockCount !== undefined && (

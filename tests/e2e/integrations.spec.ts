@@ -54,6 +54,7 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
       await route.fulfill({ status: 200, body: "OK" });
     });
 
+    await page.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("order-submit").click();
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
 

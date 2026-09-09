@@ -42,6 +42,7 @@ test.describe("رحلة الشراء الأساسية", () => {
       await addressField.fill("شارع الاختبار، رقم 1");
     }
 
+    await page.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("order-submit").click();
 
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
@@ -90,6 +91,7 @@ test.describe("رحلة الشراء الأساسية", () => {
       await addressField.fill("شارع الاختبار، رقم 1");
     }
 
+    await page.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("order-submit").click();
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
 
@@ -135,6 +137,7 @@ test.describe("رحلة الشراء الأساسية", () => {
       await addressField.fill("شارع الاختبار، رقم 1");
     }
 
+    await page.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" }));
     await page.getByTestId("order-submit").click();
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
 
