@@ -15,6 +15,13 @@ export default defineConfig({
     // الذي يقرؤه prisma singleton (src/server/db/prisma.ts) — عزل صريح عن أي
     // DATABASE_URL آخر قد يكون مضبوطًا في البيئة المحيطة.
     setupFiles: ["./tests/integration/support/setup.ts"],
+    // ملف واحد في كل مرة. السبب ليس البطء بل الصحّة: صندوق الأحداث مشترك على
+    // مستوى القاعدة، و drainOutbox يصرّف *كل* حدث معلّق لا أحداث ملفه فقط. مع
+    // التوازي كان outbox-drain.test.ts يلتقط shipment.created الخاص بـ
+    // shipment-lifecycle.test.ts فيُعالَج بمُحاكي الناقل الخاص بذلك الملف الآخر،
+    // فيرى ملف الشحن الحدث «processed» وعدّاد نداءات ناقله صفرًا
+    // (AssertionError: expected +0 to be 1 — فشل CI الفعلي على PR #66).
+    fileParallelism: false,
   },
   resolve: {
     alias: {
