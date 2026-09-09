@@ -28,7 +28,7 @@ export default function Footer({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
   // أعلى قسم "ما يميزنا" كما فُهم خطأً فمحاولة سابقة. mt-4 على الهاتف، mt-16 الأصلي كما هو
   // بالحاسوب (لم يُطلب تغييره هناك).
   return (
-    <footer className="border-t border-gold/15 bg-ink mt-4 md:mt-16">
+    <footer className="border-t border-gold/15 bg-ink mt-0 md:mt-4">
       <div className="container-page py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <Logo logoUrl={logoUrl} />

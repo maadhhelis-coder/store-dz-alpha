@@ -1,28 +1,30 @@
-import { CreditCard, RefreshCw, ShoppingBasket, Truck } from "lucide-react";
+import Image from "next/image";
 
-// شريط ضمانات فوق خط الفوتر الذهبي مباشرة: دائرة ذهبية بأيقونة داخلها والاسم
-// تحتها. مرسوم بالـCSS لا بصور — نفس الشكل المطلوب تمامًا (بلا خلفية سوداء
-// مربّعة)، يبقى حادًّا على أي مقاس، ويوفّر ~3.5MB كانت أربع صور 1024×1024.
-// الحاسوب: أربعة بجانب بعضها. الهاتف: 2×2.
+// أيقونات الضمانات — صفحة المنتج فقط (طلب صريح: لا تظهر في أي مكان آخر من
+// المتجر). الترتيب كما أُرسلت. الصور شفّافة الخلفية فتذوب في خلفية الصفحة.
+// الحاسوب: أربع بجانب بعضها. الهاتف: 2×2.
 
-const ITEMS = [
-  { Icon: CreditCard, label: "الدفع عند الاستلام" },
-  { Icon: ShoppingBasket, label: "تأكيد الطلب عبر واتساب" },
-  { Icon: Truck, label: "التوصيل إلى جميع الولايات" },
-  { Icon: RefreshCw, label: "الاستبدال في حالة العيب" },
+const ICONS = [
+  { src: "/images/trust/icon-exchange.png", alt: "الاستبدال في حالة العيب", w: 1448, h: 1086 },
+  { src: "/images/trust/icon-delivery.png", alt: "التوصيل إلى جميع الولايات", w: 1359, h: 1157 },
+  { src: "/images/trust/icon-whatsapp.png", alt: "تأكيد الطلب عبر واتساب", w: 1536, h: 1024 },
+  { src: "/images/trust/icon-cod.png", alt: "الدفع عند الاستلام", w: 1254, h: 1254 },
 ];
 
 export default function TrustIconsRow() {
   return (
-    <section aria-label="ضمانات المتجر" className="container-page pb-8">
-      <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
-        {ITEMS.map(({ Icon, label }) => (
-          <div key={label} className="flex flex-col items-center gap-3 text-center">
-            <span className="grid place-items-center w-20 h-20 md:w-24 md:h-24 rounded-full border-2 border-gold gold-glow">
-              <Icon className="w-8 h-8 md:w-10 md:h-10 text-gold" strokeWidth={1.8} />
-            </span>
-            <span className="text-xs md:text-sm font-semibold text-cream leading-snug">{label}</span>
-          </div>
+    <section aria-label="ضمانات المتجر" className="container-page pt-10 pb-8">
+      <div className="grid grid-cols-2 gap-5 md:grid-cols-4 md:gap-8">
+        {ICONS.map((icon) => (
+          <Image
+            key={icon.src}
+            src={icon.src}
+            alt={icon.alt}
+            width={icon.w}
+            height={icon.h}
+            sizes="(min-width: 768px) 25vw, 50vw"
+            className="h-auto w-full object-contain"
+          />
         ))}
       </div>
     </section>

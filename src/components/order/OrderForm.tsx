@@ -315,7 +315,8 @@ export default function OrderForm({
 
   return (
     <section id="order-form" aria-labelledby="order-form-title" className="scroll-mt-24">
-      <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border p-5 sm:p-7">
+      {/* الإطار أطول قليلًا (طلب صريح): حشو رأسي أوسع من الجانبي */}
+      <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border px-5 py-8 sm:px-7 sm:py-10">
         {(step === "form" || step === "submitting") && (
           <>
             <h2 id="order-form-title" className="font-display text-base font-bold text-cream text-center leading-relaxed">

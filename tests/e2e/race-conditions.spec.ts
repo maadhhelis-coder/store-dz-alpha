@@ -37,6 +37,11 @@ test.describe("سباقات التزامن عبر الواجهة", () => {
 
     // الضغط على "تأكيد الطلبية" بالتوازي الحقيقي فسياقَي متصفح منفصلَين تمامًا — أقرب
     // محاكاة ممكنة لزبونين حقيقيين يطلبان آخر قطعة فنفس اللحظة تقريبًا.
+    // شريط «اطلب الآن» ثابت أسفل الصفحة — نُوسّط الزر أولًا فلا تعترضه النقرة
+    await Promise.all([
+      pageA.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" })),
+      pageB.getByTestId("order-submit").evaluate((el) => el.scrollIntoView({ block: "center" })),
+    ]);
     await Promise.all([pageA.getByTestId("order-submit").click(), pageB.getByTestId("order-submit").click()]);
 
     // ملاحظة مهمة: locator.isVisible() يفحص الـDOM فورًا بلا انتظار/إعادة محاولة (خلافًا

@@ -16,9 +16,10 @@ export const FACEBOOK_URL =
 // كما هي، 58 ولاية حقيقية، غير متأثرة بهذا الثابت إطلاقًا).
 export const WILAYA_COUNT = 69;
 
+// «المنتجات» محذوفة من كل الأشرطة بطلب صريح (الهيدر وقائمة الهاتف والفوتر تقرأ
+// كلها من هنا). الصفحة /products نفسها تبقى تعمل بالرابط المباشر.
 export const NAV_LINKS = [
   { href: "/", label: "الرئيسية" },
-  { href: "/products", label: "المنتجات" },
   { href: "/contact", label: "تواصل معنا" },
 ] as const;
 
