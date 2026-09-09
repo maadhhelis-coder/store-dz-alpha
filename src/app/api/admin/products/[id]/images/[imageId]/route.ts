@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
 import { requirePermission } from "@/lib/auth/requirePermission";
-import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabaseAdminClient";
+import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET, SupabaseConfigError } from "@/lib/supabaseAdminClient";
 import { prisma } from "@/server/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string; imageId: string }> };
@@ -25,6 +25,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    // نقص إعداد بيئة ⇒ 503 برسالة تدلّ على مكان الإصلاح، لا 500 مبهم.
+    if (error instanceof SupabaseConfigError) {
+      console.error("supabase config error", error.message);
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
     console.error("update product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
@@ -61,6 +66,11 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     }
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    // نقص إعداد بيئة ⇒ 503 برسالة تدلّ على مكان الإصلاح، لا 500 مبهم.
+    if (error instanceof SupabaseConfigError) {
+      console.error("supabase config error", error.message);
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
     console.error("delete product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });

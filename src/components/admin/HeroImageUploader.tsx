@@ -22,16 +22,20 @@ export default function HeroImageUploader({ value, onChange }: HeroImageUploader
     const formData = new FormData();
     formData.append("file", file);
 
+    // نفس العطل الصامت الذي كان في MediaUploader: try بلا catch ⇒ أي ردّ ليس JSON
+    // يُسقط الدالة بلا رسالة ولا رفع.
     try {
       const res = await fetch("/api/admin/media/upload", { method: "POST", body: formData });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data.error ?? "فشل رفع الصورة");
+      if (!res.ok || !data?.url) {
+        setError(data?.error ?? `فشل رفع الصورة (رمز ${res.status})`);
         return;
       }
 
       onChange(data.url);
+    } catch {
+      setError("تعذّر الاتصال بالخادم أثناء رفع الصورة");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

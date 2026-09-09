@@ -63,6 +63,10 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // الحفظ الناجح لم يكن يعرض أي شيء إطلاقًا: router.refresh() يعيد رسم نفس القيم،
+  // فيبدو الزرّ وكأنه لم يفعل شيئًا («أضغط حفظ التغييرات لا يظهر شيئا»). الرسائل
+  // كانت للأخطاء فقط.
+  const [saved, setSaved] = useState(false);
 
   function handleNameChange(value: string) {
     setName(value);
@@ -95,6 +99,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaved(false);
     setSaving(true);
 
     const payload = {
@@ -131,10 +136,10 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
           body: JSON.stringify(payload),
         },
       );
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data.error ?? "حدث خطأ غير متوقع");
+      if (!res.ok || !data?.product) {
+        setError(data?.error ?? `تعذّر الحفظ (رمز ${res.status})`);
         return;
       }
 
@@ -142,6 +147,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
         setProductId(data.product.id);
         router.push(`/admin/products/${data.product.id}`);
       } else {
+        setSaved(true);
         router.refresh();
       }
     } catch {
@@ -358,6 +364,11 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
         </div>
 
         {error && <p className="text-xs text-red-400 px-1">{error}</p>}
+        {saved && !error && (
+          <p className="rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-400">
+            تم حفظ التغييرات
+          </p>
+        )}
 
         <button
           type="submit"

@@ -15,7 +15,10 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
 
   return (
     <div>
-      <div className="relative aspect-square rounded-2xl overflow-hidden gold-border">
+      {/* أقصر بالحاسوب (طلب صريح: "التقليل يكون في الطول") — العرض كما هو، الارتفاع
+          من 1:1 إلى 4:3 أي ‏−25%. الهاتف يبقى مربّعًا: العمودان فوق بعضهما هناك
+          فلا يوجد إطار طويل يزاحمه. */}
+      <div className="relative aspect-square md:aspect-[4/3] rounded-2xl overflow-hidden gold-border">
         <BrandImage
           src={activeImage}
           alt={`${productName} — Store DZ`}

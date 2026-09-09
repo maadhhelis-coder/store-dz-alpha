@@ -47,7 +47,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   // حشو سفلي يقابل الشريط الثابت أسفل الصفحة فلا يغطي آخر المحتوى
   return (
-    <div className="container-page py-10 md:py-14 pb-28 md:pb-32">
+    // pb-28/32 السابقة أُزيلت: كانت تحاول تفادي الشريط الثابت من داخل {children}،
+    // وهذا مستحيل أصلًا لأن الفوتر شقيق لاحق — فكل ما فعلته هو ترك 128px فراغًا بين
+    // الأيقونات وشريط الروابط. التعويض الحقيقي صار على الفوتر نفسه (Footer.tsx).
+    <div className="container-page pt-10 md:pt-14 pb-2 md:pb-3">
       <JsonLd data={productJsonLd(product)} />
       <div className="mt-6">
         <ProductDetail
