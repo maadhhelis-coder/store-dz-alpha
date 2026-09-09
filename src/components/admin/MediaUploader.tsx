@@ -32,19 +32,24 @@ export default function MediaUploader({ productId, images, onImagesChange }: Med
     const formData = new FormData();
     formData.append("file", file);
 
+    // كان هنا try/finally بلا catch: أي استثناء (انقطاع شبكة، أو ردّ ليس JSON مثل
+    // صفحة خطأ من المنصّة) كان يخرج كـunhandled rejection — فلا تُضاف الصورة ولا
+    // تظهر أي رسالة، وهذا بالضبط ما كان يحدث: «الصور لا تُضاف ولا أعرف لماذا».
     try {
       const res = await fetch(`/api/admin/products/${productId}/images`, {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data.error ?? "فشل رفع الصورة");
+      if (!res.ok || !data?.image) {
+        setError(data?.error ?? `فشل رفع الصورة (رمز ${res.status})`);
         return;
       }
 
       onImagesChange([...images, data.image]);
+    } catch {
+      setError("تعذّر الاتصال بالخادم أثناء رفع الصورة");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";

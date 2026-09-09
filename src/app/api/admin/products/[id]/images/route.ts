@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
 import { requirePermission } from "@/lib/auth/requirePermission";
-import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET } from "@/lib/supabaseAdminClient";
+import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET, SupabaseConfigError } from "@/lib/supabaseAdminClient";
 import { matchesImageMagicBytes } from "@/lib/validateImageMagicBytes";
 import { prisma } from "@/server/db/prisma";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+// 4MB وليس 5: منصّة النشر ترفض جسم الطلب فوق 4.5MB بنفسها وتردّ صفحة خطأ
+// ليست JSON، فيسقط res.json() فالمتصفح ولا يرى صاحب المتجر أي سبب. الحدّ هنا أقلّ
+// من حدّ المنصّة ليبقى الرفض دائمًا من كودنا برسالة عربية مفهومة.
+const MAX_SIZE_BYTES = 4 * 1024 * 1024;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function POST(request: Request, { params }: RouteParams) {
@@ -32,7 +35,7 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ error: "نوع الملف غير مدعوم (jpeg/png/webp فقط)" }, { status: 400 });
     }
     if (file.size > MAX_SIZE_BYTES) {
-      return NextResponse.json({ error: "حجم الملف كبير جدًا (الحد الأقصى 5MB)" }, { status: 400 });
+      return NextResponse.json({ error: "حجم الملف كبير جدًا (الحد الأقصى 4MB)" }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -77,6 +80,11 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
     if (error instanceof ForbiddenError) {
       return NextResponse.json({ error: error.message }, { status: 403 });
+    }
+    // نقص إعداد بيئة ⇒ 503 برسالة تدلّ على مكان الإصلاح، لا 500 مبهم.
+    if (error instanceof SupabaseConfigError) {
+      console.error("supabase config error", error.message);
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
     console.error("upload product image error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
