@@ -96,8 +96,8 @@ export default function Home() {
         <BrandImage
           src="/images/highlights/ma-yumayyizna.png"
           alt="ما يميزنا: خدمة ما بعد البيع، الدفع عند الاستلام، ضمان حقيقي، الشحن الى 69 ولاية"
-          width={1774}
-          height={887}
+          width={2172}
+          height={724}
           className="hidden md:block w-full h-auto"
           sizes="100vw"
         />
