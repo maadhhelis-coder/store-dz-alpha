@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import PrefetchLink from "@/components/shared/PrefetchLink";
 import { ShoppingBag } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { Product } from "@/data/products";
@@ -96,13 +96,13 @@ export default function OrderNowButton({
   }
 
   return (
-    <Link
+    <PrefetchLink
       href={`/products/${product.slug}`}
       onClick={() => trackCreativeEvent("cta_click", pageKind, pathname, product.slug)}
       data-testid="order-now-button"
       className={classes}
     >
       {content}
-    </Link>
+    </PrefetchLink>
   );
 }

@@ -1,9 +1,23 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { Mark, mergeAttributes } from "@tiptap/core";
+// TiptapNode باسم مستعار: Node وحده يتعارض مع Node الخاص بالـDOM فيلتقط TypeScript
+// الثاني ويسقط .create()
+import { Mark, Node as TiptapNode, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { Bold, Italic, List, ListOrdered, Heading2, Underline, Strikethrough, Ban } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  List,
+  ListOrdered,
+  Heading2,
+  Underline,
+  Strikethrough,
+  Ban,
+  ImagePlus,
+  Loader2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // لون النص — علامة (Mark) محلية بـ@tiptap/core بدل حزمة extension-color: تلك
@@ -29,6 +43,26 @@ const TextColor = Mark.create({
   },
 });
 
+// صورة داخل الوصف — عقدة محلية بـ@tiptap/core لنفس سبب TextColor أعلاه: حزمة
+// extension-image ما زالت على TipTap 2 ولا تُركَّب مع 3. عشرة أسطر تُغني عنها.
+// المصدر يأتي حصرًا من مسار الرفع الإداري (تخزين المتجر نفسه)، والمنقّي
+// (sanitizeProductHtml) يرفض أي مضيف آخر — فلا تُحقن صور خارجية عبر الوصف.
+const InlineImage = TiptapNode.create({
+  name: "inlineImage",
+  group: "block",
+  atom: true,
+  draggable: true,
+  addAttributes() {
+    return { src: { default: null }, alt: { default: null } };
+  },
+  parseHTML() {
+    return [{ tag: "img[src]" }];
+  },
+  renderHTML({ HTMLAttributes }: { HTMLAttributes: Record<string, unknown> }) {
+    return ["img", mergeAttributes(HTMLAttributes)];
+  },
+});
+
 // لوحة الهوية البصرية — الذهبي أولًا، ثم ألوان الحالة. القيم بصيغة hex لأن
 // المنقّي (sanitizeProductHtml) يقبل hex/rgb حصرًا ويرفض ما عداهما.
 const COLORS: { value: string; label: string }[] = [
@@ -46,8 +80,12 @@ type RichTextEditorProps = {
 };
 
 export default function RichTextEditor({ value, onChange }: RichTextEditorProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const editor = useEditor({
-    extensions: [StarterKit, TextColor],
+    extensions: [StarterKit, TextColor, InlineImage],
     content: value,
     immediatelyRender: false,
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -58,6 +96,29 @@ export default function RichTextEditor({ value, onChange }: RichTextEditorProps)
       },
     },
   });
+
+  async function handleImagePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    setUploadError(null);
+    setUploading(true);
+    const body = new FormData();
+    body.append("file", file);
+    try {
+      const res = await fetch("/api/admin/media/upload", { method: "POST", body });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.url) {
+        setUploadError(data?.error ?? `تعذّر رفع الصورة (رمز ${res.status})`);
+        return;
+      }
+      editor.chain().focus().insertContent({ type: "inlineImage", attrs: { src: data.url, alt: "" } }).run();
+    } catch {
+      setUploadError("تعذّر الاتصال بالخادم أثناء رفع الصورة");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   if (!editor) return null;
 
@@ -122,7 +183,25 @@ export default function RichTextEditor({ value, onChange }: RichTextEditorProps)
         >
           <Ban className="w-3.5 h-3.5" />
         </ToolbarButton>
+
+        <span className="mx-1 h-4 w-px bg-gold/20" />
+
+        <ToolbarButton
+          active={false}
+          title="إضافة صورة داخل الوصف"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
+        </ToolbarButton>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleImagePick}
+          className="hidden"
+        />
       </div>
+      {uploadError && <p className="px-3 pt-2 text-xs text-red-400">{uploadError}</p>}
       <EditorContent editor={editor} />
     </div>
   );
@@ -132,14 +211,17 @@ function ToolbarButton({
   active,
   onClick,
   children,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  title?: string;
 }) {
   return (
     <button
       type="button"
+      title={title}
       onClick={onClick}
       className={cn(
         "p-1.5 rounded transition-colors",

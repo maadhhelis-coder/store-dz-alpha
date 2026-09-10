@@ -52,9 +52,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
     // pb-28/32 السابقة أُزيلت: كانت تحاول تفادي الشريط الثابت من داخل {children}،
     // وهذا مستحيل أصلًا لأن الفوتر شقيق لاحق — فكل ما فعلته هو ترك 128px فراغًا بين
     // الأيقونات وشريط الروابط. التعويض الحقيقي صار على الفوتر نفسه (Footer.tsx).
-    <div className="container-page pt-10 md:pt-14 pb-2 md:pb-3">
+    <div className="container-page pt-3 md:pt-5 pb-2 md:pb-3">
       <JsonLd data={productJsonLd(product)} />
-      <div className="mt-6">
+      <div className="mt-2">
         <ProductDetail
           product={product}
           orderSettings={{
