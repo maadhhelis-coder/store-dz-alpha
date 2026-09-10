@@ -98,13 +98,6 @@ export default function OrderNowButton({
   return (
     <Link
       href={`/products/${product.slug}`}
-      // صفحة المنتج ديناميكية (nonce الـCSP)، والافتراضي لا يجلب مسبقًا إلا حدّ
-      // loading — أي لا شيء هنا — فكل نقرة كانت تنتظر رسمًا كاملًا على الخادم.
-      // prefetch يجلب الحمولة أثناء ظهور الزر فتصير النقلة فورية.
-      // ponytail: كل بطاقة ظاهرة تجلب صفحتها مسبقًا — مقبول بكتالوج صغير (الصفحة
-      // الرئيسية تعرض 8 على الأكثر). لو كبر الكتالوج، انقله إلى prefetch={false}
-      // (جلب عند المرور بالمؤشّر فقط) أو أضف loading.tsx لحدّ جلب أرخص.
-      prefetch
       onClick={() => trackCreativeEvent("cta_click", pageKind, pathname, product.slug)}
       data-testid="order-now-button"
       className={classes}
