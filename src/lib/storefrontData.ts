@@ -79,13 +79,20 @@ export async function getPublishedProducts(): Promise<Product[]> {
   return rows.map(mapProduct);
 }
 
-export async function getPublishedProductBySlug(slug: string): Promise<Product | undefined> {
+// cache(): صفحة المنتج تستدعي هذه الدالة مرتين في كل طلب — مرة من generateMetadata
+// ومرة من المكوّن نفسه — فكانت رحلتان كاملتان إلى القاعدة لنفس الصف بالضبط. الصفحة
+// ديناميكية (nonce الـCSP يفرض ذلك) فلا يوجد أي تخزين مسبق يخفّف هذا، والقاعدة في
+// eu-west-1 فكل رحلة محسوسة عند الضغط على «اطلب الآن». getSiteSettings وgetCategories
+// كانتا مغلَّفتَين أصلًا؛ هذه وحدها لم تكن.
+export const getPublishedProductBySlug = cache(async function getPublishedProductBySlug(
+  slug: string,
+): Promise<Product | undefined> {
   const row = await prisma.product.findFirst({
     where: { slug, isPublished: true },
     ...productWithRelations,
   });
   return row ? mapProduct(row) : undefined;
-}
+});
 
 export const PRODUCTS_PAGE_SIZE = 12;
 

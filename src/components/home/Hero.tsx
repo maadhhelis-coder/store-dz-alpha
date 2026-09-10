@@ -17,14 +17,26 @@ export default function Hero() {
           بلا max-w: حافة-إلى-حافة فعليًا، والزخرفة تلامس حافتي الصفحة كما طُلب.
           فئة .banner-zoom أُزيلت مع قواعدها من globals.css — التصغير كان يعوّض نسبة 3:2
           الطويلة، والنسبة الجديدة تغني عنه. */}
+      {/* الهاتف يبقى على البانر الأصلي 3:2 (طلب صريح: «ارجع صورة التوصيل في الهاتف
+          بنفس المقاس» — نسبة 3:1 صُنعت للحاسوب وحده). ملفّان مختلفان فعليًا لا
+          مقاسان لملف واحد، فلا فائدة من صورة متجاوبة واحدة. */}
       <div className="w-full flex justify-center bg-black">
+        <BrandImage
+          src="/images/banners/delivery-coverage-hero-mobile.png"
+          alt="Store DZ — توصيل إلى 69 ولاية"
+          width={1536}
+          height={1024}
+          priority
+          className="w-full h-auto md:hidden"
+          sizes="100vw"
+        />
         <BrandImage
           src="/images/banners/delivery-coverage-hero.png"
           alt="Store DZ — توصيل إلى 69 ولاية"
           width={2880}
           height={960}
           priority
-          className="w-full h-auto"
+          className="hidden md:block w-full h-auto"
           sizes="100vw"
         />
       </div>
