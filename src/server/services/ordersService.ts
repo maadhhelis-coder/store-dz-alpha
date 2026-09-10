@@ -338,9 +338,12 @@ async function createOrderTransaction(
       }).catch((error) => console.error("tiktok events api error", error)),
     );
     // المخزون نُقص للتوّ، وصفحة المنتج تقرأ من unstable_cache — بلا هذا الإبطال قد
-    // تُظهر «متوفر» لقطعة بيعت. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا
-    // ناجحًا لو نُفِّذت خارج نطاق طلب.
-    revalidateStorefrontProducts();
+    // تُظهر «متوفر» لقطعة بيعت.
+    //
+    // داخل after() كبقية الأعمال الجانبية هنا، لا في مسار الاستجابة: إبطال الوسم
+    // كتابة على مخزن التخزين المؤقّت، ولا يصحّ أن ينتظرها الزبون بعد أن التزمت
+    // معاملته فعلًا. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا ناجحًا.
+    after(() => revalidateStorefrontProducts());
     return finalOrder;
   });
 }
