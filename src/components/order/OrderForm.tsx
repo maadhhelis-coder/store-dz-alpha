@@ -77,6 +77,8 @@ export default function OrderForm({
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [communeManual, setCommuneManual] = useState(false);
   const [step, setStep] = useState<Step>("form");
+  // راجع handleSubmit: حارس النقر المزدوج، ref لا state.
+  const submitInFlight = useRef(false);
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
   const [lastOrder, setLastOrder] = useState<OrderPayload | null>(null);
@@ -230,6 +232,13 @@ export default function OrderForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate() || !selectedWilaya || deliveryPrice === null || !form.deliveryOption) return;
+    // حارس متزامن للإرسال الجاري. setStep("submitting") أدناه حالة React لا تسري
+    // إلا في الرسم التالي، فنقرتان في نفس اللحظة (نقر مزدوج حقيقي) تمرّان معًا
+    // وتُرسلان طلبين: الأول ينجح 201 والثاني يُرفض 409 بالتكرار — وأيّهما يصل
+    // أخيرًا يقرّر ما يراه الزبون، فقد يرى «تعذر إرسال الطلب» بينما طلبه أُنشئ
+    // فعلًا. ref لا state لأنه يتغيّر فورًا بلا انتظار رسم.
+    if (submitInFlight.current) return;
+    submitInFlight.current = true;
 
     const { firstName, lastName } = splitFullName(form.fullName);
     const order: OrderPayload = {
@@ -310,6 +319,10 @@ export default function OrderForm({
     } catch (err) {
       setSubmitError(err instanceof OrderApiError ? err.message : "تعذر إرسال الطلب، حاول من جديد");
       setStep("error");
+    } finally {
+      // يُحرَّر دائمًا: عند الخطأ ليُعيد الزبون المحاولة، وعند النجاح لأن الشاشة
+      // تبدّلت أصلًا فلا زرّ هناك يُنقر.
+      submitInFlight.current = false;
     }
   }
 

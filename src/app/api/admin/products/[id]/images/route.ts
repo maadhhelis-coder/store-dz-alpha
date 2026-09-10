@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/requirePermission";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET, SupabaseConfigError } from "@/lib/supabaseAdminClient";
 import { matchesImageMagicBytes } from "@/lib/validateImageMagicBytes";
 import { prisma } from "@/server/db/prisma";
+import { revalidateStorefrontProducts } from "@/server/services/productsService";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -73,6 +74,9 @@ export async function POST(request: Request, { params }: RouteParams) {
       },
     });
 
+    // الصور تُكتب هنا مباشرة بلا المرور بالخدمة — بلا هذا الإبطال تبقى
+    // صفحة المنتج تعرض النسخة المخزَّنة بلا الصورة الجديدة.
+    revalidateStorefrontProducts();
     return NextResponse.json({ image }, { status: 201 });
   } catch (error) {
     if (error instanceof UnauthorizedError) {

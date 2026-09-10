@@ -1,6 +1,26 @@
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/server/db/prisma";
 import * as productsRepository from "@/server/repositories/productsRepository";
+import { PRODUCTS_TAG } from "@/lib/storefrontData";
 import type { ProductCreateInput, ProductUpdateInput } from "@/lib/validation/productSchema";
+
+// صفحة المنتج تقرأ عبر unstable_cache بوسم PRODUCTS_TAG، فبلا هذا الإبطال يظلّ
+// الزائر يرى النسخة القديمة حتى تنتهي مهلة revalidate. يُستدعى بعد كل كتابة ناجحة
+// — إنشاء وتعديل وحذف — لا في مسار واحد فقط.
+export function revalidateStorefrontProducts() {
+  // Next 16 يطلب profile ثانيًا (كان وسيطًا واحدًا فـ15). "max" = أقصى إبطال:
+  // النسخة المخزَّنة تُعدّ منتهية فورًا فيقرأ الطلب التالي من القاعدة.
+  // updateTag البديلة تعمل داخل Server Actions فقط، وكتاباتنا في Route Handlers.
+  //
+  // try/catch هنا لا فوق كل مستدعٍ: بعض المسارات تُنفَّذ خارج نطاق طلب (مصرّف
+  // صندوق الأحداث مثلًا) وrevalidateTag ترمي هناك. فشل الإبطال يعني بيانات أقدم
+  // بثوانٍ — لا يصحّ أن يُسقط عملية تجارية ناجحة معه.
+  try {
+    revalidateTag(PRODUCTS_TAG, "max");
+  } catch (error) {
+    console.warn("revalidate storefront products skipped", (error as Error).message);
+  }
+}
 
 export class ProductNotFoundError extends Error {
   constructor() {
@@ -32,6 +52,9 @@ export async function createProduct(input: ProductCreateInput) {
       },
       include: { category: true, images: true, variants: true },
     });
+    return product;
+  }).then((product) => {
+    revalidateStorefrontProducts();
     return product;
   });
 }
@@ -74,11 +97,16 @@ export async function updateProduct(id: string, input: ProductUpdateInput) {
       where: { id },
       include: { category: true, images: true, variants: true },
     });
+  }).then((product) => {
+    revalidateStorefrontProducts();
+    return product;
   });
 }
 
 export async function softDeleteProduct(id: string) {
   const existing = await productsRepository.findProductById(id);
   if (!existing) throw new ProductNotFoundError();
-  return productsRepository.softDeleteProduct(id);
+  const deleted = await productsRepository.softDeleteProduct(id);
+  revalidateStorefrontProducts();
+  return deleted;
 }

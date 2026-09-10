@@ -2,6 +2,7 @@
 // (نفس المصدر الذي تديره لوحة التحكم)، بدل الملفات الثابتة القديمة data/products.ts
 // وdata/categories.ts. أي تعديل من /admin ينعكس هنا فورًا لأنه نفس المصدر تمامًا.
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { prisma } from "@/server/db/prisma";
 import type { Prisma } from "@prisma/client";
 import type { Product, ProductBadge, ProductVariant } from "@/data/products";
@@ -84,14 +85,37 @@ export async function getPublishedProducts(): Promise<Product[]> {
 // ديناميكية (nonce الـCSP يفرض ذلك) فلا يوجد أي تخزين مسبق يخفّف هذا، والقاعدة في
 // eu-west-1 فكل رحلة محسوسة عند الضغط على «اطلب الآن». getSiteSettings وgetCategories
 // كانتا مغلَّفتَين أصلًا؛ هذه وحدها لم تكن.
-export const getPublishedProductBySlug = cache(async function getPublishedProductBySlug(
+// طبقتا تخزين لهما دوران مختلفان، وكلاهما ضروري:
+//
+// unstable_cache: يحفظ النتيجة *بين الطلبات*. صفحة المنتج لا يمكن أن تكون ساكنة
+//   (nonce الـCSP يفرض رسمًا لكل طلب)، فرحلة القاعدة كانت تتكرر مع كل زائر. قياس
+//   فعلي على الإنتاج: صفحة ساكنة 0.32s، رحلة قاعدة واحدة 0.54s، صفحة المنتج
+//   0.63–0.77s — أي أن الرحلة وحدها ~0.2s من زمن الاستجابة.
+// cache (React): يوحّد الاستدعاءات المتعددة *داخل الطلب الواحد* — generateMetadata
+//   والصفحة تستدعيانها منفصلتين.
+//
+// الوسم PRODUCTS_TAG يُبطَل عند كل كتابة على المنتجات (راجع productsService)، فلا
+// يرى الزائر بيانات قديمة بعد حفظ من اللوحة. revalidate حدّ أعلى احتياطي فقط.
+export const PRODUCTS_TAG = "storefront-products";
+
+const fetchPublishedProductBySlug = unstable_cache(
+  async (slug: string): Promise<Product | undefined> => {
+    const row = await prisma.product.findFirst({
+      where: { slug, isPublished: true },
+      ...productWithRelations,
+    });
+    return row ? mapProduct(row) : undefined;
+  },
+  ["published-product-by-slug"],
+    // 60 لا 300: المخزون يُنقص مع كل طلب زبون، والإبطال الصريح قد يفشل في مسار
+  // يعمل خارج نطاق طلب. هذا الحدّ يجعل أسوأ حالة تقادمٍ دقيقة واحدة.
+  { tags: [PRODUCTS_TAG], revalidate: 60 },
+);
+
+export const getPublishedProductBySlug = cache(function getPublishedProductBySlug(
   slug: string,
 ): Promise<Product | undefined> {
-  const row = await prisma.product.findFirst({
-    where: { slug, isPublished: true },
-    ...productWithRelations,
-  });
-  return row ? mapProduct(row) : undefined;
+  return fetchPublishedProductBySlug(slug);
 });
 
 export const PRODUCTS_PAGE_SIZE = 12;

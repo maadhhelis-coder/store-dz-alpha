@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { prisma } from "@/server/db/prisma";
+import { revalidateStorefrontProducts } from "@/server/services/productsService";
 import * as ordersRepository from "@/server/repositories/ordersRepository";
 import { findWilayaByCode } from "@/server/repositories/wilayasRepository";
 import { fireWebhookEvent } from "@/server/services/webhooksService";
@@ -336,6 +337,13 @@ async function createOrderTransaction(
         phone: finalOrder.phone,
       }).catch((error) => console.error("tiktok events api error", error)),
     );
+    // المخزون نُقص للتوّ، وصفحة المنتج تقرأ من unstable_cache — بلا هذا الإبطال قد
+    // تُظهر «متوفر» لقطعة بيعت.
+    //
+    // داخل after() كبقية الأعمال الجانبية هنا، لا في مسار الاستجابة: إبطال الوسم
+    // كتابة على مخزن التخزين المؤقّت، ولا يصحّ أن ينتظرها الزبون بعد أن التزمت
+    // معاملته فعلًا. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا ناجحًا.
+    after(() => revalidateStorefrontProducts());
     return finalOrder;
   });
 }
