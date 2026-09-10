@@ -38,21 +38,24 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
 
         {hasMany && (
           <>
+            {/* left/right فيزيائية لا start/end منطقية: هذه الأخيرة تنقلب لو
+                حُلّ اتجاه الصفحة LTR عند متصفح ما (إضافة ترجمة مثلًا) فيصير
+                الأيسر يرجع للخلف. والاتجاه المطلوب عربيّ: اليمين = التالية. */}
             <button
               type="button"
               onClick={() => step(-1)}
               aria-label="الصورة السابقة"
-              className="absolute start-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
+              className="absolute left-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
             >
-              <ChevronRight className="h-5 w-5" />
+              <ChevronLeft className="h-5 w-5" />
             </button>
             <button
               type="button"
               onClick={() => step(1)}
               aria-label="الصورة التالية"
-              className="absolute end-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
+              className="absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <ChevronRight className="h-5 w-5" />
             </button>
           </>
         )}

@@ -20,12 +20,15 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         href={`/products/${product.slug}`}
         className="relative block aspect-square overflow-hidden bg-ink"
       >
+        {/* p-3 على الصورة نفسها لا على الحاوية: مع fill تُطابق الصورة الحاوية
+            بالكامل (inset-0) فلا تُزيحها حشوة الأب — أما حشوة الصورة فتُصغّر
+            صندوق محتواها فيبتعد طرفها عن حافة الإطار. */}
         <BrandImage
           src={product.images[0]}
           alt={`${product.name} — Store DZ`}
           fill
           priority={priority}
-          className="object-contain transition-transform duration-300 group-hover:scale-105"
+          className="object-contain p-3 transition-transform duration-300 group-hover:scale-105"
           sizes="(max-width: 768px) 50vw, 25vw"
         />
         {product.badge && (

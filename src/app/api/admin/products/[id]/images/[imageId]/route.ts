@@ -3,6 +3,7 @@ import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
 import { requirePermission } from "@/lib/auth/requirePermission";
 import { getSupabaseAdmin, PRODUCT_IMAGES_BUCKET, SupabaseConfigError } from "@/lib/supabaseAdminClient";
 import { prisma } from "@/server/db/prisma";
+import { revalidateStorefrontProducts } from "@/server/services/productsService";
 
 type RouteParams = { params: Promise<{ id: string; imageId: string }> };
 
@@ -42,6 +43,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     const { imageId } = await params;
 
     const image = await prisma.productImage.delete({ where: { id: imageId } });
+    revalidateStorefrontProducts();
 
     // نحذف الملف الفعلي من التخزين أيضًا — بلا هذا يبقى يتيمًا للأبد (تكلفة تخزين متراكمة
     // بلا فائدة). نستخرج المسار الداخلي من الرابط العام (كل ما بعد /public/<bucket>/).
