@@ -5,6 +5,7 @@ import OrderForm from "@/components/order/OrderForm";
 import OrderNowButton from "@/components/order/OrderNowButton";
 import TrustIconsRow from "@/components/trust/TrustIconsRow";
 import CreativeViewTracker from "@/components/tracking/CreativeViewTracker";
+import ScrollToTopOnMount from "@/components/shared/ScrollToTopOnMount";
 import type { Product } from "@/data/products";
 import { formatPrice } from "@/lib/format";
 
@@ -24,6 +25,8 @@ export default function ProductDetail({ product, orderSettings }: ProductDetailP
 
   return (
     <div>
+      {/* الصفحة تبدأ من أعلاها فيظهر الهيدر وشريط «منتجات تختارها بثقة» (طلب صريح) */}
+      <ScrollToTopOnMount />
       <CreativeViewTracker
         pageKind="product"
         productSlug={product.slug}
