@@ -15,17 +15,17 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
   const activeImage = images[activeIndex] ?? images[0];
   const hasMany = images.length > 1;
 
-  // الإطار 4:3 والصورة object-contain (طلب صريح: السهمان «ميكونش يغطو صورة المنتج
-  // او جزء منها»). صور المنتج مربّعة 1:1، فتملأ ارتفاع الإطار ويبقى على كل جانب
-  // فراغ = سُدس العرض تقريبًا — وهو بالضبط مكان السهمين. object-cover هنا كان
-  // يقصّ أعلى الصورة وأسفلها.
   function step(delta: 1 | -1) {
     setActiveIndex((i) => (i + delta + images.length) % images.length);
   }
 
   return (
-    <div>
-      <div className="relative aspect-[4/3] rounded-2xl overflow-hidden gold-border">
+    // الإطار المستطيلي: يضمّ الإطار المربّع والمصغّرات معًا (طلب صريح).
+    <div className="rounded-2xl gold-border bg-ink p-3 md:p-4">
+      {/* الإطار المربّع. object-contain لا cover: صور المنتج طولية (3:4) فالقصّ
+          إلى مربّع يبتر أعلاها وأسفلها. الفراغ الجانبي الناتج هو بالضبط مكان
+          السهمين، فلا يغطّيان الصورة ولا جزءًا منها. */}
+      <div className="relative aspect-square overflow-hidden rounded-xl gold-border bg-black">
         <BrandImage
           src={activeImage}
           alt={`${productName} — Store DZ`}
@@ -41,7 +41,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
               type="button"
               onClick={() => step(-1)}
               aria-label="الصورة السابقة"
-              className="absolute start-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold hover:bg-black/90 transition-colors"
+              className="absolute start-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -49,7 +49,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
               type="button"
               onClick={() => step(1)}
               aria-label="الصورة التالية"
-              className="absolute end-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold hover:bg-black/90 transition-colors"
+              className="absolute end-1 top-1/2 -translate-y-1/2 rounded-full bg-black/70 p-2 text-gold transition-colors hover:bg-black/90"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
@@ -58,10 +58,10 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
       </div>
 
       {hasMany && (
-        // كلها واضحة دائمًا: opacity-70 على غير النشطة أُزيلت (طلب صريح — «اريدهم
-        // كلهم واضحين»). أكبر (80px بدل 64) وsizes أوسع من المقاس المعروض حتى
-        // تُقدَّم نسخة كثيفة على شاشات 2× فلا تظهر ضبابية.
-        <div className="flex flex-wrap gap-3 mt-4">
+        // مربّعات كبيرة داخل الإطار المستطيلي نفسه. grid لا flex: أربعة أعمدة
+        // متساوية تملأ العرض المتاح مهما كان عدد الصور، فتكبر المصغّرة مع الإطار
+        // بدل مقاس ثابت. كلها واضحة دائمًا — لا تعتيم على غير النشطة.
+        <div className="mt-3 grid grid-cols-4 gap-2 md:gap-3">
           {images.map((image, index) => (
             <button
               key={image}
@@ -70,7 +70,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
               aria-label={`صورة ${index + 1} من ${productName}`}
               aria-current={index === activeIndex}
               className={cn(
-                "relative w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors",
+                "relative aspect-square overflow-hidden rounded-lg border-2 transition-colors",
                 index === activeIndex ? "border-gold" : "border-gold/25 hover:border-gold/60",
               )}
             >
@@ -79,7 +79,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
                 alt={`${productName} — صورة ${index + 1}`}
                 fill
                 className="object-cover"
-                sizes="160px"
+                sizes="(max-width: 768px) 25vw, 160px"
               />
             </button>
           ))}

@@ -17,6 +17,11 @@ export const categoryCreateSchema = z.object({
 
 export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>;
 
-export const categoryUpdateSchema = categoryCreateSchema.partial();
+// التحديث جزئي فعلًا: الحقل الغائب يعني «لا تلمسه». `.partial()` وحدها لا تكفي —
+// تُبقي ZodDefault داخل ZodOptional فيصل الافتراضي للخادم رغم غياب المفتاح، فيُصفَّر
+// حقل لم يرسله أحد. (نفس الفخّ محا صور المنتجات فعليًا — راجع productSchema.ts.)
+export const categoryUpdateSchema = categoryCreateSchema.partial().extend({
+  sortOrder: z.number().int().min(0).optional(),
+});
 
 export type CategoryUpdateInput = z.infer<typeof categoryUpdateSchema>;

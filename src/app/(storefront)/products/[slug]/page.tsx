@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import JsonLd from "@/components/shared/JsonLd";
 import ProductDetail from "@/components/commerce/ProductDetail";
 import RelatedProducts from "@/components/commerce/RelatedProducts";
+import type { Product } from "@/data/products";
 import { getPublishedProductBySlug, getRelatedProducts } from "@/lib/storefrontData";
 import { buildMetadata, productJsonLd } from "@/lib/seo";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
@@ -40,10 +42,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getPublishedProductBySlug(slug);
   if (!product) notFound();
 
-  const [related, settings] = await Promise.all([
-    getRelatedProducts(product),
-    getSiteSettings(),
-  ]);
+  // getSiteSettings مُغلَّفة بـcache() ويستدعيها الـlayout أيضًا، فهذه ليست رحلة
+  // إضافية إلى القاعدة. getRelatedProducts كانت الرحلة الثانية وكانت تحجز أول بايت
+  // لقسم يقع في آخر الصفحة — نُقلت إلى Suspense فصار الرسم موجة واحدة.
+  const settings = await getSiteSettings();
 
   // حشو سفلي يقابل الشريط الثابت أسفل الصفحة فلا يغطي آخر المحتوى
   return (
@@ -62,7 +64,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
           }}
         />
       </div>
-      <RelatedProducts products={related} />
+      <Suspense fallback={null}>
+        <RelatedProductsSection product={product} />
+      </Suspense>
     </div>
   );
+}
+
+// قياس فعلي على الإنتاج قبل هذا الفصل: صفحة ساكنة 0.32s، رحلة قاعدة واحدة 0.54s،
+// صفحة المنتج 0.81–1.05s — أي موجتين متتاليتين. هذا المكوّن يجعل الموجة الثانية
+// تتدفّق بعد أول بايت بدل أن تسبقه. نفس نمط ProductsPreview فالصفحة الرئيسية.
+async function RelatedProductsSection({ product }: { product: Product }) {
+  const related = await getRelatedProducts(product);
+  return <RelatedProducts products={related} />;
 }

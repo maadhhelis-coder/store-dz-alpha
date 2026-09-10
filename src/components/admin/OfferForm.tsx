@@ -29,6 +29,9 @@ export default function OfferForm({ mode, products, initialOffer }: OfferFormPro
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // الحفظ الناجح لم يكن يعرض شيئًا: router.refresh() يعيد رسم القيم نفسها فيبدو
+  // الزر بلا أثر. نفس ما أُصلح في ProductForm.
+  const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const offerProduct = products.find((p) => p.id === offerProductId);
@@ -50,6 +53,7 @@ export default function OfferForm({ mode, products, initialOffer }: OfferFormPro
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaved(false);
 
     if (sameProduct) {
       setError("يجب أن يكون منتج العرض مختلفًا عن المنتج الأساسي");
@@ -72,16 +76,18 @@ export default function OfferForm({ mode, products, initialOffer }: OfferFormPro
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      // res.json() بلا حماية كان يرمي عند أي ردّ ليس JSON فيسقط الحفظ صامتًا
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data.error ?? "حدث خطأ غير متوقع");
+      if (!res.ok || !data?.offer) {
+        setError(data?.error ?? `تعذّر الحفظ (رمز ${res.status})`);
         return;
       }
 
       if (mode === "create") {
         router.push(`/admin/offers/${data.offer.id}`);
       } else {
+        setSaved(true);
         router.refresh();
       }
     } catch {
@@ -160,6 +166,11 @@ export default function OfferForm({ mode, products, initialOffer }: OfferFormPro
       </div>
 
       {error && <p className="text-xs text-red-400 px-1 mt-3">{error}</p>}
+      {saved && !error && (
+        <p className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-400">
+          تم حفظ التغييرات
+        </p>
+      )}
 
       <button
         type="submit"
