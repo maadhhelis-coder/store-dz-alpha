@@ -22,10 +22,11 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
   return (
     // الإطار المستطيلي: يضمّ الإطار المربّع والمصغّرات معًا (طلب صريح).
     <div className="rounded-2xl gold-border bg-ink p-3 md:p-4">
-      {/* الإطار المربّع. object-contain لا cover: صور المنتج طولية (3:4) فالقصّ
-          إلى مربّع يبتر أعلاها وأسفلها. الفراغ الجانبي الناتج هو بالضبط مكان
-          السهمين، فلا يغطّيان الصورة ولا جزءًا منها. */}
-      <div className="relative aspect-square overflow-hidden rounded-xl gold-border bg-black">
+      {/* بلا حدّ ذهبي وبلا خلفية مغايرة (طلب صريح: «الإطار يكون بالصورة كامل»):
+          الحاوية شفافة فوق خلفية الإطار المستطيلي نفسها فلا تُرى لها حافة —
+          المرئي هو الصورة وحدها. object-contain يُبقيها كاملة بلا قصّ، والفراغ
+          الجانبي غير المرئي الناتج هو بالضبط مكان السهمين فلا يغطّيان شيئًا. */}
+      <div className="relative aspect-square overflow-hidden rounded-xl">
         <BrandImage
           src={activeImage}
           alt={`${productName} — Store DZ`}
@@ -58,10 +59,9 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
       </div>
 
       {hasMany && (
-        // مربّعات كبيرة داخل الإطار المستطيلي نفسه. grid لا flex: أربعة أعمدة
-        // متساوية تملأ العرض المتاح مهما كان عدد الصور، فتكبر المصغّرة مع الإطار
-        // بدل مقاس ثابت. كلها واضحة دائمًا — لا تعتيم على غير النشطة.
-        <div className="mt-3 grid grid-cols-4 gap-2 md:gap-3">
+        // أصغر قليلًا من ملء العرض (طلب صريح) ومتوسّطة: مقاس ثابت بـflex بدل
+        // أعمدة تتمدّد. كلها واضحة دائمًا — لا تعتيم على غير النشطة.
+        <div className="mt-3 flex flex-wrap justify-center gap-2 md:gap-3">
           {images.map((image, index) => (
             <button
               key={image}
@@ -70,7 +70,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
               aria-label={`صورة ${index + 1} من ${productName}`}
               aria-current={index === activeIndex}
               className={cn(
-                "relative aspect-square overflow-hidden rounded-lg border-2 transition-colors",
+                "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors sm:h-20 sm:w-20 md:h-24 md:w-24",
                 index === activeIndex ? "border-gold" : "border-gold/25 hover:border-gold/60",
               )}
             >
@@ -78,8 +78,9 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
                 src={image}
                 alt={`${productName} — صورة ${index + 1}`}
                 fill
-                className="object-cover"
-                sizes="(max-width: 768px) 25vw, 160px"
+                // contain لا cover: القصّ كان يخفي أطراف الصورة فتبدو «مغطّاة»
+                className="object-contain"
+                sizes="(max-width: 768px) 96px, 192px"
               />
             </button>
           ))}
