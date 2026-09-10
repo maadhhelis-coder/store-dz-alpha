@@ -35,6 +35,9 @@ export default function FunnelForm({ mode, products, initialFunnel }: FunnelForm
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // الحفظ الناجح لم يكن يعرض شيئًا: router.refresh() يعيد رسم القيم نفسها فيبدو
+  // الزر بلا أثر. نفس ما أُصلح في ProductForm.
+  const [saved, setSaved] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const selectedProduct = products.find((p) => p.id === productId);
@@ -77,6 +80,7 @@ export default function FunnelForm({ mode, products, initialFunnel }: FunnelForm
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSaved(false);
     setSaving(true);
 
     const payload = {
@@ -101,16 +105,18 @@ export default function FunnelForm({ mode, products, initialFunnel }: FunnelForm
           body: JSON.stringify(payload),
         },
       );
-      const data = await res.json();
+      // res.json() بلا حماية كان يرمي عند أي ردّ ليس JSON فيسقط الحفظ صامتًا
+      const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(data.error ?? "حدث خطأ غير متوقع");
+      if (!res.ok || !data?.funnel) {
+        setError(data?.error ?? `تعذّر الحفظ (رمز ${res.status})`);
         return;
       }
 
       if (mode === "create") {
         router.push(`/admin/funnels/${data.funnel.id}`);
       } else {
+        setSaved(true);
         router.refresh();
       }
     } catch {
@@ -277,6 +283,11 @@ export default function FunnelForm({ mode, products, initialFunnel }: FunnelForm
         </div>
 
         {error && <p className="text-xs text-red-400 px-1">{error}</p>}
+      {saved && !error && (
+        <p className="mt-3 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-xs text-green-400">
+          تم حفظ التغييرات
+        </p>
+      )}
 
         <button
           type="submit"

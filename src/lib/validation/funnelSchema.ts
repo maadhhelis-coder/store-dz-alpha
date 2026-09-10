@@ -17,6 +17,14 @@ export const funnelCreateSchema = z.object({
 
 export type FunnelCreateInput = z.infer<typeof funnelCreateSchema>;
 
-export const funnelUpdateSchema = funnelCreateSchema.partial();
+// التحديث جزئي فعلًا: الحقل الغائب يعني «لا تلمسه». `.partial()` وحدها لا تكفي —
+// تُبقي ZodDefault داخل ZodOptional فيصل الافتراضي للخادم رغم غياب المفتاح، فيُصفَّر
+// حقل لم يرسله أحد. (نفس الفخّ محا صور المنتجات فعليًا — راجع productSchema.ts.)
+export const funnelUpdateSchema = funnelCreateSchema.partial().extend({
+  pageType: z.enum(["funnel", "product_page"]).optional(),
+  bullets: z.array(z.string().trim().min(1).max(200)).max(10).optional(),
+  ctaText: z.string().trim().min(1).max(50).optional(),
+  isPublished: z.boolean().optional(),
+});
 
 export type FunnelUpdateInput = z.infer<typeof funnelUpdateSchema>;

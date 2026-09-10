@@ -45,7 +45,15 @@ function buildCspHeader(nonce: string): string {
     "connect-src 'self' https://*.facebook.com https://www.google-analytics.com https://analytics.google.com https://analytics.tiktok.com https://*.tiktokw.us https://tr.snapchat.com https://sc-static.net https://*.supabase.co wss://*.supabase.co https://script.google.com https://script.googleusercontent.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    // بكسل Meta له مسار احتياطي يستعمله حين يحجب المتصفح كوكيز الطرف الثالث:
+    // إطار مخفي نحو www.facebook.com يُرسَل إليه حدث عبر <form> إلى /tr/. كان
+    // محجوبًا فعليًا برسالتين صريحتين فConsole الإنتاج:
+    //   "Sending form data to 'https://www.facebook.com/tr/' violates ... form-action 'self'"
+    //   "Framing 'https://www.facebook.com/' violates ... default-src 'self'"
+    // فتنقص جودة المطابقة على تلك المتصفحات. النطاق مُدرَج صراحةً بمضيف واحد لا
+    // wildcard، وهو نفس المضيف المسموح أصلًا فـconnect-src.
+    "frame-src 'self' https://www.facebook.com",
+    "form-action 'self' https://www.facebook.com",
   ].join("; ");
 }
 

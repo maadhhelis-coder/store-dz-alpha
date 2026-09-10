@@ -23,14 +23,20 @@ const FALLBACK_SRC =
 type BrandImageProps = Omit<ImageProps, "onError">;
 
 export default function BrandImage({ src, alt, ...props }: BrandImageProps) {
-  const [imgSrc, setImgSrc] = useState(src);
+  // نحفظ *أي* مصدر فشل، لا المصدر المعروض. الفرق ليس تجميليًا:
+  // `useState(src)` السابقة كانت تشتقّ الحالة من الخاصية عند أول رسم ثم لا تُزامنها
+  // أبدًا، فأي تغيير لـsrc بعد ذلك يُتجاهَل. أثره الفعلي: معرض المنتج كان يبدّل
+  // الصورة في حالته بينما تبقى الصورة المعروضة أول صورة إلى الأبد — فبدا السهمان
+  // والمصغّرات وكأنها «لا تعمل». بهذه الصيغة تُقارَن الخاصية بالمصدر الفاشل، فتغيّر
+  // src يعرض الجديد فورًا بلا useEffect ولا key عند كل مستدعٍ.
+  const [failedSrc, setFailedSrc] = useState<ImageProps["src"] | null>(null);
 
   return (
     <Image
       {...props}
-      src={imgSrc}
+      src={failedSrc === src ? FALLBACK_SRC : src}
       alt={alt}
-      onError={() => setImgSrc(FALLBACK_SRC)}
+      onError={() => setFailedSrc(src)}
     />
   );
 }
