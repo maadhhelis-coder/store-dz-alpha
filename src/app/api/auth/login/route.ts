@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loginSchema } from "@/lib/validation/authSchema";
 import { loginAdmin, InvalidCredentialsError } from "@/server/services/authService";
 import { checkLoginRateLimit } from "@/server/services/rateLimitService";
+import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import { getClientIp } from "@/lib/getClientIp";
 
 export async function POST(request: Request) {
@@ -17,6 +18,15 @@ export async function POST(request: Request) {
 
   const rateLimit = await checkLoginRateLimit(getClientIp(request), parsed.data.email);
   if (!rateLimit.allowed) {
+    // «محاولات تسجيل دخول مشبوهة» فتبويب الإشعارات — تنبيه واحد مفتوح لكل بريد
+    // مستهدف (لا واحد لكل محاولة)، ولا ينتظره الرد ولا يرمي.
+    void raiseSystemAlertOnce({
+      type: "login_rate_limited",
+      severity: "high",
+      entityType: "admin_login",
+      entityId: parsed.data.email.trim().toLowerCase(),
+      message: `محاولات دخول كثيرة فاشلة على حساب ${parsed.data.email.trim().toLowerCase()} — تم حظرها مؤقتًا`,
+    });
     return NextResponse.json({ error: rateLimit.reason }, { status: 429 });
   }
 

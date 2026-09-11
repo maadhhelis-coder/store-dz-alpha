@@ -7,7 +7,7 @@ import {
   trackRateLimitByIp,
 } from "@/lib/rateLimit/upstash";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
-import { prisma } from "@/server/db/prisma";
+import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
 
 export type RateLimitResult = { allowed: true } | { allowed: false; reason: string };
 
@@ -35,25 +35,14 @@ async function safeRateLimit(limiterName: string, check: () => Promise<RateLimit
         timestamp: new Date().toISOString(),
       }),
     );
-    // best-effort فقط — تنبيه معطّل (قاعدة البيانات نفسها قد تكون سبب العطل) يجب ألا
-    // يُسقط الفشل المفتوح الذي هو الغرض الأساسي من هذه الدالة.
-    void prisma.systemAlert
-      .create({
-        data: {
-          type: "rate_limit_fail_open",
-          message: `تعطّل نظام تحديد المعدل (${limiterName}) — تم السماح بالطلب بلا تقييد`,
-          metadata: { limiter: limiterName, error: errorMessage },
-        },
-      })
-      .catch((persistError) => {
-        console.error(
-          JSON.stringify({
-            event: "system_alert_persist_failed",
-            error: persistError instanceof Error ? persistError.message : String(persistError),
-            timestamp: new Date().toISOString(),
-          }),
-        );
-      });
+    // best-effort فقط — raiseSystemAlert لا يرمي أبدًا (قاعدة البيانات نفسها قد تكون
+    // سبب العطل)، ويُخطر صاحب المتجر عبر «إشعارات النظام».
+    void raiseSystemAlert({
+      type: "rate_limit_fail_open",
+      severity: "high",
+      message: `تعطّل نظام تحديد المعدل (${limiterName}) — تم السماح بالطلب بلا تقييد`,
+      metadata: { limiter: limiterName, error: errorMessage },
+    });
     return { allowed: true };
   }
 }

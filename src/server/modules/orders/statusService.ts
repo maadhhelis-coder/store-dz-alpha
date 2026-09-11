@@ -1,4 +1,6 @@
 import { runAfterResponse } from "@/lib/afterResponse";
+import { notifyOwner } from "@/lib/ownerNotify";
+import { ORDER_STATUS_META } from "@/lib/orderStatus";
 import { prisma } from "@/server/db/prisma";
 import * as ordersRepository from "@/server/repositories/ordersRepository";
 import { writeAuditInTx } from "@/server/services/auditService";
@@ -256,6 +258,13 @@ function finalizeStatusSideEffects(existing: OrderWithItems, updated: OrderWithI
     previousStatus: existing.status,
     status: updated.status,
   });
+
+  runAfterResponse("owner status notification", () =>
+    notifyOwner(
+      "orders",
+      `🔄 ${updated.orderNumber} — ${updated.customerFirstName} ${updated.customerLastName}\n${ORDER_STATUS_META[existing.status].label} ← ${ORDER_STATUS_META[updated.status].label}`,
+    ),
+  );
 
   // حالات الناقل لا ترسل أحداث تحويل إعلاني — الإعلان يُرسل عند التأكيد والتسليم فقط
   if (!isCarrierDrivenStatus(updated.status) && updated.status !== "returned") {

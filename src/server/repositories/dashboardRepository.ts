@@ -1,3 +1,4 @@
+import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
 import { prisma } from "@/server/db/prisma";
 import { getKpis, getCpaLast30Days } from "@/server/repositories/analyticsRepository";
 
@@ -18,7 +19,7 @@ export async function getDashboardStats() {
       where: { createdAt: { gte: startOfWeek }, status: { in: [...revenueStatuses] } },
       _sum: { totalDzd: true },
     }),
-    prisma.product.count({ where: { isPublished: true, inventoryCount: { lte: 5 } } }),
+    prisma.product.count({ where: { isPublished: true, inventoryCount: { lte: LOW_STOCK_THRESHOLD } } }),
   ]);
 
   // آخر 30 يومًا — يعيد استعمال نفس منطق صفحة التحليلات (راجع analyticsRepository) بدل

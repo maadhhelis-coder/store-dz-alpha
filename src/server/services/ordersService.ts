@@ -12,6 +12,10 @@ import { matchOrCreateCustomerInTx } from "@/server/modules/customers/identitySe
 import { createOutboxEvent, transitionOrderStatus } from "@/server/modules/orders/statusService";
 import { Prisma } from "@prisma/client";
 import type { OrderStatus } from "@prisma/client";
+import { notifyOwner } from "@/lib/ownerNotify";
+import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
+import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
+import { formatPrice } from "@/lib/format";
 
 export { InvalidCouponError };
 
@@ -344,8 +348,39 @@ async function createOrderTransaction(
     // كتابة على مخزن التخزين المؤقّت، ولا يصحّ أن ينتظرها الزبون بعد أن التزمت
     // معاملته فعلًا. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا ناجحًا.
     after(() => revalidateStorefrontProducts());
+    // إشعار صاحب المتجر (تبويب الإشعارات → «إشعارات الطلبيات») + تنبيه مخزون منخفض
+    // بعد الخصم — كلاهما بعد الرد، ولا يرمي أي منهما.
+    after(() =>
+      notifyOwner(
+        "orders",
+        [
+          `🛒 طلب جديد ${finalOrder.orderNumber}`,
+          `${finalOrder.customerFirstName} ${finalOrder.customerLastName} — ${finalOrder.phone}`,
+          `${finalOrder.wilayaName} · ${finalOrder.commune}`,
+          ...finalOrder.items.map((i) => `• ${i.productNameSnapshot}${i.variantLabelSnapshot ? ` (${i.variantLabelSnapshot})` : ""} ×${i.quantity}`),
+          `المجموع: ${formatPrice(finalOrder.totalDzd)}`,
+        ].join("\n"),
+      ),
+    );
+    after(() => raiseLowStockAlerts(finalOrder.items.flatMap((i) => (i.productId ? [i.productId] : []))));
     return finalOrder;
   });
+}
+
+async function raiseLowStockAlerts(productIds: string[]) {
+  const low = await prisma.product.findMany({
+    where: { id: { in: productIds }, isPublished: true, inventoryCount: { lte: LOW_STOCK_THRESHOLD } },
+    select: { id: true, name: true, inventoryCount: true },
+  });
+  for (const p of low) {
+    await raiseSystemAlertOnce({
+      type: "low_stock",
+      severity: p.inventoryCount === 0 ? "high" : "medium",
+      entityType: "product",
+      entityId: p.id,
+      message: p.inventoryCount === 0 ? `نفد مخزون «${p.name}»` : `مخزون «${p.name}» منخفض: بقي ${p.inventoryCount}`,
+    });
+  }
 }
 
 export function listOrders(params: ordersRepository.ListOrdersParams) {
