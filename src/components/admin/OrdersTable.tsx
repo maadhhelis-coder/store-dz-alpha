@@ -19,9 +19,10 @@ export default function OrdersTable() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  // الافتراضي "pending" — الطلبات الجديدة التي تحتاج تأكيد، بدل عرض كل الحالات مختلطة
-  // (بما فيها المؤكَّدة والملغاة) عند فتح الصفحة لأول مرة.
-  const [status, setStatus] = useState<OrderStatus | "">("pending");
+  // الافتراضي كل الحالات (الأحدث أولًا): بوت واتساب يؤكد الطلبات تلقائيًا خلال دقائق،
+  // فمرشّح "pending" الافتراضي السابق كان يُخفي الطلب المؤكَّد للتو — صاحب المتجر فتح
+  // الصفحة ولم يجد طلبه (اكتُشف فعليًا 2026-09-11). المرشّح يبقى متاحًا يدويًا.
+  const [status, setStatus] = useState<OrderStatus | "">("");
   const [wilayaCode, setWilayaCode] = useState<string>("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
