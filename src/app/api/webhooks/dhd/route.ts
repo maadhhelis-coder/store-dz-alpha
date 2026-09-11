@@ -19,8 +19,22 @@ export const maxDuration = 15;
 export async function POST(request: Request) {
   const rawBody = await request.text();
 
-  if (!verifyDhdWebhookSignature(rawBody, request.headers.get("signature"))) {
-    return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+  const signatureHeader = request.headers.get("signature");
+  if (!verifyDhdWebhookSignature(rawBody, signatureHeader)) {
+    // تشخيص بلا أسرار: يفرّق بين «DHD لا يرسل توقيعًا أصلًا» (السر غير محفوظ عندهم)
+    // و«السرّان مختلفان» — 401 صامت كان يُخفي الفرق (ظلّ مجهولًا من 22 أوت حتى 11 سبتمبر).
+    console.error(
+      JSON.stringify({
+        event: "dhd_webhook_rejected",
+        reason: signatureHeader ? "signature_mismatch" : "signature_header_missing",
+        secretConfigured: Boolean(process.env.DHD_WEBHOOK_SECRET),
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    return NextResponse.json(
+      { error: signatureHeader ? "توقيع غير صحيح — السرّ مختلف بين DHD والمتجر" : "بلا توقيع — السرّ غير محفوظ في إعدادات DHD" },
+      { status: 401 },
+    );
   }
 
   let payload: unknown;
