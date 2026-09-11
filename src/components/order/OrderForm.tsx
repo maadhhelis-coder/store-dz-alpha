@@ -8,6 +8,7 @@ import type { Product } from "@/data/products";
 import type { DeliveryOption } from "@/data/delivery";
 import { communesByWilaya } from "@/data/communes";
 import { formatPrice } from "@/lib/format";
+import { normalizeAlgerianPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { Field, inputClass as baseInputClass } from "@/components/shared/FormField";
 import { buildWhatsAppUrl } from "@/lib/whatsapp";
@@ -136,7 +137,7 @@ export default function OrderForm({
       captureAbandonedLead({
         firstName: firstName || undefined,
         lastName: lastName || undefined,
-        phone: form.phone.trim() || undefined,
+        phone: normalizeAlgerianPhone(form.phone) ?? (form.phone.trim() || undefined),
         wilayaCode: form.wilayaCode ? Number(form.wilayaCode) : undefined,
         commune: form.commune.trim() || undefined,
         address: form.address.trim() || undefined,
@@ -209,7 +210,10 @@ export default function OrderForm({
     const { firstName, lastName } = splitFullName(form.fullName);
     if (!firstName) next.fullName = "الاسم واللقب مطلوبان";
     else if (!lastName) next.fullName = "اكتب الاسم واللقب معًا";
-    if (!/^0[5-7][0-9]{8}$/.test(form.phone.trim())) {
+    // التطبيع قبل التحقق: الزبون يكتب «0550 12 34 56» أو «+213 550…» كما يراه في
+    // هاتفه — والنمط الصارم وحده كان يرفض ذلك ويُضيّع البيعة. المطبِّع هو مصدر
+    // الحقيقة الوحيد للأرقام الجزائرية في المشروع (راجع lib/phone.ts).
+    if (normalizeAlgerianPhone(form.phone) === null) {
       next.phone = "رقم هاتف غير صحيح (مثال: 0550123456)";
     }
     if (!form.wilayaCode) next.wilayaCode = "اختر الولاية";
@@ -244,7 +248,7 @@ export default function OrderForm({
     const order: OrderPayload = {
       firstName,
       lastName,
-      phone: form.phone.trim(),
+      phone: normalizeAlgerianPhone(form.phone) ?? form.phone.trim(),
       wilayaCode: selectedWilaya.code,
       wilayaName: selectedWilaya.name,
       commune: form.commune.trim(),

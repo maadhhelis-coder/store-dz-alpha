@@ -111,7 +111,11 @@ export default function RichTextEditor({ value, onChange }: RichTextEditorProps)
         setUploadError(data?.error ?? `تعذّر رفع الصورة (رمز ${res.status})`);
         return;
       }
-      editor.chain().focus().insertContent({ type: "inlineImage", attrs: { src: data.url, alt: "" } }).run();
+      // alt من اسم الملف (بلا الامتداد) لا نصّ فارغ: الرابط المرفوع UUID لا يدلّ على
+      // شيء، أما اسم الملف عند صاحب المتجر («فلتر-قبل-وبعد.jpg») فوصف حقيقي — يفيد
+      // محرّكات البحث وقارئات الشاشة بلا أن يكتبه أحد يدويًا.
+      const alt = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ").trim();
+      editor.chain().focus().insertContent({ type: "inlineImage", attrs: { src: data.url, alt } }).run();
     } catch {
       setUploadError("تعذّر الاتصال بالخادم أثناء رفع الصورة");
     } finally {
