@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WebhookEvent } from "@prisma/client";
 
 // حماية SSRF أساسية — تمنع تسجيل webhook يستهدف عناوين داخلية/loopback صراحة عبر اسم
 // المضيف الحرفي في الرابط. ليست حماية كاملة (لا تحل DNS فعليًا، فتُخدَع بإعادة توجيه أو
@@ -41,7 +42,10 @@ export const webhookCreateSchema = z.object({
         return false;
       }
     }, "لا يمكن استعمال رابط يشير لعنوان داخلي/محلي"),
-  events: z.array(z.enum(["order_created", "order_status_changed"])).min(1),
+  // القائمة من Prisma مباشرة لا نسخة يدوية: courier_status_changed أُضيف للـenum والواجهة
+  // لكن نُسي هنا، فكان تعليم هذا الحدث فلوحة التحكم يُرفَض بـ«بيانات غير صحيحة» (اكتُشف
+  // فعليًا 2026-09-11 أثناء إعادة إنشاء webhook بوت واتساب).
+  events: z.array(z.enum(WebhookEvent)).min(1),
 });
 
 export type WebhookCreateInput = z.infer<typeof webhookCreateSchema>;

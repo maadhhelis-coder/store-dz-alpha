@@ -119,8 +119,12 @@ test.describe("منع الطلبات المكررة (Idempotency)", () => {
     const submitButton = page.getByTestId("order-submit");
     // شريط «اطلب الآن» ثابت أسفل الصفحة — نُوسّط الزر أولًا فلا تعترضه النقرة
     await submitButton.evaluate((el) => el.scrollIntoView({ block: "center" }));
-    // نقران بلا انتظار أحدهما الآخر — محاكاة نقر مزدوج حقيقي أسرع من إعادة رسم الواجهة.
-    await Promise.all([submitButton.click({ force: true }), submitButton.click({ force: true })]);
+    // dblclick() لا Promise.all([click, click]): نقرتان متزامنتان عبر Playwright تتداخل
+    // أحداثهما (down/down/up/up) فيُصدر Chromium أحيانًا نقرة واحدة أو لا شيء — فشِل
+    // الاختبار فعليًا مرتين على main (2026-09-11) والاستمارة سليمة بلا أي إرسال أصلًا.
+    // dblclick يُطلق حدثَي click متتابعَين حقيقيَّين (كما يفعل إصبع الزبون) — وهو ما
+    // يختبره الحارس المتزامن (submitInFlight) فOrderForm.
+    await submitButton.dblclick({ force: true });
 
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
 

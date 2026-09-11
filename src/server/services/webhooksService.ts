@@ -6,6 +6,8 @@ import { Prisma } from "@prisma/client";
 import * as webhooksRepository from "@/server/repositories/webhooksRepository";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
+import { prisma } from "@/server/db/prisma";
+import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
 import type { WebhookEvent } from "@prisma/client";
 
 export function listWebhooks() {
@@ -165,6 +167,30 @@ async function attemptWebhookDelivery(
   return { status: res.status, redirected: res.status >= 300 && res.status < 400 };
 }
 
+// فشل الإرسال كان صامتًا عمليًا: يُسجَّل lastStatus=0 فصفحة الـwebhooks فقط، ولا يعرفه
+// صاحب المتجر إلا إذا فتحها بنفسه — اكتُشف فعليًا (2026-09-11): بوت واتساب لم يستلم أي
+// طلب لأن سر الـwebhook المخزَّن لم يعد يُفكّ بمفتاح SECRETS_ENCRYPTION_KEY الحالي
+// (تدوير المفتاح بعد تسجيل الـwebhook)، وبقي الأمر مجهولًا حتى لاحظ الغياب بنفسه.
+// تنبيه واحد مفتوح لكل webhook (لا تنبيه لكل طلب) — يُحَلّ يدويًا من لوحة التنبيهات.
+async function raiseWebhookFailureAlert(webhookId: string, url: string, status: number, lastError: string | null) {
+  const open = await prisma.systemAlert.findFirst({
+    where: { type: "webhook_delivery_failed", entityId: webhookId, resolvedAt: null },
+    select: { id: true },
+  });
+  if (open) return;
+  const undecryptable = lastError?.includes("unable to authenticate data") ?? false;
+  await raiseSystemAlert({
+    type: "webhook_delivery_failed",
+    severity: "high",
+    entityType: "webhook",
+    entityId: webhookId,
+    message: undecryptable
+      ? `تعذّر فكّ تشفير سر الـwebhook ${url} (تغيّر مفتاح التشفير بعد تسجيله) — احذفه وأعد إنشاءه ثم حدّث السر لدى المستقبِل`
+      : `فشل إرسال الـwebhook إلى ${url} (الحالة ${status}) — المستقبِل لا يستلم أحداث الطلبات`,
+    metadata: { status, error: lastError },
+  });
+}
+
 async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string, unknown>) {
   if (isE2ETestRun()) {
     logE2ESkip(`webhook dispatch for event ${event}`);
@@ -175,6 +201,7 @@ async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string,
   await Promise.all(
     webhooks.map(async (webhook) => {
       let status = 0;
+      let lastError: string | null = null;
       // محاولتان كحد أقصى (محاولة أولى + إعادة محاولة واحدة بعد تأخير قصير) — مصمَّمة
       // خصيصًا لتغطية Cold Start مستقبِل نائم مؤقتًا (راجع تعليق WEBHOOK_ATTEMPT_TIMEOUT_MS
       // أعلاه): لو فشلت المحاولة الأولى (Timeout أو خطأ اتصال أو 5xx)، المستقبِل غالبًا
@@ -198,10 +225,12 @@ async function dispatchWebhookEvent(event: WebhookEvent, payload: Record<string,
         } catch (error) {
           console.error(`webhook delivery attempt ${attempt} failed for ${webhook.url}`, error);
           status = 0;
+          lastError = error instanceof Error ? error.message : String(error);
           if (attempt === 1) await sleep(WEBHOOK_RETRY_DELAY_MS);
         }
       }
       await webhooksRepository.recordWebhookFireResult(webhook.id, status);
+      if (status < 200 || status >= 300) await raiseWebhookFailureAlert(webhook.id, webhook.url, status, lastError);
     }),
   );
 }
