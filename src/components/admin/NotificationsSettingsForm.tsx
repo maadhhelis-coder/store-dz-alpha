@@ -6,9 +6,11 @@ import type { PublicSiteSettings } from "@/lib/types/siteSettings";
 
 type NotificationsSettingsFormProps = {
   initialSettings: PublicSiteSettings;
+  // TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID مضبوطان على الخادم (راجع lib/ownerNotify.ts)
+  channelConfigured: boolean;
 };
 
-export default function NotificationsSettingsForm({ initialSettings }: NotificationsSettingsFormProps) {
+export default function NotificationsSettingsForm({ initialSettings, channelConfigured }: NotificationsSettingsFormProps) {
   const [notifyOrders, setNotifyOrders] = useState(initialSettings.notifyOrders);
   const [notifyPlatformUpdates, setNotifyPlatformUpdates] = useState(initialSettings.notifyPlatformUpdates);
   const [notifyAlerts, setNotifyAlerts] = useState(initialSettings.notifyAlerts);
@@ -46,33 +48,39 @@ export default function NotificationsSettingsForm({ initialSettings }: Notificat
   return (
     <form onSubmit={handleSubmit} className="max-w-xl rounded-xl gold-border bg-ink p-5 space-y-4">
       <p className="text-xs text-cream-dim/80 leading-relaxed">
-        تفعيل/تعطيل أنواع الإشعارات. ملاحظة: قناة الإرسال الفعلية (بريد إلكتروني/SMS) تحتاج إعداد
-        خدمة مراسلة أولًا — هذه المفاتيح تحفظ تفضيلاتك حتى يتم ربطها.
+        تصلك على Telegram (نفس بوت الوكيل الذكي).{" "}
+        {channelConfigured ? (
+          <span className="text-green-400">القناة مضبوطة ✓</span>
+        ) : (
+          <span className="text-red-400">
+            القناة غير مضبوطة — أضف TELEGRAM_BOT_TOKEN وTELEGRAM_CHAT_ID في متغيرات بيئة Vercel.
+          </span>
+        )}
       </p>
 
       <ToggleRow
         label="إشعارات الطلبيات"
-        description="عند وصول طلب جديد أو تغيّر حالته"
+        description="طلب جديد (الاسم، الهاتف، الولاية، المنتجات، المجموع) وكل تغيّر في حالته"
         checked={notifyOrders}
         onChange={setNotifyOrders}
       />
       <ToggleRow
-        label="تحديثات المنصة"
-        description="ميزات جديدة أو تحديثات على لوحة التحكم"
-        checked={notifyPlatformUpdates}
-        onChange={setNotifyPlatformUpdates}
-      />
-      <ToggleRow
         label="التنبيهات"
-        description="مخزون منخفض، محاولات تسجيل دخول مشبوهة، إلخ"
+        description="مخزون منخفض أو نافد بعد طلب، محاولات دخول مشبوهة على لوحة التحكم"
         checked={notifyAlerts}
         onChange={setNotifyAlerts}
       />
       <ToggleRow
         label="إشعارات النظام"
-        description="صيانة، أخطاء تقنية، حالة الخدمات المرتبطة"
+        description="أعطال تقنية: webhook معطّل، تعطّل الحماية من السبام، مهام فاشلة، تعارض حالة الشحن"
         checked={notifySystem}
         onChange={setNotifySystem}
+      />
+      <ToggleRow
+        label="تحديثات المنصة"
+        description="ميزات جديدة على لوحة التحكم — لا يوجد مصدر لها حاليًا، المفتاح محفوظ فقط"
+        checked={notifyPlatformUpdates}
+        onChange={setNotifyPlatformUpdates}
       />
 
       {message && (

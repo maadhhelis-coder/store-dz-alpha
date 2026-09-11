@@ -6,8 +6,7 @@ import { Prisma } from "@prisma/client";
 import * as webhooksRepository from "@/server/repositories/webhooksRepository";
 import { encryptSecret, decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
-import { prisma } from "@/server/db/prisma";
-import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
+import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import type { WebhookEvent } from "@prisma/client";
 
 export function listWebhooks() {
@@ -173,13 +172,8 @@ async function attemptWebhookDelivery(
 // (تدوير المفتاح بعد تسجيل الـwebhook)، وبقي الأمر مجهولًا حتى لاحظ الغياب بنفسه.
 // تنبيه واحد مفتوح لكل webhook (لا تنبيه لكل طلب) — يُحَلّ يدويًا من لوحة التنبيهات.
 async function raiseWebhookFailureAlert(webhookId: string, url: string, status: number, lastError: string | null) {
-  const open = await prisma.systemAlert.findFirst({
-    where: { type: "webhook_delivery_failed", entityId: webhookId, resolvedAt: null },
-    select: { id: true },
-  });
-  if (open) return;
   const undecryptable = lastError?.includes("unable to authenticate data") ?? false;
-  await raiseSystemAlert({
+  await raiseSystemAlertOnce({
     type: "webhook_delivery_failed",
     severity: "high",
     entityType: "webhook",

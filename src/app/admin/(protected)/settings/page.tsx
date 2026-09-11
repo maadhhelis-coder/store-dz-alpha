@@ -1,5 +1,6 @@
 import { requireAdmin } from "@/lib/auth/requireAdmin";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
+import { isOwnerNotifyConfigured } from "@/lib/ownerNotify";
 import { getAllCrmSettings } from "@/server/modules/settings/crmSettingsService";
 import SettingsTabs from "@/components/admin/SettingsTabs";
 import DeliveryPricingTable from "@/components/admin/DeliveryPricingTable";
@@ -88,7 +89,7 @@ export default async function AdminSettingsPage() {
     {
       id: "notifications",
       label: "الإشعارات",
-      content: <NotificationsSettingsForm initialSettings={siteSettings} />,
+      content: <NotificationsSettingsForm initialSettings={siteSettings} channelConfigured={isOwnerNotifyConfigured()} />,
     },
     {
       id: "webhooks",

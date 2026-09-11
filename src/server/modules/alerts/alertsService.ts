@@ -1,6 +1,7 @@
 import { prisma } from "@/server/db/prisma";
 import { redactForAudit } from "@/lib/redact";
 import { writeAudit } from "@/server/services/auditService";
+import { notifyOwner } from "@/lib/ownerNotify";
 import type { Prisma } from "@prisma/client";
 
 // خدمة تنبيهات النظام — الرفع آمن افتراضيًا (لا يرمي أبدًا: فشل رفع تنبيه لا يُسقط
@@ -38,12 +39,29 @@ export type RaiseAlertInput = {
   metadata?: Record<string, unknown> | null;
 };
 
+const BUSINESS_ALERT_TYPES = new Set(["low_stock", "login_rate_limited"]);
+
+/** مثل raiseSystemAlert لكن بلا تكرار: لا يرفع شيئًا ما دام تنبيه مفتوح بنفس النوع
+ * والكيان — للحالات المستمرة (مخزون منخفض، webhook معطّل) التي تتكرر مع كل طلب. */
+export async function raiseSystemAlertOnce(input: RaiseAlertInput & { entityId: string }) {
+  try {
+    const open = await prisma.systemAlert.findFirst({
+      where: { type: input.type, entityId: input.entityId, resolvedAt: null },
+      select: { id: true },
+    });
+    if (open) return null;
+  } catch {
+    // فشل الفحص لا يمنع الرفع — تكرار نادر أهون من فقدان التنبيه
+  }
+  return raiseSystemAlert(input);
+}
+
 /** رفع تنبيه نظام — الـmetadata يُنقّح مركزيًا (redactForAudit) قبل الحفظ، ولا يرمي
  * أبدًا: أي فشل يُسجَّل بصوت عالٍ ويُرجَع null، والمُستدعي (outbox/cron/integrations)
  * يواصل عمله. التنبيهات القابلة للتكرار تُترك للمستهلك — كل تنبيه صف مستقل. */
 export async function raiseSystemAlert(input: RaiseAlertInput) {
   try {
-    return await prisma.systemAlert.create({
+    const alert = await prisma.systemAlert.create({
       data: {
         type: input.type,
         severity: input.severity ?? "medium",
@@ -55,6 +73,11 @@ export async function raiseSystemAlert(input: RaiseAlertInput) {
           : undefined,
       },
     });
+    // تبويب «الإشعارات»: «التنبيهات» = ما يخص التجارة (مخزون، دخول مشبوه)، «إشعارات
+    // النظام» = الأعطال التقنية وحالة الخدمات المرتبطة. الإرسال لا ينتظره أحد ولا يرمي.
+    const kind = BUSINESS_ALERT_TYPES.has(input.type) ? "alerts" : "system";
+    void notifyOwner(kind, `${kind === "alerts" ? "⚠️" : "🛠️"} ${input.message}`);
+    return alert;
   } catch (error) {
     console.error(
       JSON.stringify({

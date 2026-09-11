@@ -1,6 +1,7 @@
 // طبقة قراءة بيانات الموقع العام (storefront) — تجلب من قاعدة بيانات Prisma الحقيقية
 // (نفس المصدر الذي تديره لوحة التحكم)، بدل الملفات الثابتة القديمة data/products.ts
 // وdata/categories.ts. أي تعديل من /admin ينعكس هنا فورًا لأنه نفس المصدر تمامًا.
+import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/server/db/prisma";
@@ -44,10 +45,6 @@ export function mapProduct(p: ProductRow): Product {
     variants: p.variants.map(mapVariant),
   };
 }
-
-// نفس عتبة "منتجات على وشك النفاد" المستعملة أصلًا فلوحة التحكم الرئيسية
-// (راجع dashboardRepository.ts) — عتبة واحدة موحّدة بدل رقم عشوائي ثانٍ.
-const LOW_STOCK_THRESHOLD = 5;
 
 function mapVariant(v: ProductRow["variants"][number]): ProductVariant {
   return {
