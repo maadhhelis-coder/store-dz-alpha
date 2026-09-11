@@ -8,6 +8,10 @@ import { encryptSecret, decryptSecret } from "@/lib/crypto/secretBox";
 import { isE2ETestRun, logE2ESkip } from "@/lib/e2eGuard";
 import { prisma } from "@/server/db/prisma";
 import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
+import type { WebhookEvent } from "@prisma/client";
+
+import type { WebhookEvent } from "@prisma/client";
+
 export function listWebhooks() {
   return webhooksRepository.listWebhooks();
 }
