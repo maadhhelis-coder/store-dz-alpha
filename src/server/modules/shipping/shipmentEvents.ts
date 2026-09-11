@@ -3,6 +3,7 @@ import { hashIdempotentRequest } from "@/server/modules/idempotency/durableIdemp
 import { raiseSystemAlert } from "@/server/modules/alerts/alertsService";
 import { redactProviderPayload } from "@/lib/redact";
 import { transitionOrderStatus } from "@/server/modules/orders/statusService";
+import { fireWebhookEvent } from "@/server/services/webhooksService";
 import { InvalidTransitionError } from "@/server/modules/orders/stateMachine";
 import { isUniqueViolation, ACTIVE_SHIPMENT_STATUSES } from "@/server/modules/shipping/shipmentService";
 import {
@@ -54,7 +55,7 @@ async function resolveShipment(input: CarrierEventInput) {
   if (input.trackingNumber) {
     const byTracking = await prisma.shipment.findFirst({
       where: { provider: input.provider, trackingNumber: input.trackingNumber },
-      select: { id: true, orderId: true, status: true },
+      select: { id: true, orderId: true, status: true, order: { select: { orderNumber: true } } },
     });
     if (byTracking) return byTracking;
   }
@@ -67,7 +68,7 @@ async function resolveShipment(input: CarrierEventInput) {
         status: { in: [...ACTIVE_SHIPMENT_STATUSES] },
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true, orderId: true, status: true },
+      select: { id: true, orderId: true, status: true, order: { select: { orderNumber: true } } },
     });
   }
   return null;
@@ -127,6 +128,17 @@ export async function ingestCarrierEvent(input: CarrierEventInput): Promise<Inge
     if (isUniqueViolation(error)) return { outcome: "duplicate", shipmentId: shipment.id };
     throw error;
   }
+  // كل حدث ناقل جديد (بعد إلغاء التكرار أعلاه) يصل للوكيل الذكي بنصّه الخام — هو من
+  // يصوغ رسالة الزبون على واتساب («وصل للمكتب»، «المندوب في الطريق»…) وينبّه صاحب
+  // المتجر بأي نص غير مُصنَّف. كان الحدث courier_status_changed معرَّفًا ولا يُطلَق من
+  // أي مكان بعد إعادة بناء وحدة الشحن (P5) — فمسار إشعارات الشحن كله كان ميتًا.
+  fireWebhookEvent("courier_status_changed", {
+    orderId: shipment.orderId,
+    orderNumber: shipment.order.orderNumber,
+    courierStatus: input.rawStatus,
+    provider: input.provider,
+    trackingNumber: input.trackingNumber,
+  });
 
   if (!mapped) {
     await raiseSystemAlert({
