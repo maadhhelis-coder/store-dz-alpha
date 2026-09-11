@@ -210,7 +210,7 @@ export default function OrderForm({
     if (!firstName) next.fullName = "الاسم واللقب مطلوبان";
     else if (!lastName) next.fullName = "اكتب الاسم واللقب معًا";
     if (!/^0[5-7][0-9]{8}$/.test(form.phone.trim())) {
-      next.phone = "رقم هاتف غير صحيح (مثال: 0562848812)";
+      next.phone = "رقم هاتف غير صحيح (مثال: 0550123456)";
     }
     if (!form.wilayaCode) next.wilayaCode = "اختر الولاية";
     if (!form.commune.trim()) next.commune = "البلدية مطلوبة";

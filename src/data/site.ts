@@ -4,8 +4,8 @@ export const SITE_NAME = "Store DZ";
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://storedz.one";
 export const SITE_TAGLINE = "منتجات أصلية بضمان حقيقي، توصيل لكل ولايات الجزائر";
 
-export const WHATSAPP_NUMBER = "213562848812";
-export const WHATSAPP_DISPLAY = "0562 84 88 12";
+export const WHATSAPP_NUMBER = "213793560870";
+export const WHATSAPP_DISPLAY = "0793 56 08 70";
 
 export const INSTAGRAM_URL = "https://www.instagram.com/store_dz51";
 export const FACEBOOK_URL =
