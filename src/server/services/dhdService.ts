@@ -184,28 +184,31 @@ export function suggestDhdCommune(wilayaCode: number, arabicCommune: string, opt
 export type StopDeskCheckResult = {
   available: boolean;
   matchedCommune: string | null;
+  // الأولى في القائمة فقط — لا تعني "الأقرب". أُبقيت للتوافق؛ الوكيل يعتمد officeCommunes.
   alternateOfficeCommune: string | null;
+  // كل بلديات الولاية التي فيها مكتب DHD فعلي (بالأسماء العربية) — الزبون هو من يختار
+  // القريبة منه؛ الكود لا يعرف المسافات (طلب صريح من صاحب المتجر).
+  officeCommunes: string[];
 };
 
 // يتحقق هل يوجد مكتب استلام (stop desk) حقيقي عند DHD لبلدية معيّنة — مصدر المعلومة هو
 // نفس بيانات DHD الحية (حقل has_stop_desk لكل بلدية)، وليس تخمينًا. عند عدم التأكد من
-// المطابقة، نُعيد "غير متوفر" احترازيًا بدل الوعد بمكتب قد لا يكون موجودًا فعلًا. إذا لم
-// يتوفر مكتب في بلدية الزبون، نبحث عن أقرب بلدية في نفس الولاية فيها مكتب فعلي لنقترحها
-// عليه بالاسم العربي المألوف بدل اسم لاتيني غريب.
+// المطابقة، نُعيد "غير متوفر" احترازيًا بدل الوعد بمكتب قد لا يكون موجودًا فعلًا.
 export async function checkStopDeskAvailability(wilayaCode: number, arabicCommune: string): Promise<StopDeskCheckResult> {
   const dhdCommunes = await getDhdCommunes(wilayaCode);
   const match = findBestDhdCommuneMatch(wilayaCode, arabicCommune, dhdCommunes);
   const available = match?.hasStopDesk ?? false;
 
-  let alternateOfficeCommune: string | null = null;
-  if (!available) {
-    const anyOfficeCommune = dhdCommunes.find((c) => c.hasStopDesk);
-    if (anyOfficeCommune) {
-      alternateOfficeCommune = getCommuneArabicName(wilayaCode, anyOfficeCommune.name) ?? anyOfficeCommune.name;
-    }
-  }
+  const officeCommunes = dhdCommunes
+    .filter((c) => c.hasStopDesk)
+    .map((c) => getCommuneArabicName(wilayaCode, c.name) ?? c.name);
 
-  return { available, matchedCommune: match?.name ?? null, alternateOfficeCommune };
+  return {
+    available,
+    matchedCommune: match?.name ?? null,
+    alternateOfficeCommune: available ? null : (officeCommunes[0] ?? null),
+    officeCommunes,
+  };
 }
 
 export type CreateDhdShipmentInput = {
