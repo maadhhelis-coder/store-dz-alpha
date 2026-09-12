@@ -9,6 +9,12 @@ type ProductCardProps = {
   priority?: boolean;
 };
 
+// صورة الإعلان المرفقة داخل الوصف (أول <img>) هي صورة البطاقة في المتجر فقط؛ صفحة المنتج
+// تبقى بمعرضها كما هو (طلب صريح). بلا صورة في الوصف تُستعمل الصورة الأولى للمنتج.
+export function cardImage(product: Pick<Product, "longDescriptionHtml" | "images">): string {
+  return /<img[^>]+src="([^"]+)"/.exec(product.longDescriptionHtml)?.[1] ?? product.images[0];
+}
+
 export default function ProductCard({ product, priority = false }: ProductCardProps) {
   return (
     // البطاقة هي «الإطار الكبير» بخطوطه الذهبية اللامعة قليلًا (طلب صريح: توهج دائم لا عند المرور فقط).
@@ -20,7 +26,7 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
         className="relative block aspect-[3/4] overflow-hidden bg-ink"
       >
         <BrandImage
-          src={product.images[0]}
+          src={cardImage(product)}
           alt={`${product.name} — Store DZ`}
           fill
           priority={priority}
