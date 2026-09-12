@@ -73,7 +73,16 @@ async function login(page: Page, email: string, password: string) {
   await page.goto("/admin/login");
   await page.getByTestId("login-email").fill(email);
   await page.getByTestId("login-password").fill(password);
-  await page.getByTestId("login-submit").click();
+  // 503 = عطل عابر في Supabase Auth (راجع AuthUnavailableError) — اكتُشف فعليًا في CI ثلاث مرات
+  // متتالية؛ محاولة ثانية واحدة بعد لحظتين تكفي وتبقى تحت حد معدّل الدخول (5 كل 15 دقيقة).
+  const [res] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/api/auth/login")),
+    page.getByTestId("login-submit").click(),
+  ]);
+  if (res.status() === 503) {
+    await page.waitForTimeout(2_000);
+    await page.getByTestId("login-submit").click();
+  }
   await page.waitForURL(/\/admin\/?(\?.*)?$/, { timeout: 15_000 });
 }
 

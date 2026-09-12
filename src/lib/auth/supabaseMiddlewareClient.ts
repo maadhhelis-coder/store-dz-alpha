@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { isAuthRetryableFetchError } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -52,6 +53,12 @@ export async function updateSupabaseSession(request: NextRequest, requestHeaders
 
     const result = await supabase.auth.getUser();
     user = result.data.user;
+    // عطل عابر مُعاد (لا مرمي) من Supabase Auth — شبكة أو 5xx — يُعامَل كـ«لا جلسة» (إغلاق آمن)
+    // لكن يُسجَّل حتى لا يمرّ «طُرد إلى صفحة الدخول» بلا أثر (اكتُشف في CI). جلسة منتهية/غائبة
+    // (4xx) سلوك عادي لا يُسجَّل.
+    if (result.error && (isAuthRetryableFetchError(result.error) || (result.error.status ?? 0) >= 500)) {
+      console.error(JSON.stringify({ event: "auth_get_user_error", layer: "middleware", status: result.error.status ?? null, code: result.error.code ?? null, message: result.error.message, timestamp: new Date().toISOString() }));
+    }
   } catch (error) {
     console.error(
       JSON.stringify({
