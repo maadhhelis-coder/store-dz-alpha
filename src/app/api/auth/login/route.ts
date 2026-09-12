@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { loginSchema } from "@/lib/validation/authSchema";
-import { loginAdmin, InvalidCredentialsError } from "@/server/services/authService";
+import { loginAdmin, InvalidCredentialsError, AuthUnavailableError } from "@/server/services/authService";
 import { checkLoginRateLimit } from "@/server/services/rateLimitService";
 import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import { getClientIp } from "@/lib/getClientIp";
@@ -38,6 +38,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof InvalidCredentialsError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof AuthUnavailableError) {
+      return NextResponse.json({ error: error.message }, { status: 503 });
     }
     console.error("login error", error);
     return NextResponse.json({ error: "حدث خطأ غير متوقع" }, { status: 500 });
