@@ -9,21 +9,26 @@ type ProductCardProps = {
   priority?: boolean;
 };
 
-// صورة الإعلان المرفقة داخل الوصف (أول <img>) هي صورة البطاقة في المتجر فقط؛ صفحة المنتج
-// تبقى بمعرضها كما هو (طلب صريح). بلا صورة في الوصف تُستعمل الصورة الأولى للمنتج.
-export function cardImage(product: Pick<Product, "longDescriptionHtml" | "images">): string {
-  return /<img[^>]+src="([^"]+)"/.exec(product.longDescriptionHtml)?.[1] ?? product.images[0];
+// صورة البطاقة في المتجر فقط (طلب صريح: لا تدخل معرض صفحة المنتج) — ملف في public/images/cards
+// باسم الـslug. ponytail: خريطة ثابتة لمنتج واحد؛ خانة «صورة البطاقة» في لوحة التحكم عند
+// تعدد المنتجات. بلا صورة مخصصة تُستعمل الصورة الأولى للمنتج.
+const CARD_IMAGES: Record<string, string> = {
+  "pack-douche-robinet": "/images/cards/pack-douche-robinet.jpg",
+};
+
+export function cardImage(product: Pick<Product, "slug" | "images">): string {
+  return CARD_IMAGES[product.slug] ?? product.images[0];
 }
 
 export default function ProductCard({ product, priority = false }: ProductCardProps) {
   return (
     // البطاقة هي «الإطار الكبير» بخطوطه الذهبية اللامعة قليلًا (طلب صريح: توهج دائم لا عند المرور فقط).
     <div className="group flex flex-col rounded-xl overflow-hidden bg-ink gold-border gold-glow">
-      {/* الصورة تظهر كاملة بلا قصّ ولا تغطية ولا تكبير عند المرور (طلب صريح): إطار 3:4 يطابق
-          نسبة صورة المنتج، object-contain، بلا حشوة ولا شارة فوقها. */}
+      {/* الصورة كاملة بلا قصّ ولا تكبير عند المرور، بإطارها الخاص الذهبي البارد الباهت غير اللامع
+          (gold-border-cool) داخل إطار البطاقة اللامع — طلب صريح. */}
       <PrefetchLink
         href={`/products/${product.slug}`}
-        className="relative block aspect-[3/4] overflow-hidden bg-ink"
+        className="relative block aspect-[3/4] overflow-hidden bg-ink m-3 rounded-lg gold-border-cool"
       >
         <BrandImage
           src={cardImage(product)}
