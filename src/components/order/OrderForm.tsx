@@ -219,9 +219,6 @@ export default function OrderForm({
     if (!form.wilayaCode) next.wilayaCode = "اختر الولاية";
     if (!form.commune.trim()) next.commune = "البلدية مطلوبة";
     if (!form.deliveryOption) next.deliveryOption = "اختر نوع التوصيل";
-    if (form.deliveryOption === "home" && !form.address.trim()) {
-      next.address = "العنوان مطلوب عند التوصيل للمنزل";
-    }
 
     if (product.variants.length > 0 && !selectedVariantId) {
       setVariantError("اختر خيارًا قبل إتمام الطلب");
@@ -467,19 +464,6 @@ export default function OrderForm({
                   )}
                 </Field>
               </div>
-
-              {form.deliveryOption === "home" && (
-                <Field label="العنوان بالتفصيل" error={errors.address}>
-                  <input
-                    type="text"
-                    value={form.address}
-                    onChange={(e) => updateField("address", e.target.value)}
-                    placeholder="الحي، الشارع، رقم المنزل..."
-                    className={inputClass(!!errors.address)}
-                    data-testid="order-address"
-                  />
-                </Field>
-              )}
 
 
               <fieldset>

@@ -77,6 +77,7 @@ export async function dispatchShipment(event: DomainEvent): Promise<void> {
           phone: true,
           address: true,
           wilayaCode: true,
+          wilayaName: true,
           commune: true,
           totalDzd: true,
           deliveryOption: true,
@@ -110,7 +111,11 @@ export async function dispatchShipment(event: DomainEvent): Promise<void> {
         reference: order.orderNumber,
         fullName: `${order.customerFirstName} ${order.customerLastName}`,
         phone: order.phone,
-        address: order.address || `استلام من مكتب ${shipment.provider} - ${order.commune}`,
+        address:
+          order.address ||
+          (order.deliveryOption === "home"
+            ? `${order.commune}، ${order.wilayaName}`
+            : `استلام من مكتب ${shipment.provider} - ${order.commune}`),
         wilayaCode: order.wilayaCode,
         commune: order.commune,
         amountDzd: shipment.codAmountDzd,
