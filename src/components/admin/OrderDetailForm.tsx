@@ -601,7 +601,7 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
                 </button>
               )}
 
-              {order.status === "ready_to_ship" && !order.courierTrackingId && (
+              {["confirmed", "preparing", "ready_to_ship"].includes(order.status) && !order.courierTrackingId && (
                 <button
                   type="button"
                   onClick={() => handleSendToDhd()}
@@ -612,9 +612,9 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
                   إنشاء الشحنة وإرسالها
                 </button>
               )}
-              {order.status !== "ready_to_ship" && !order.courierTrackingId && (
+              {!["confirmed", "preparing", "ready_to_ship"].includes(order.status) && !order.courierTrackingId && (
                 <p className="mt-3 text-xs text-cream-dim/80 leading-relaxed">
-                  الشحنة تُنشأ عندما يصبح الطلب &quot;جاهز للشحن&quot; — الحالة الآن:{" "}
+                  الشحنة تُنشأ لطلب مؤكَّد أو قيد التحضير أو جاهز للشحن — الحالة الآن:{" "}
                   {order.status}
                 </p>
               )}

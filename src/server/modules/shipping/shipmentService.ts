@@ -3,7 +3,7 @@ import { writeAudit, writeAuditInTx } from "@/server/services/auditService";
 import { createOutboxEvent, transitionOrderStatus } from "@/server/modules/orders/statusService";
 import { nudgeOutbox } from "@/server/modules/automation/outboxDrainer";
 import { DEFAULT_CARRIER } from "@/server/modules/shipping/carrierAdapter";
-import type { Prisma, ShipmentRole, ShipmentStatus } from "@prisma/client";
+import type { OrderStatus, Prisma, ShipmentRole, ShipmentStatus } from "@prisma/client";
 
 // خدمة الشحنات — نقطة الإنشاء الوحيدة المصرَّح بها.
 //
@@ -66,9 +66,17 @@ export type CreateShipmentInput = {
   reason?: string | null;
 };
 
-/** الحالة الوحيدة التي يجوز فيها إنشاء شحنة — بعدها ينقل نجاح الإرسال الطلب
- * إلى shipped عبر آلة الحالات (ready_to_ship → shipped)، بلا أي تجاوز. */
+/** الحالة التي يجوز فيها إنشاء شحنة — بعدها ينقل نجاح الإرسال الطلب إلى shipped
+ * عبر آلة الحالات (ready_to_ship → shipped)، بلا أي تجاوز. */
 const SHIPPABLE_ORDER_STATUS = "ready_to_ship";
+
+// طلب مؤكَّد أو قيد التحضير يُقدَّم تلقائيًا عبر آلة الحالات نفسها (لا تجاوز) حتى
+// ready_to_ship عند الضغط على «إرسال الشحنة» — صاحب المتجر لم يجد الزر لأن الطلب
+// المؤكَّد كان يحتاج نقلتين يدويتين قبله (اكتُشف فعليًا 2026-09-12).
+const AUTO_ADVANCE_PATH: Record<string, OrderStatus[]> = {
+  confirmed: ["preparing", "ready_to_ship"],
+  preparing: ["ready_to_ship"],
+};
 
 export async function findActiveShipment(orderId: string) {
   return prisma.shipment.findFirst({
@@ -86,6 +94,10 @@ export async function createShipment(input: CreateShipmentInput) {
     include: { items: { select: { id: true, quantity: true } } },
   });
   if (!order) throw new ShipmentError("ORDER_NOT_FOUND", "الطلب غير موجود");
+  for (const next of AUTO_ADVANCE_PATH[order.status] ?? []) {
+    await transitionOrderStatus(orderId, next, { actor, reason: "تقديم تلقائي قبل إنشاء الشحنة" });
+    order.status = next;
+  }
   if (order.status !== SHIPPABLE_ORDER_STATUS) {
     throw new ShipmentError(
       "ORDER_NOT_SHIPPABLE",
@@ -95,10 +107,8 @@ export async function createShipment(input: CreateShipmentInput) {
   if (order.items.length === 0) {
     throw new ShipmentError("ORDER_HAS_NO_ITEMS", "الطلب بلا أسطر — لا شيء يُشحن");
   }
-  // DHD تشترط عنوانًا غير فارغ حتى لمكتب الاستلام؛ العنوان الحقيقي مطلوب للمنزل فقط
-  if (order.deliveryOption === "home" && !order.address) {
-    throw new ShipmentError("ADDRESS_REQUIRED", "أدخل عنوان الزبون أولًا (مطلوب لتوصيل المنزل)");
-  }
+  // العنوان التفصيلي أُزيل من الاستمارة (طلب صريح): DHD تشترط نصًا غير فارغ فقط،
+  // فيُرسَل «البلدية، الولاية» — راجع shipmentDispatch.
 
   // دورة شحن تالية لنفس الطلب = reship مرتبطة بسابقتها — التاريخ يبقى كاملًا
   const previous = await prisma.shipment.findFirst({
