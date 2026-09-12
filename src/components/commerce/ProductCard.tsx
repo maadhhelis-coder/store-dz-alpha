@@ -9,44 +9,44 @@ type ProductCardProps = {
   priority?: boolean;
 };
 
+// صورة الإعلان المرفقة داخل الوصف (أول <img>) هي صورة البطاقة في المتجر فقط؛ صفحة المنتج
+// تبقى بمعرضها كما هو (طلب صريح). بلا صورة في الوصف تُستعمل الصورة الأولى للمنتج.
+export function cardImage(product: Pick<Product, "longDescriptionHtml" | "images">): string {
+  return /<img[^>]+src="([^"]+)"/.exec(product.longDescriptionHtml)?.[1] ?? product.images[0];
+}
+
 export default function ProductCard({ product, priority = false }: ProductCardProps) {
   return (
-    // البطاقة هي «الإطار الكبير» بخطوطه الذهبية — يبقى كما هو.
-    <div className="group flex flex-col rounded-xl overflow-hidden bg-ink gold-border hover:gold-glow transition-shadow">
-      {/* إطار الصورة بداخله: بلا أي خطوط ذهبية (طلب صريح) — الإطار هو الصورة نفسها.
-          object-contain لا cover: صور المنتج طولية (1792×2400) وcover كان يقصّ
-          أعلاها وأسفلها فلا تظهر التفاصيل كاملة. */}
+    // البطاقة هي «الإطار الكبير» بخطوطه الذهبية اللامعة قليلًا (طلب صريح: توهج دائم لا عند المرور فقط).
+    <div className="group flex flex-col rounded-xl overflow-hidden bg-ink gold-border gold-glow">
+      {/* الصورة تظهر كاملة بلا قصّ ولا تغطية ولا تكبير عند المرور (طلب صريح): إطار 3:4 يطابق
+          نسبة صورة المنتج، object-contain، بلا حشوة ولا شارة فوقها. */}
       <PrefetchLink
         href={`/products/${product.slug}`}
-        className="relative block aspect-square overflow-hidden bg-ink"
+        className="relative block aspect-[3/4] overflow-hidden bg-ink"
       >
-        {/* p-3 على الصورة نفسها لا على الحاوية: مع fill تُطابق الصورة الحاوية
-            بالكامل (inset-0) فلا تُزيحها حشوة الأب — أما حشوة الصورة فتُصغّر
-            صندوق محتواها فيبتعد طرفها عن حافة الإطار. */}
         <BrandImage
-          src={product.images[0]}
+          src={cardImage(product)}
           alt={`${product.name} — Store DZ`}
           fill
           priority={priority}
-          className="object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+          className="object-contain"
           sizes="(max-width: 768px) 50vw, 25vw"
         />
+      </PrefetchLink>
+
+      <div className="p-4 flex flex-col gap-2 flex-1 text-center">
         {product.badge && (
-          <span className="absolute top-3 start-3 gold-gradient text-ink text-xs font-bold px-2.5 py-1 rounded-full">
+          <span className="self-center gold-gradient text-ink text-xs font-bold px-2.5 py-1 rounded-full">
             {product.badge}
           </span>
         )}
-      </PrefetchLink>
-
-      <div className="p-4 flex flex-col gap-2 flex-1">
+        {/* الاسم كاملًا بلا قصّ، وبلا وصف مختصر تحته (طلب صريح) */}
         <PrefetchLink href={`/products/${product.slug}`}>
-          <h3 className="font-display font-semibold text-cream text-sm md:text-base line-clamp-1 hover:text-gold transition-colors">
+          <h3 className="font-display font-semibold text-cream text-sm md:text-base leading-relaxed hover:text-gold transition-colors">
             {product.name}
           </h3>
         </PrefetchLink>
-        <p className="text-xs md:text-sm text-cream-dim line-clamp-2 flex-1">
-          {product.shortDescription}
-        </p>
         {/* السعر الرسمي، وتحته السعر القديم مشطوبًا (طلب صريح) */}
         <div className="flex flex-col items-center gap-0.5">
           <span className="text-gold font-bold text-lg">{formatPrice(product.price)}</span>
