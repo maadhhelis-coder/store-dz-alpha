@@ -433,3 +433,40 @@ export async function updateOrderFields(
   if (!existing) throw new OrderNotFoundError();
   return ordersRepository.updateOrderFields(id, data);
 }
+
+export class OrderNotPendingError extends Error {
+  constructor() {
+    super("لا يمكن تغيير التوصيل إلا لطلب قيد الانتظار");
+    this.name = "OrderNotPendingError";
+  }
+}
+
+// تغيير طريقة التوصيل قبل التأكيد — يستعمله الوكيل الذكي عندما يختار الزبون مكتبًا في
+// بلدية أخرى أو التوصيل للمنزل بعد أن تبيّن أن بلديته بلا مكتب DHD. السعر يُعاد حسابه
+// من تسعيرة الولاية (لا يُمرَّر من الخارج) والمجموع يُحدَّث معه.
+export async function updateOrderDelivery(
+  id: string,
+  input: { deliveryOption: "home" | "office"; commune?: string; address?: string },
+) {
+  const existing = await ordersRepository.findOrderById(id);
+  if (!existing) throw new OrderNotFoundError();
+  if (existing.status !== "pending") throw new OrderNotPendingError();
+
+  const wilaya = await findWilayaByCode(existing.wilayaCode);
+  if (!wilaya || !wilaya.isActive) throw new WilayaNotFoundError();
+  const deliveryPriceDzd = input.deliveryOption === "office" ? wilaya.officePriceDzd : wilaya.homePriceDzd;
+  if (deliveryPriceDzd === null) throw new DeliveryOptionUnavailableError();
+
+  return prisma.order.update({
+    where: { id },
+    data: {
+      deliveryOption: input.deliveryOption,
+      ...(input.commune ? { commune: input.commune } : {}),
+      // العنوان يخص المنزل فقط — عند المكتب يُمسح حتى لا يبقى عنوان قديم مضلِّل
+      address: input.deliveryOption === "home" ? (input.address ?? existing.address) : null,
+      deliveryPriceDzd,
+      totalDzd: Math.max(0, existing.itemsSubtotalDzd + deliveryPriceDzd - existing.discountDzd),
+    },
+    include: { items: true },
+  });
+}
