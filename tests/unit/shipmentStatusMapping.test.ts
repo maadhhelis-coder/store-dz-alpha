@@ -20,6 +20,20 @@ describe("ترجمة حالة الناقل", () => {
     expect(mapCarrierStatus("Annulé")).toBe("cancelled");
   });
 
+  it("تترجم مفردات حساب DHD الفعلية (22 حالة من لوحتهم)", () => {
+    expect(mapCarrierStatus("Prêt à préparer")).toBe("created");
+    expect(mapCarrierStatus("En ramassage")).toBe("handed_over");
+    expect(mapCarrierStatus("Vers hub")).toBe("in_transit");
+    expect(mapCarrierStatus("En hub")).toBe("in_transit");
+    expect(mapCarrierStatus("Vers wilaya")).toBe("in_transit");
+    expect(mapCarrierStatus("En livraison")).toBe("out_for_delivery");
+    expect(mapCarrierStatus("Livre non encaissé")).toBe("delivered");
+    expect(mapCarrierStatus("Livre encaissé non payé")).toBe("delivered");
+    expect(mapCarrierStatus("Retours chez livreur")).toBe("return_requested");
+    expect(mapCarrierStatus("Retours reçu")).toBe("returned");
+    expect(mapCarrierStatus("Suspendus")).toBeNull();
+  });
+
   it("تتحمّل اختلاف الحركات وحالة الأحرف والفراغات", () => {
     expect(mapCarrierStatus("  LIVRE  ")).toBe("delivered");
     expect(mapCarrierStatus("livré")).toBe("delivered");

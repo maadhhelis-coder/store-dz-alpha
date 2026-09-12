@@ -71,6 +71,28 @@ const DHD_TO_SHIPMENT: Record<string, ShipmentStatus> = {
   "retour recu": "returned",
   // إلغاء عند الناقل
   "annule": "cancelled",
+
+  // === المفردات الحقيقية لحساب DHD (قُرئت من صفحة إعدادات الـwebhook في لوحتهم،
+  // 2026-09-11 — 22 حالة). ما سبق كان من توثيق EcoTrack العام؛ هذه هي التي تصل فعلًا.
+  "pret a preparer": "created",
+  "stock en preparation": "created",
+  "en ramassage": "handed_over",
+  "vers hub": "in_transit",
+  "en hub": "in_transit",
+  "livre non encaisse": "delivered",
+  "livre encaisse non paye": "delivered",
+  "paiement pret": "delivered",
+  "paiement archive": "delivered",
+  "retours en traitement": "return_requested",
+  "retours chez livreur": "return_requested",
+  "retours prets": "return_requested",
+  "retours en transit stock": "return_requested",
+  "retours a dispatcher vers stock": "return_requested",
+  "retours recu": "returned",
+  "retours en stock": "returned",
+  "retours archive": "returned",
+  // "suspendus" عمدًا غير مُترجَمة: توقّف مؤقت غامض (محاولة فاشلة؟ انتظار؟) — تُحفظ
+  // خامًا مع تنبيه، ولا تُخمَّن.
 };
 
 /** حالة الناقل الخام → حالة شحنة معروفة، أو null إن كانت غير موثّقة (لا تخمين). */

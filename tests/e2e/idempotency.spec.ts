@@ -119,12 +119,13 @@ test.describe("منع الطلبات المكررة (Idempotency)", () => {
     const submitButton = page.getByTestId("order-submit");
     // شريط «اطلب الآن» ثابت أسفل الصفحة — نُوسّط الزر أولًا فلا تعترضه النقرة
     await submitButton.evaluate((el) => el.scrollIntoView({ block: "center" }));
-    // dblclick() لا Promise.all([click, click]): نقرتان متزامنتان عبر Playwright تتداخل
-    // أحداثهما (down/down/up/up) فيُصدر Chromium أحيانًا نقرة واحدة أو لا شيء — فشِل
-    // الاختبار فعليًا مرتين على main (2026-09-11) والاستمارة سليمة بلا أي إرسال أصلًا.
-    // dblclick يُطلق حدثَي click متتابعَين حقيقيَّين (كما يفعل إصبع الزبون) — وهو ما
-    // يختبره الحارس المتزامن (submitInFlight) فOrderForm.
-    await submitButton.dblclick({ force: true });
+    // dblclick() بلا force: النقر القسري يُرسَل لإحداثيات الزر لحظة الأمر حتى لو كان
+    // الشريط الثابت «اطلب الآن» يغطيه أو قفزت الصفحة للأعلى (ScrollToTopOnMount يعيد
+    // التمرير بعد الترطيب) — فالنقرة تصيب الشريط لا الزر، والاستمارة تبقى سليمة بلا أي
+    // إرسال. فشِل هكذا فعليًا ثلاث مرات (chromium ثم mobile-chrome، 2026-09-11). بلا force
+    // ينتظر Playwright حتى يكون الزر ظاهرًا وغير مغطًّى ثم يُطلق حدثَي click متتابعَين —
+    // وهو ما يختبره الحارس المتزامن (submitInFlight) فOrderForm.
+    await submitButton.dblclick();
 
     await expect(page.getByTestId("order-success")).toBeVisible({ timeout: 15_000 });
 
