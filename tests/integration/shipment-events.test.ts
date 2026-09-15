@@ -14,7 +14,8 @@ import { createAdmin, cleanupByTag, ensureWilayaCode, newTag, type FixtureTag } 
 
 vi.mock("@/server/services/dhdService", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/server/services/dhdService")>();
-  return { ...actual, createDhdShipment: vi.fn(), fetchDhdOrderStatus: vi.fn() };
+  // حلّ اسم البلدية عند DHD مُقلَّد أيضًا (الطلبات هنا ببلدية «اختبار» بلا اسم لاتيني في بياناتنا).
+  return { ...actual, createDhdShipment: vi.fn(), fetchDhdOrderStatus: vi.fn(), getDhdCommunes: vi.fn(async () => []), suggestDhdCommune: () => "Test Commune" };
 });
 
 const dispatchMock = vi.mocked(createDhdShipment);

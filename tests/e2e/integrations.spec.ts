@@ -109,6 +109,14 @@ test.describe("التكاملات الخارجية — بيئة معزولة", (
       },
     });
 
+    // DHD لا تقبل إلا اسم البلدية اللاتيني من قائمتها؛ «بلدية اختبار» بلا اسم لاتيني في
+    // بياناتنا فلا مطابقة تلقائية — تصحيح محفوظ (نفس ما يفعله المسؤول من صفحة الطلب).
+    await testPrisma.courierCommuneMapping.upsert({
+      where: { provider_wilayaCode_storeCommune: { provider: "DHD", wilayaCode: wilaya.code, storeCommune: "بلدية اختبار" } },
+      update: { courierCommuneName: "E2E Mock Commune" },
+      create: { provider: "DHD", wilayaCode: wilaya.code, storeCommune: "بلدية اختبار", courierCommuneName: "E2E Mock Commune" },
+    });
+
     // P5: المسار يكتب النية محليًا ويعود 202 فورًا — لا نداء ناقل داخل الطلب.
     const res = await ownerPage.request.post(`/api/admin/orders/${order.id}/shipments`, { data: {} });
     expect(res.status()).toBe(202);
