@@ -1,6 +1,8 @@
 import {
   createDhdShipment,
   fetchDhdOrderStatus,
+  getDhdCommunes,
+  suggestDhdCommune,
   DhdNotConfiguredError,
   DhdValidationError,
 } from "@/server/services/dhdService";
@@ -59,10 +61,19 @@ const dhdCarrierAdapter: CarrierAdapter = {
   provider: "DHD",
 
   async dispatch(input) {
-    // تصحيح اسم البلدية المحفوظ سابقًا لنفس (ولاية، بلدية) — تفصيلة DHD بحتة،
-    // كانت في مسار الـAPI فانتقلت هنا مع بقية معرفة المزود.
+    // DHD لا تقبل إلا اسم البلدية اللاتيني من قائمتها («Commune mal écrite, ou désactivée» —
+    // اكتُشف فعليًا على SD-000737 ببلدية «بني كسيلة»). الترتيب: تصحيح محفوظ سابقًا لنفس
+    // (ولاية، بلدية) ← مطابقة تلقائية من قائمة DHD الحية عبر الاسم اللاتيني في بياناتنا
+    // (نفس المطابقة التي يعتمدها الوكيل لقرار المكتب) ← رفض نهائي واضح يطلب اختيارًا يدويًا.
     const saved = await findCourierCommuneMapping("DHD", input.wilayaCode, input.commune);
-    const communeToSend = saved?.courierCommuneName ?? input.commune;
+    const communeToSend =
+      saved?.courierCommuneName ??
+      suggestDhdCommune(input.wilayaCode, input.commune, await getDhdCommunes(input.wilayaCode));
+    if (!communeToSend) {
+      throw new CarrierPermanentError(
+        `بلدية «${input.commune}» غير معروفة عند DHD — اختر البلدية المطابقة من صفحة الطلب وأعد الإرسال`,
+      );
+    }
 
     const result = await createDhdShipment({ ...input, commune: communeToSend });
 

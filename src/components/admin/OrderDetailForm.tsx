@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Pencil, RefreshCw, Send, X } from "lucide-react";
 import type { Order, OrderItem, OrderStatus } from "@prisma/client";
@@ -12,9 +12,12 @@ import { Field, inputClass as editInputClass } from "@/components/shared/FormFie
 
 type OrderDetailFormProps = {
   order: Order & { items: OrderItem[] };
+  /** lastError لآخر شحنة إن كانت في حالة error — الإرسال يقع بعد الرد (202) فرفض الناقل
+   * لا يصل في استجابة الزر بل يُقرأ من الشحنة نفسها عند إعادة تحميل الصفحة. */
+  dispatchError?: string | null;
 };
 
-export default function OrderDetailForm({ order: initialOrder }: OrderDetailFormProps) {
+export default function OrderDetailForm({ order: initialOrder, dispatchError = null }: OrderDetailFormProps) {
   const router = useRouter();
   const [order, setOrder] = useState(initialOrder);
   const [notes, setNotes] = useState(initialOrder.notes ?? "");
@@ -196,6 +199,12 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
       setLoadingDhdCommunes(false);
     }
   }
+
+  // رفض بسبب البلدية (بلا مطابقة تلقائية عند DHD) ← نفتح قائمة بلديات DHD للاختيار اليدوي.
+  useEffect(() => {
+    if (dispatchError && /بلدية|commune/i.test(dispatchError)) void loadDhdCommunes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatchError]);
 
   function startEditingCourier() {
     setCourierProvider(order.courierProvider ?? "");
@@ -619,6 +628,9 @@ export default function OrderDetailForm({ order: initialOrder }: OrderDetailForm
                 </p>
               )}
               {courierError && <p className="text-xs text-red-400 mt-2">{courierError}</p>}
+              {dispatchError && !courierError && (
+                <p className="text-xs text-red-400 mt-2">آخر محاولة إرسال رُفضت: {dispatchError}</p>
+              )}
 
               {loadingDhdCommunes && (
                 <p className="text-xs text-cream-dim mt-2 flex items-center gap-1.5">
