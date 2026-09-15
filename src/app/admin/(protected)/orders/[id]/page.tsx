@@ -4,6 +4,7 @@ import { ChevronRight } from "lucide-react";
 import OrderDetailForm from "@/components/admin/OrderDetailForm";
 import ShipmentPanel from "@/components/admin/crm/ShipmentPanel";
 import { getOrder, OrderNotFoundError } from "@/server/services/ordersService";
+import { getShipmentsForOrder } from "@/server/modules/shipping/shipmentService";
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -18,6 +19,10 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
     throw error;
   }
 
+  // رفض الناقل يقع بعد رد الزر (202) — يُقرأ هنا من آخر شحنة ليظهر في النموذج.
+  const [latestShipment] = await getShipmentsForOrder(order.id);
+  const dispatchError = latestShipment?.status === "error" ? latestShipment.lastError : null;
+
   return (
     <div>
       <Link
@@ -30,7 +35,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
       <h1 className="font-display text-xl font-bold text-cream mb-6">
         الطلب {order.orderNumber}
       </h1>
-      <OrderDetailForm order={order} />
+      <OrderDetailForm order={order} dispatchError={dispatchError} />
       <ShipmentPanel orderId={order.id} orderStatus={order.status} />
     </div>
   );
