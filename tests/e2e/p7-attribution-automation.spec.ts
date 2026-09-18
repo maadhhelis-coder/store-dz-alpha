@@ -40,7 +40,7 @@ test.describe("P7 — العزو والأتمتة والتواصل @desktop-only
     expect(order.platform).toBe("tiktok");
     expect(order.creativeName).toBe("creative-b");
     expect(order.utmCampaign).toBe("camp-last");
-    expect(order.landingPath).toBe(`/products/${product.slug}`);
+    expect(order.landingPath?.replace(/\/$/, "")).toBe(`/products/${product.slug}`); // trailingSlash
     expect(order.firstTouchPlatform).toBe("facebook");
     expect(order.firstTouchUtmSource).toBe("fb");
     expect(order.firstTouchUtmCampaign).toBe("camp-first");

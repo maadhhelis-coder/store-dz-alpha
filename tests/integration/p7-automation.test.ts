@@ -223,7 +223,11 @@ maybeDescribe("P7 — العزو والأتمتة والتواصل (integration)
   it("طلب اختبار: لا مزامنة ولا رسائل (على مستوى المعالِج والخدمة)", async () => {
     const spy = mockSheets(okJson);
     const order = await newOrder();
-    await prisma.order.update({ where: { id: order.id }, data: { isTest: true } });
+    // قيد القاعدة: طلب اختبار لا يُربط بعميل (orders_is_test_no_customer_check)
+    await prisma.order.update({
+      where: { id: order.id },
+      data: { isTest: true, customerId: null, matchedPhoneId: null, customerMatchSource: null },
+    });
     await drainOutboxUntilEmpty(20);
     expect(spy.mock.calls.some((c) => bodyOf(c).orderNumber === order.orderNumber)).toBe(false);
     await expect(
