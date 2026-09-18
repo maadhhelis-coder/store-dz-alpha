@@ -484,7 +484,7 @@ maybeDescribe("P6 — المرتجعات والمالية (integration)", () => 
     // متزامنان بنفس المفتاح: عقد executeIdempotent — مُنفَّذ واحد فقط، والخاسر إمّا نفس السجل
     // أو IDEMPOTENCY_IN_FLIGHT (409 يُعاد بعدها) — لا سجل ثانٍ في الحالتين
     const race = await Promise.allSettled([createFinancialAdjustment(base), createFinancialAdjustment(base)]);
-    const ok = race.filter((r): r is PromiseFulfilledResult<{ id: string }> => r.status === "fulfilled");
+    const ok = race.filter((r) => r.status === "fulfilled");
     expect(ok.length).toBeGreaterThanOrEqual(1);
     for (const r of race) {
       if (r.status === "rejected") expect(r.reason).toMatchObject({ code: "IDEMPOTENCY_IN_FLIGHT" });
