@@ -40,6 +40,7 @@ let handlersRegistered = false;
 async function ensureHandlersRegistered(): Promise<void> {
   if (handlersRegistered) return;
   await import("@/server/modules/shipping/shipmentDispatch");
+  await import("@/server/modules/automation/handlers"); // P7: الشيت ورسائل الزبون
   handlersRegistered = true;
 }
 

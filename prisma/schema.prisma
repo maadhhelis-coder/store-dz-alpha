@@ -244,6 +244,7 @@ enum CommunicationStatus {
   sent
   delivered
   failed
+  cancelled
 }
 
 enum CodSettlementStatus {
@@ -1252,6 +1253,9 @@ model Communication {
   template          String?
   variables         Json?
   status            CommunicationStatus  @default(queued)
+  // مفتاح إلغاء التكرار الدائم (P7): نفس الحدث التجاري لا يُنتج رسالتين مهما تكررت
+  // المحاولات (HTTP/outbox/cron) — UNIQUE في القاعدة، NULL مسموح للرسائل اليدوية.
+  dedupeKey         String?              @unique @map("dedupe_key")
   providerMessageId String?              @map("provider_message_id")
   providerResponse  Json?                @map("provider_response")
   error             String?

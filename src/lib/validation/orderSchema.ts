@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+const attrText = z.string().trim().max(120).nullable();
+const attributionTouchSchema = z.object({
+  platform: z.enum(["facebook", "instagram", "tiktok"]).nullable(),
+  utmSource: attrText,
+  utmMedium: attrText,
+  utmCampaign: attrText,
+  utmContent: attrText,
+  utmTerm: attrText,
+  campaignId: attrText,
+  adSetId: attrText,
+  adId: attrText,
+  creativeName: attrText,
+  landingPath: z.string().trim().max(300).nullable(),
+  provenance: z.literal("url"),
+  capturedAt: z.string().datetime(),
+});
+export const attributionSnapshotSchema = z.object({ first: attributionTouchSchema, last: attributionTouchSchema });
+
 export const orderCreateSchema = z.object({
   firstName: z.string().trim().min(1, "الاسم مطلوب").max(80),
   lastName: z.string().trim().min(1, "اللقب مطلوب").max(80),
@@ -17,6 +35,8 @@ export const orderCreateSchema = z.object({
   platform: z.enum(["facebook", "instagram", "tiktok"]).optional(),
   creativeName: z.string().trim().max(80).optional(),
   visitorId: z.string().trim().max(100).optional(),
+  // لقطة العزو من المتصفح (P7) — تُحفظ كما هي وقت الإنشاء ولا تُعاد حسابها
+  attribution: attributionSnapshotSchema.optional(),
 });
 
 export type OrderCreateInput = z.infer<typeof orderCreateSchema>;

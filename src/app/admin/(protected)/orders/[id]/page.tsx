@@ -5,6 +5,8 @@ import OrderDetailForm from "@/components/admin/OrderDetailForm";
 import ShipmentPanel from "@/components/admin/crm/ShipmentPanel";
 import ReturnsPanel from "@/components/admin/crm/ReturnsPanel";
 import OrderFinancePanel from "@/components/admin/crm/OrderFinancePanel";
+import AttributionPanel from "@/components/admin/crm/AttributionPanel";
+import CommunicationsPanel from "@/components/admin/crm/CommunicationsPanel";
 import { getOrder, OrderNotFoundError } from "@/server/services/ordersService";
 import { getShipmentsForOrder } from "@/server/modules/shipping/shipmentService";
 
@@ -41,6 +43,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
       <ShipmentPanel orderId={order.id} orderStatus={order.status} />
       <ReturnsPanel orderId={order.id} orderStatus={order.status} items={order.items} />
       <OrderFinancePanel orderId={order.id} />
+      <AttributionPanel order={order} />
+      <CommunicationsPanel orderId={order.id} isTest={order.isTest} />
     </div>
   );
 }

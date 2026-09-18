@@ -51,6 +51,10 @@ export const PERMISSION_CATALOG = [
   // إعادة الشحن (P5): إجراء متميز يفتح استثناء returned→confirmed بسبب إلزامي —
   // ليست shipments.create ولا orders.status_change، فلا تُشتق من أيهما.
   "shipments.reship",
+  // مراقبة صندوق الأحداث/الأتمتة وإعادة تشغيل الفاشل يدويًا (P7) — لا مكافئ لهما
+  // في الكتالوج (integrations.* تخصّ إعدادات المزوّدين لا تنفيذ الأحداث).
+  "automation.read",
+  "automation.retry",
 ] as const;
 
 export type Permission = (typeof PERMISSION_CATALOG)[number];
@@ -128,6 +132,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
   ],
   marketing: ["orders.read", "marketing.read", "analytics.read", "exports.create"],
   accountant: [
+    "automation.read",
     "risk.read",
     "orders.read",
     "customers.read",
@@ -140,6 +145,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> 
     "audit.read",
   ],
   viewer: [
+    "automation.read",
     "risk.read",
     "orders.read",
     "customers.read",

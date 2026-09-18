@@ -13,10 +13,9 @@ import { cn } from "@/lib/utils";
 import { Field, inputClass as baseInputClass } from "@/components/shared/FormField";
 import { buildWhatsAppUrl } from "@/lib/whatsapp";
 import { trackPurchase, trackInitiateCheckout } from "@/lib/trackConversion";
-import { getOrCreateVisitorId, getAttribution, trackCreativeEvent, type PageKindValue } from "@/lib/tracking";
+import { getOrCreateVisitorId, getAttribution, getAttributionSnapshot, trackCreativeEvent, type PageKindValue } from "@/lib/tracking";
 import {
   buildOrderSummaryText,
-  submitOrderToSheet,
   submitOrderToApi,
   captureAbandonedLead,
   OrderApiError,
@@ -267,12 +266,11 @@ export default function OrderForm({
     setLastOrder(order);
     setStep("submitting");
 
-    // إرسال احتياطي بلا انتظار (best-effort) لـ Google Sheets، بالتوازي مع الـ API الرئيسي —
-    // فترة انتقالية، راجع GOOGLE_SHEETS_SETUP.md
-    void submitOrderToSheet(order);
+    // مزامنة Google Sheets صارت على الخادم عبر outbox (P7) — لا إرسال من المتصفح.
 
     try {
       const attribution = getAttribution();
+      const snapshot = getAttributionSnapshot();
       const result = await submitOrderToApi({
         firstName: order.firstName,
         lastName: order.lastName,
@@ -287,6 +285,7 @@ export default function OrderForm({
         ...(offerAccepted && offer ? { offerId: offer.id } : {}),
         ...(attribution.platform ? { platform: attribution.platform } : {}),
         ...(attribution.creativeName ? { creativeName: attribution.creativeName } : {}),
+        ...(snapshot ? { attribution: snapshot } : {}),
         visitorId: getOrCreateVisitorId(),
       }, idempotencyKey);
 

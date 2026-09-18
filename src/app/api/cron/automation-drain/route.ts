@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyCronSecret } from "@/lib/auth/verifyCronSecret";
 import { runJob } from "@/server/modules/jobs/jobRunner";
 import { drainOutboxUntilEmpty, outboxHealth } from "@/server/modules/automation/outboxDrainer";
+import { retryFailedCommunications } from "@/server/modules/communications/communicationService";
 
 // تصريف صندوق الأحداث (outbox).
 //
@@ -32,7 +33,9 @@ export async function GET(request: Request) {
       const result = await drainOutboxUntilEmpty(CRON_DRAIN_ROUNDS);
       // صحة الصندوق بعد التصريف — تراكم dead-letter إشارة تشغيلية لا تُبتلع
       const health = await outboxHealth();
-      return { ...result, ...health };
+      // P7: إعادة إرسال الرسائل الفاشلة مؤقتًا — نفس التشغيلة والقفل (لا cron إضافي)
+      const communications = await retryFailedCommunications();
+      return { ...result, ...health, communications };
     });
 
     if (outcome.status === "skipped_locked") {

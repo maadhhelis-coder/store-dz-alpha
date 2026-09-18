@@ -17,6 +17,7 @@ import {
   Ticket,
   Undo2,
   Wallet,
+  Workflow,
   Sparkles,
   Settings,
   X,
@@ -46,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "كوبونات الخصم", href: "/admin/coupons", icon: Ticket },
   { label: "المرتجعات", href: "/admin/returns", icon: Undo2 },
   { label: "المالية", href: "/admin/finance", icon: Wallet },
+  { label: "الأتمتة", href: "/admin/automation", icon: Workflow },
   { label: "الذكاء الاصطناعي", href: "/admin/ai-agent", icon: Sparkles, comingSoon: true },
   { label: "الإعدادات", href: "/admin/settings", icon: Settings },
 ];

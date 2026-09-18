@@ -1,3 +1,4 @@
+import type { AttributionSnapshot } from "@/lib/attribution";
 import type { DeliveryOption } from "@/data/delivery";
 import { formatPrice } from "@/lib/format";
 
@@ -24,30 +25,8 @@ export type OrderPayload = {
   discountDzd?: number;
 };
 
-// رابط تطبيق Google Apps Script (Web App) الذي يستقبل الطلبات ويسجلها في Google Sheets.
-// اتركه فارغًا إلى حين إعداد الشيت (راجع GOOGLE_SHEETS_SETUP.md)، والموقع سيستعمل واتساب كحل احتياطي تلقائيًا.
-const ORDER_ENDPOINT = process.env.NEXT_PUBLIC_ORDER_ENDPOINT ?? "";
-
-export function isOrderEndpointConfigured(): boolean {
-  return ORDER_ENDPOINT.trim().length > 0;
-}
-
-export async function submitOrderToSheet(order: OrderPayload): Promise<boolean> {
-  if (!isOrderEndpointConfigured()) return false;
-
-  try {
-    await fetch(ORDER_ENDPOINT, {
-      method: "POST",
-      mode: "no-cors", // Apps Script Web Apps لا يعيدون رؤوس CORS، لذلك لا يمكن قراءة الرد
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(order),
-    });
-    // mode:"no-cors" يمنعنا من قراءة نجاح/فشل الطلب فعليًا، لذلك نعتبره ناجحًا تفاؤليًا
-    return true;
-  } catch {
-    return false;
-  }
-}
+// مزامنة Google Sheets صارت على الخادم (P7): src/server/modules/integrations/sheetsSync.ts عبر
+// outbox — لا إرسال من المتصفح ولا NEXT_PUBLIC_ORDER_ENDPOINT في العميل.
 
 export type ApiOrderRequest = {
   firstName: string;
@@ -65,6 +44,7 @@ export type ApiOrderRequest = {
   platform?: "facebook" | "instagram" | "tiktok";
   creativeName?: string;
   visitorId?: string;
+  attribution?: AttributionSnapshot;
 };
 
 export type ApiOrderResponse = {

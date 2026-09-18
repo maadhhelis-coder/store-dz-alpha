@@ -1,4 +1,3 @@
-import { after } from "next/server";
 import { prisma } from "@/server/db/prisma";
 import { revalidateStorefrontProducts } from "@/server/services/productsService";
 import * as ordersRepository from "@/server/repositories/ordersRepository";
@@ -15,7 +14,9 @@ import type { OrderStatus } from "@prisma/client";
 import { notifyOwner } from "@/lib/ownerNotify";
 import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
+import { runAfterResponse } from "@/lib/afterResponse";
 import { getCrmSetting } from "@/server/modules/settings/crmSettingsService";
+import { attributionFieldsForOrder } from "@/lib/attribution";
 import { formatPrice } from "@/lib/format";
 
 export { InvalidCouponError };
@@ -225,8 +226,11 @@ async function createOrderTransaction(
         // العرض فعليًا بإيراده، ويمنع شاشة تأكيد الطلب من معرفة الحقيقة الفعلية.
         offerId: offerProductForStock ? input.offerId : null,
         source: input.source ?? "website",
+        // العزو (P7): لقطة المتصفح تُحفظ كما هي وقت الإنشاء — first-touch وlast-touch
+        // وحقول UTM/الحملة؛ بلا لقطة تبقى الحقول القديمة platform/creativeName كما وصلت.
         platform: input.platform,
         creativeName: input.creativeName,
+        ...attributionFieldsForOrder(input.attribution),
         visitorId: input.visitorId,
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
@@ -328,7 +332,9 @@ async function createOrderTransaction(
         lineTotalDzd: item.lineTotalDzd,
       })),
     });
-    after(() =>
+    // P7: runAfterResponse بدل after() الخام — نفس السلوك داخل طلب HTTP، وخارجه (اختبارات
+    // التكامل/سكربتات) لا يرمي فلا يُسقط معاملة الطلب بعد التزامها الفعلي.
+    runAfterResponse("meta capi purchase", () =>
       sendMetaCapiPurchase({
         orderNumber: finalOrder.orderNumber,
         totalDzd: finalOrder.totalDzd,
@@ -337,14 +343,14 @@ async function createOrderTransaction(
         lastName: finalOrder.customerLastName,
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
-      }).catch((error) => console.error("meta capi purchase error", error)),
+      }),
     );
-    after(() =>
+    runAfterResponse("tiktok events api", () =>
       sendTikTokCompletePayment({
         orderNumber: finalOrder.orderNumber,
         totalDzd: finalOrder.totalDzd,
         phone: finalOrder.phone,
-      }).catch((error) => console.error("tiktok events api error", error)),
+      }),
     );
     // المخزون نُقص للتوّ، وصفحة المنتج تقرأ من unstable_cache — بلا هذا الإبطال قد
     // تُظهر «متوفر» لقطعة بيعت.
@@ -352,10 +358,10 @@ async function createOrderTransaction(
     // داخل after() كبقية الأعمال الجانبية هنا، لا في مسار الاستجابة: إبطال الوسم
     // كتابة على مخزن التخزين المؤقّت، ولا يصحّ أن ينتظرها الزبون بعد أن التزمت
     // معاملته فعلًا. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا ناجحًا.
-    after(() => revalidateStorefrontProducts());
+    runAfterResponse("revalidate storefront", async () => revalidateStorefrontProducts());
     // إشعار صاحب المتجر (تبويب الإشعارات → «إشعارات الطلبيات») + تنبيه مخزون منخفض
     // بعد الخصم — كلاهما بعد الرد، ولا يرمي أي منهما.
-    after(() =>
+    runAfterResponse("owner order notification", () =>
       notifyOwner(
         "orders",
         [
@@ -367,7 +373,7 @@ async function createOrderTransaction(
         ].join("\n"),
       ),
     );
-    after(() => raiseLowStockAlerts(finalOrder.items.flatMap((i) => (i.productId ? [i.productId] : []))));
+    runAfterResponse("low stock alerts", () => raiseLowStockAlerts(finalOrder.items.flatMap((i) => (i.productId ? [i.productId] : []))));
     return finalOrder;
   });
 }

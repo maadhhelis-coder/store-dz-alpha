@@ -130,3 +130,57 @@ function runFullSetup() {
 
 ## تنظيف السطور التجريبية
 فالجدول عندك دابا سطرين فيهم "???????" (تجارب تقنية مني)، وسطر "اختبار Store DZ" (تجربة حقيقية من الموقع نجحت ✅) — امسح الثلاثة سطور هاذو قبل ما تبدا تستقبل طلبات حقيقية.
+
+## النسخة 3 (P7) — المزامنة من الخادم بلا تكرار
+
+من P7 لا يُرسل المتصفح شيئًا للشيت: الخادم يرسل عبر صندوق الأحداث (outbox) مع إعادة محاولة عند
+الفشل. لذلك يحمل كل طلب `orderNumber` و`action` (`order.created` أو `order.status_changed`) و`status`،
+والسكربت يجب أن **يزيل التكرار برقم الطلب** ويحدّث الحالة في عمود «الحالة» بدل إضافة صف جديد.
+
+- الرابط في Vercel: `ORDER_SHEETS_ENDPOINT` (يُقبل `NEXT_PUBLIC_ORDER_ENDPOINT` القديم مؤقتًا).
+- الرد يجب أن يكون JSON `{"status":"ok"}` — أي رد آخر يُعدّ فشلًا ويُعاد.
+
+استبدل `doPost` بهذا (يُبقي التنسيق والألوان كما هي):
+
+```js
+function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var data = JSON.parse(e.postData.contents);
+  if (sheet.getLastRow() === 0) setupHeaders(sheet);
+
+  // العمود N = رقم الطلب، O = الحالة (يُضافان تلقائيًا إن لم يوجدا)
+  var ORDER_COL = 14, STATUS_COL = 15;
+  if (sheet.getRange(1, ORDER_COL).getValue() !== "رقم الطلب") {
+    sheet.getRange(1, ORDER_COL).setValue("رقم الطلب");
+    sheet.getRange(1, STATUS_COL).setValue("الحالة");
+  }
+
+  var existingRow = findRowByOrderNumber(sheet, ORDER_COL, data.orderNumber);
+  if (data.action === "order.status_changed") {
+    if (existingRow > 0) sheet.getRange(existingRow, STATUS_COL).setValue(data.status);
+    return ok();
+  }
+  if (existingRow > 0) return ok(); // مكرَّر (إعادة محاولة) — لا صف ثانٍ
+
+  sheet.appendRow([
+    new Date(data.createdAt), data.firstName, data.lastName, data.phone, data.wilayaName, data.commune,
+    data.address, data.quantity, data.productName, data.productPrice, data.deliveryPrice, data.totalPrice,
+    "", data.orderNumber, data.status,
+  ]);
+  return ok();
+}
+
+function findRowByOrderNumber(sheet, col, orderNumber) {
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+  var values = sheet.getRange(2, col, last - 1, 1).getValues();
+  for (var i = 0; i < values.length; i++) if (values[i][0] === orderNumber) return i + 2;
+  return 0;
+}
+
+function ok() {
+  return ContentService.createTextOutput(JSON.stringify({ status: "ok" })).setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+بعد اللصق: **Deploy ← Manage deployments ← Edit ← New version ← Deploy** (نفس الرابط يبقى).
