@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/auth/requirePermission";
 import { p6ErrorResponse, invalidBody } from "@/lib/p6RouteErrors";
+import { IdempotencyInFlightError, IdempotencyKeyReusedError } from "@/server/modules/idempotency/durableIdempotency";
 import { adjustmentsListQuerySchema, createAdjustmentSchema } from "@/lib/validation/financeSchema";
 import {
   createFinancialAdjustment,
@@ -33,6 +34,9 @@ export async function POST(request: Request) {
     });
     return NextResponse.json(created, { status: 201 });
   } catch (error) {
+    if (error instanceof IdempotencyKeyReusedError || error instanceof IdempotencyInFlightError) {
+      return NextResponse.json({ error: error.message, code: error.code }, { status: 409 });
+    }
     return p6ErrorResponse(error, "adjustment create");
   }
 }

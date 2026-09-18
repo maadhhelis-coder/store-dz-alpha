@@ -450,6 +450,80 @@ maybeDescribe("P6 — المرتجعات والمالية (integration)", () => 
     await prisma.product.update({ where: { id: productId }, data: { costDzd: 800 } });
   });
 
+  // ------------------------------------------------------------ إصلاحات المراجعة النهائية
+  it("مطابقة سطر التسوية برقم التتبّع رغم اختلاف حالة أحرف provider (الشحنات DHD / التسوية dhd)", async () => {
+    const order = await makeOrder();
+    const tracking = `TRK-${tag}-match`;
+    await prisma.shipment.create({
+      data: { orderId: order.id, provider: "DHD", trackingNumber: tracking, status: "delivered", codAmountDzd: order.totalDzd },
+    });
+    const res = await importCodSettlement({
+      provider: "dhd",
+      settlementDate: new Date("2026-09-20T00:00:00Z"),
+      reference: `trk-${tag}`,
+      lines: [{ trackingNumber: tracking, collectedDzd: 8_500 }],
+      actor: actor(),
+    });
+    expect(res.unmatched).toEqual([]);
+    expect(res.matched).toBe(1);
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).codCollectedAmountDzd).toBe(8_500);
+  });
+
+  it("التعديل المالي بمفتاح idempotency: إعادة الإرسال تُرجع نفس السجل، ومفتاح بمحتوى مختلف يُرفض", async () => {
+    const order = await makeOrder();
+    const key = `adj-${tag}-${Math.random().toString(36).slice(2, 10)}`;
+    const base = {
+      orderId: order.id,
+      type: "other" as const,
+      amountDzd: 250,
+      direction: "debit" as const,
+      reason: "خصم",
+      idempotencyKey: key,
+      actor: actor(),
+    };
+    const [a, b] = await Promise.all([createFinancialAdjustment(base), createFinancialAdjustment(base)]);
+    expect(a.id).toBe(b.id);
+    const again = await createFinancialAdjustment(base);
+    expect(again.id).toBe(a.id);
+    expect(await prisma.financialAdjustment.count({ where: { orderId: order.id } })).toBe(1);
+    await expect(createFinancialAdjustment({ ...base, amountDzd: 999 })).rejects.toMatchObject({
+      code: "IDEMPOTENCY_KEY_REUSED",
+    });
+    await prisma.idempotencyKey.deleteMany({ where: { idempotencyKey: key } });
+  });
+
+  it("بند مكرَّر في طلب الاسترجاع وشحنة من طلب آخر يُرفضان بوضوح (لا 500)", async () => {
+    const order = await makeOrder();
+    const other = await makeOrder();
+    const foreign = await prisma.shipment.create({
+      data: { orderId: other.id, provider: "DHD", status: "delivered", codAmountDzd: other.totalDzd },
+      select: { id: true },
+    });
+    const itemA = order.items.find((i) => i.productId === productId)!;
+    await expect(
+      createReturn({
+        orderId: order.id,
+        reason: "refused",
+        shipmentId: foreign.id,
+        items: [{ orderItemId: itemA.id, quantity: 1 }],
+        actor: actor(),
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_ITEMS" });
+    const ret = await createReturn({ orderId: order.id, reason: "refused", items: [{ orderItemId: itemA.id, quantity: 2 }], actor: actor() });
+    await transitionReturnStatus({ returnId: ret.id, to: "received", actor: actor() });
+    const id = ret.items[0].id;
+    await expect(
+      restockReturnItems({
+        returnId: ret.id,
+        items: [
+          { returnItemId: id, restockedQuantity: 1 },
+          { returnItemId: id, restockedQuantity: 2 },
+        ],
+        actor: actor(),
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_ITEMS" });
+  });
+
   // ------------------------------------------------------------ RBAC
   it("role_permissions في القاعدة تطابق الكتالوج لصلاحيات P6 (deny by default)", async () => {
     const rows = await prisma.rolePermission.findMany({ select: { role: true, permission: true } });

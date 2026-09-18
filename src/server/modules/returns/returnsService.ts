@@ -134,6 +134,10 @@ export async function createReturn(input: CreateReturnInput) {
       for (const it of input.items) {
         if (!byId.has(it.orderItemId)) throw new ReturnError("INVALID_ITEMS", "بند لا ينتمي لهذا الطلب");
       }
+      if (input.shipmentId) {
+        const owned = await tx.shipment.count({ where: { id: input.shipmentId, orderId: input.orderId } });
+        if (owned === 0) throw new ReturnError("INVALID_ITEMS", "الشحنة لا تخصّ هذا الطلب");
+      }
 
       // Σ المُرجَع سابقًا (دورات غير مرفوضة) لكل بند — تحت قفل الطلب
       const previous = await tx.returnItem.groupBy({
@@ -333,10 +337,13 @@ export type RestockResult = {
 /** الاسترجاع للمخزون — للفارق فقط تحت قفل صف البند؛ تكرار نفس الطلب = لا أثر. */
 export async function restockReturnItems(input: RestockInput): Promise<RestockResult> {
   if (input.items.length === 0) throw new ReturnError("INVALID_ITEMS", "لا بنود للاسترجاع");
+  const seen = new Set<string>();
   for (const it of input.items) {
     if (!Number.isInteger(it.restockedQuantity) || it.restockedQuantity < 0) {
       throw new ReturnError("INVALID_ITEMS", "كمية الاسترجاع يجب أن تكون عددًا صحيحًا ≥ 0");
     }
+    if (seen.has(it.returnItemId)) throw new ReturnError("INVALID_ITEMS", "بند مكرَّر في طلب الاسترجاع");
+    seen.add(it.returnItemId);
   }
 
   try {

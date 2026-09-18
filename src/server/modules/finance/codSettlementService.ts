@@ -366,7 +366,9 @@ async function resolveLines(
   const [shipments, orders] = await Promise.all([
     trackings.length
       ? tx.shipment.findMany({
-          where: { provider, trackingNumber: { in: trackings } },
+          // الشحنات تُخزَّن بـprovider كما يكتبه الناقل ("DHD") والتسوية مُطبَّعة صغيرة —
+          // المطابقة بلا حساسية لحالة الأحرف وإلا فكل سطور التتبّع "بلا طلب" (اكتُشف بالمراجعة)
+          where: { provider: { equals: provider, mode: "insensitive" }, trackingNumber: { in: trackings } },
           select: { trackingNumber: true, orderId: true },
         })
       : Promise.resolve([]),

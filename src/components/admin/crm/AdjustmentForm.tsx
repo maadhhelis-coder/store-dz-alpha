@@ -18,6 +18,7 @@ export default function AdjustmentForm({ orderId, correctionOfId }: { orderId?: 
   const [direction, setDirection] = useState<"credit" | "debit">("debit");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   async function submit() {
     setBusy(true);
@@ -33,6 +34,7 @@ export default function AdjustmentForm({ orderId, correctionOfId }: { orderId?: 
           amountDzd: Number(amount),
           reason: reason.trim(),
           correctionOfId: correctionOfId ?? null,
+          idempotencyKey,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -43,6 +45,7 @@ export default function AdjustmentForm({ orderId, correctionOfId }: { orderId?: 
       setOpen(false);
       setAmount("");
       setReason("");
+      setIdempotencyKey(crypto.randomUUID());
       router.refresh();
     } catch {
       setError("تعذر الاتصال بالخادم — حاول مجددًا");

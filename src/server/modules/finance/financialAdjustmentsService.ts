@@ -1,5 +1,6 @@
 import { prisma } from "@/server/db/prisma";
 import { writeAuditInTx } from "@/server/services/auditService";
+import { executeIdempotent } from "@/server/modules/idempotency/durableIdempotency";
 import type { AdjustmentDirection, FinancialAdjustmentType, Prisma } from "@prisma/client";
 
 // التعديلات المالية (P6) — سجلات غير قابلة للتغيير: لا update ولا delete إطلاقًا.
@@ -42,11 +43,36 @@ export type CreateAdjustmentInput = {
   reason: string;
   /** التعديل الأصلي الذي يُصحَّح — يُنشأ تعديل تعويضي جديد ولا يُمسّ الأصل */
   correctionOfId?: string | null;
+  /** مفتاح idempotency من العميل: إعادة إرسال نفس الطلب تُرجع السجل الأصلي بلا تكرار مالي */
+  idempotencyKey?: string | null;
   actor: { type: "admin" | "system" | "api"; id?: string | null };
   correlationId?: string | null;
 };
 
 export async function createFinancialAdjustment(input: CreateAdjustmentInput) {
+  if (!input.idempotencyKey || !input.actor.id) return createAdjustmentOnce(input);
+  // يُخزَّن المعرّف فقط في idempotency_keys؛ السجل نفسه يُقرأ من جدوله عند الإعادة
+  const result = await executeIdempotent<{ id: string }>(
+    {
+      actorId: input.actor.id,
+      operation: "financial_adjustment.create",
+      idempotencyKey: input.idempotencyKey,
+      payload: {
+        orderId: input.orderId,
+        type: input.type,
+        amountDzd: input.amountDzd,
+        direction: input.direction,
+        reason: input.reason.trim(),
+        correctionOfId: input.correctionOfId ?? null,
+      },
+      deserialize: (json) => ({ id: (json as { id: string }).id }),
+    },
+    async () => ({ id: (await createAdjustmentOnce(input)).id }),
+  );
+  return prisma.financialAdjustment.findUniqueOrThrow({ where: { id: result.value.id } });
+}
+
+async function createAdjustmentOnce(input: CreateAdjustmentInput) {
   if (!Number.isInteger(input.amountDzd) || input.amountDzd < 0) {
     throw new AdjustmentError("INVALID_AMOUNT", "المبلغ يجب أن يكون عددًا صحيحًا دج ≥ 0");
   }

@@ -97,6 +97,7 @@ export const createAdjustmentSchema = z.object({
   direction: z.enum(AdjustmentDirection),
   reason,
   correctionOfId: uuid.nullable().optional(),
+  idempotencyKey: z.string().trim().min(8).max(100).nullable().optional(),
 });
 
 export const adjustmentsListQuerySchema = z.object({
