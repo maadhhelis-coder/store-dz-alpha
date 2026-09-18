@@ -22,13 +22,13 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    await requireAdminOrApiKey(request, "orders:write");
+    const actor = await requireAdminOrApiKey(request, "orders:write");
     const { id } = await params;
     const parsed = deliveryUpdateSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) {
       return NextResponse.json({ error: "بيانات غير صحيحة", details: parsed.error.flatten() }, { status: 400 });
     }
-    const order = await updateOrderDelivery(id, parsed.data);
+    const order = await updateOrderDelivery(id, parsed.data, actor);
     return NextResponse.json({ order });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: error.message }, { status: 401 });

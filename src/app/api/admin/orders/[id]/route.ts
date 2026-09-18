@@ -29,7 +29,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    await requirePermission("orders.update");
+    const admin = await requirePermission("orders.update");
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = orderUpdateSchema.safeParse(body);
@@ -41,7 +41,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const order = await updateOrderFields(id, parsed.data);
+    const order = await updateOrderFields(id, parsed.data, { type: "admin", id: admin.id });
     return NextResponse.json({ order });
   } catch (error) {
     if (error instanceof UnauthorizedError) {

@@ -126,7 +126,7 @@ export function buildStoreMcpServer(key: VerifiedApiKey): McpServer {
       description: "ينقل الطلب عبر آلة الحالات الرسمية (confirmed, cancelled, shipped...). الانتقال غير المسموح يُرفض بخطأ صريح.",
       inputSchema: { id: z.string().uuid(), status: writableOrderStatusSchema, notes: z.string().max(2000).optional() },
     },
-    async ({ id, status, notes }) => run(async () => (need("orders:write"), updateOrderStatus(id, status, notes))),
+    async ({ id, status, notes }) => run(async () => (need("orders:write"), updateOrderStatus(id, status, notes, { type: "api", id: key.id }))),
   );
 
   server.registerTool(

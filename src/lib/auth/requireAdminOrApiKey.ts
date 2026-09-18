@@ -24,7 +24,11 @@ const SCOPE_TO_PERMISSION: Record<ApiKeyScope, Permission> = {
 // فارغة = وصول كامل)؛ وعند المرور بجلسة متصفح يُفحص الدور مقابل الصلاحية المقابلة للنطاق
 // من الكتالوج (deny-by-default). بلا نطاق مطلوب لا نعرف الصلاحية المقصودة فنكتفي
 // بالمصادقة — كل المستدعين الحاليين يمرّرون نطاقًا.
-export async function requireAdminOrApiKey(request: Request, requiredScope?: ApiKeyScope): Promise<void> {
+// الفاعل المُرجَع يُمرَّر للخدمات كي يُسجَّل في التدقيق/سجل الحالات باسمه الحقيقي (المشرف أو
+// معرّف مفتاح API) — كان يُفقد فيُكتب "system" لكل تغيير حالة من لوحة التحكم (تدقيق نهائي).
+export type RequestActor = { type: "admin" | "api"; id: string };
+
+export async function requireAdminOrApiKey(request: Request, requiredScope?: ApiKeyScope): Promise<RequestActor> {
   const apiKey = request.headers.get("x-api-key");
 
   if (apiKey) {
@@ -35,14 +39,15 @@ export async function requireAdminOrApiKey(request: Request, requiredScope?: Api
     if (requiredScope && !apiKeyHasScope(verified, requiredScope)) {
       throw new ForbiddenError("هذا المفتاح لا يملك صلاحية هذا الإجراء");
     }
-    return;
+    return { type: "api", id: verified.id };
   }
 
   if (requiredScope) {
-    await requirePermission(SCOPE_TO_PERMISSION[requiredScope]);
-    return;
+    const admin = await requirePermission(SCOPE_TO_PERMISSION[requiredScope]);
+    return { type: "admin", id: admin.id };
   }
-  await requireAdmin();
+  const admin = await requireAdmin();
+  return { type: "admin", id: admin.id };
 }
 
 // نفس المبدأ، لكن مسار جلسة المتصفح يتطلب دور "owner" — يُستعمل فالإجراءات الحساسة

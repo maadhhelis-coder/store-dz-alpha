@@ -13,7 +13,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
   try {
-    await requireAdminOrApiKey(request, "orders:write");
+    const actor = await requireAdminOrApiKey(request, "orders:write");
     const { id } = await params;
     const body = await request.json().catch(() => null);
     const parsed = orderStatusSchema.safeParse(body);
@@ -25,7 +25,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       );
     }
 
-    const order = await updateOrderStatus(id, parsed.data.status, parsed.data.notes);
+    const order = await updateOrderStatus(id, parsed.data.status, parsed.data.notes, actor);
     return NextResponse.json({ order });
   } catch (error) {
     if (error instanceof UnauthorizedError) {
