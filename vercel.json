@@ -2,23 +2,23 @@
   "regions": ["dub1"],
   "crons": [
     {
-      "path": "/api/cron/sync-ads",
+      "path": "/api/cron/sync-ads/",
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/cleanup-tracking",
+      "path": "/api/cron/cleanup-tracking/",
       "schedule": "0 4 * * 0"
     },
     {
-      "path": "/api/cron/crm-recompute",
+      "path": "/api/cron/crm-recompute/",
       "schedule": "30 2 * * *"
     },
     {
-      "path": "/api/cron/automation-drain",
+      "path": "/api/cron/automation-drain/",
       "schedule": "45 3 * * *"
     },
     {
-      "path": "/api/cron/shipment-reconcile",
+      "path": "/api/cron/shipment-reconcile/",
       "schedule": "0 9 * * *"
     }
   ]
