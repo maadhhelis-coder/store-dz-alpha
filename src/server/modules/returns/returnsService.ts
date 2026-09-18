@@ -81,8 +81,10 @@ const RETURN_TRANSITIONS: Readonly<Record<ReturnStatus, readonly ReturnStatus[]>
   rejected: [],
 };
 
-/** الحالات التي يُسمح فيها بالاسترجاع للمخزون — بعد استلام البضاعة فعليًا. */
-const RESTOCKABLE_STATUSES: readonly ReturnStatus[] = ["received", "inspected", "partially_restocked"];
+/** الحالات التي يُسمح فيها بالاسترجاع للمخزون — بعد استلام البضاعة فعليًا. restocked مدرجة
+ * عمدًا: إعادة إرسال نفس الطلب بعد اكتمال الاسترجاع (retry) يجب أن تكون بلا أثر لا خطأ
+ * (الفارق صفر حتمًا لأن restocked = quantity)، وهذا ما أثبته E2E فعليًا (كان 409). */
+const RESTOCKABLE_STATUSES: readonly ReturnStatus[] = ["received", "inspected", "partially_restocked", "restocked"];
 
 export type CreateReturnInput = {
   orderId: string;
