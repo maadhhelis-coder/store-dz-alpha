@@ -1,5 +1,11 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/data/site";
+
+// الموقع يخدم المسارات بشرطة مائلة ختامية (trailingSlash: true) وcanonical/og:url كذلك؛
+// روابط الخريطة بلا الشرطة كانت تُرد بـ308 لكل صفحة (تحقق فعلي على الإنتاج).
+export function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : url + "/";
+}
 import { getPublishedProducts, getCategories } from "@/lib/storefrontData";
 import { prisma } from "@/server/db/prisma";
 
@@ -50,5 +56,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...productRoutes, ...categoryRoutes];
+  return [...staticRoutes, ...productRoutes, ...categoryRoutes].map((e) => ({ ...e, url: withTrailingSlash(e.url) }));
 }
