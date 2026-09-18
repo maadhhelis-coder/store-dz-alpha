@@ -11,7 +11,7 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    await requirePermission("orders.status_change");
+    const admin = await requirePermission("orders.status_change");
     const body = await request.json().catch(() => null);
     const parsed = orderBulkStatusSchema.safeParse(body);
 
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await bulkUpdateOrderStatus(parsed.data.orderIds, parsed.data.status);
+    const result = await bulkUpdateOrderStatus(parsed.data.orderIds, parsed.data.status, { type: "admin", id: admin.id });
     return NextResponse.json({ updated: result.count });
   } catch (error) {
     if (error instanceof UnauthorizedError) {

@@ -55,11 +55,11 @@ P1–P7 كما هي؛ P8 لا يضيف جداول ولا migrations ولا صل�
 قائمة كما في P3–P7 (`src/lib/validation/crmSettingsSchema.ts`) — zod، defaults، audit
 (`settings`)، `settings.read/manage`. لا صلاحيات داخلها. المفاتيح: `risk_weights`,
 `risk_thresholds`, `segmentation_thresholds`, `fraud_thresholds`, `task_sla_minutes`,
-`shipping_reconciliation`, `packaging_cost_dzd`, `attribution_window_days`,
+`shipping_reconciliation`, `packaging_cost_dzd`,
 `export_max_rows` (100–100000، افتراضي 10000)، `automation_enabled`.
 
-ملاحظة صادقة: `attribution_window_days` لا يقرؤه أي كود حاليًا (نافذة P7 ثابتة 90 يومًا في
-المتصفح). أُبقي كما هو (خارج نطاق P8، لا اختراع استعمال).
+`attribution_window_days` أُزيل في التدقيق النهائي: لم يقرأه أي كود (نافذة P7 ثابتة 90 يومًا في
+المتصفح) فكان إعدادًا مضلِّلًا؛ صفه القديم في `crm_settings` إن وُجد يُتجاهل (القراءة version-tolerant).
 
 ## 5. التصدير (`GET /api/admin/crm/exports`, `src/server/modules/exports/exportsService.ts`)
 
@@ -129,7 +129,8 @@ P1–P7 كما هي؛ P8 لا يضيف جداول ولا migrations ولا صل�
 - **المصادقة/التفويض**: Supabase session + `admin_users.isActive` (`requireAdmin`) ثم
   `requirePermission` من القاعدة على كل مسار P8؛ لا فحص عميل. E2E `p8-operations` يثبت
   401/403/قراءة فقط.
-- **CORS**: لا ترويسات `Access-Control-Allow-Origin` في الكود — نفس الأصل فقط؛ الجلسة كوكي
+- **CORS**: صريح في `next.config.ts` على `/api/*`: `Access-Control-Allow-Origin` = أصل الموقع فقط (لا `*`)؛
+  ردود `/api/admin|mcp|auth` بـ`Cache-Control: private, no-store`؛ الجلسة كوكي
   `SameSite=Lax`.
 - **الرؤوس**: `X-Frame-Options: DENY`, HSTS preload، CSP بـnonce لكل طلب (`middleware.ts`).
 - **حدود المعدل** (Upstash): الدخول 5/15د (IP وبريد)، الطلبات، العملاء المحتملون 10/10د،
@@ -192,4 +193,3 @@ P1–P7 كما هي؛ P8 لا يضيف جداول ولا migrations ولا صل�
 - مراقبة 401/403 من السجلات فقط.
 - التصدير متزامن (سقف 100000 صف).
 - سجل التدقيق بلا حذف دوري — النمو مقصود.
-- `attribution_window_days` غير مستعمل.

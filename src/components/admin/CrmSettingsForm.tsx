@@ -19,7 +19,6 @@ const KEY_LABELS: Record<string, string> = {
   fraud_thresholds: "عتبات كشف الاحتيال",
   task_sla_minutes: "مهل المهام (بالدقائق)",
   packaging_cost_dzd: "تكلفة التغليف الافتراضية (دج)",
-  attribution_window_days: "نافذة العزو (أيام)",
   export_max_rows: "الحد الأقصى لصفوف التصدير",
   automation_enabled: "تفعيل الأتمتة لكل معالِج",
 };

@@ -8,7 +8,8 @@ import { sendTikTokCompletePayment } from "@/server/services/tiktokEventsApiServ
 import { assertCouponUsable, computeCouponDiscountDzd, InvalidCouponError } from "@/lib/validation/couponRules";
 import type { OrderCreateInput } from "@/lib/validation/orderSchema";
 import { matchOrCreateCustomerInTx } from "@/server/modules/customers/identityService";
-import { createOutboxEvent, transitionOrderStatus } from "@/server/modules/orders/statusService";
+import { createOutboxEvent, transitionOrderStatus, type StatusChangeActor } from "@/server/modules/orders/statusService";
+import { writeAuditInTx } from "@/server/services/auditService";
 import { nudgeOutbox } from "@/server/modules/automation/outboxDrainer";
 import { Prisma } from "@prisma/client";
 import type { OrderStatus } from "@prisma/client";
@@ -419,9 +420,11 @@ export async function updateOrderStatus(
   id: string,
   status: OrderStatus,
   notes?: string,
+  // الفاعل الحقيقي (مشرف/مفتاح API) — الافتراضي system للمسارات الآلية فقط
+  actor: StatusChangeActor = { type: "system" },
 ): Promise<NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>> {
   return transitionOrderStatus(id, status, {
-    actor: { type: "system" },
+    actor,
     reason: notes ?? null,
   });
 }
@@ -429,10 +432,10 @@ export async function updateOrderStatus(
 // نعيد استعمال updateOrderStatus لكل معرّف بدل updateMany مباشر — updateMany كان يتجاوز
 // إطلاق أحداث Meta CAPI/TikTok، وهي الأداة التي يستعملها مؤكِّد الطلبات لتسريع تأكيد
 // عشرات الطلبات يوميًا؛ كل استخدام كان يقطع بيانات تحسين الحملات الإعلانية بصمت.
-export async function bulkUpdateOrderStatus(ids: string[], status: OrderStatus) {
+export async function bulkUpdateOrderStatus(ids: string[], status: OrderStatus, actor: StatusChangeActor = { type: "system" }) {
   const results = await Promise.all(
     ids.map((id) =>
-      updateOrderStatus(id, status).catch((error) => {
+      updateOrderStatus(id, status, undefined, actor).catch((error) => {
         console.error("bulk status update failed for order", id, error);
         return null;
       }),
@@ -441,13 +444,32 @@ export async function bulkUpdateOrderStatus(ids: string[], status: OrderStatus) 
   return { count: results.filter(Boolean).length };
 }
 
+// تعديل حقول الطلب من لوحة التحكم — الهاتف المُعدَّل يُشتق منه phone_normalized (كان يبقى
+// القديم فيتعارض مع الهاتف الظاهر ويُفسد بحث/ربط العميل)، وكل تعديل يُوثَّق قبل/بعد
+// (الهاتف مقنَّع تلقائيًا في redactForAudit). ربط العميل لا يُعاد حسابه (لا دمج آلي).
 export async function updateOrderFields(
   id: string,
   data: Parameters<typeof ordersRepository.updateOrderFields>[1],
+  actor: StatusChangeActor = { type: "system" },
 ) {
   const existing = await ordersRepository.findOrderById(id);
   if (!existing) throw new OrderNotFoundError();
-  return ordersRepository.updateOrderFields(id, data);
+  const phone = typeof data.phone === "string" ? data.phone : undefined;
+  const patch = { ...data, ...(phone !== undefined ? { phoneNormalized: ordersRepository.normalizePhone(phone) } : {}) };
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({ where: { id }, data: patch });
+    const keys = Object.keys(data) as (keyof typeof data)[];
+    await writeAuditInTx(tx, {
+      actorType: actor.type,
+      actorId: actor.id ?? null,
+      action: "order.update",
+      entityType: "order",
+      entityId: id,
+      before: Object.fromEntries(keys.map((k) => [k, (existing as Record<string, unknown>)[k as string] ?? null])),
+      after: Object.fromEntries(keys.map((k) => [k, (updated as Record<string, unknown>)[k as string] ?? null])),
+    });
+    return updated;
+  });
 }
 
 export class OrderNotPendingError extends Error {
@@ -463,6 +485,7 @@ export class OrderNotPendingError extends Error {
 export async function updateOrderDelivery(
   id: string,
   input: { deliveryOption: "home" | "office"; commune?: string; address?: string },
+  actor: StatusChangeActor = { type: "system" },
 ) {
   const existing = await ordersRepository.findOrderById(id);
   if (!existing) throw new OrderNotFoundError();
@@ -473,7 +496,8 @@ export async function updateOrderDelivery(
   const deliveryPriceDzd = input.deliveryOption === "office" ? wilaya.officePriceDzd : wilaya.homePriceDzd;
   if (deliveryPriceDzd === null) throw new DeliveryOptionUnavailableError();
 
-  return prisma.order.update({
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({
     where: { id },
     data: {
       deliveryOption: input.deliveryOption,
@@ -484,5 +508,17 @@ export async function updateOrderDelivery(
       totalDzd: Math.max(0, existing.itemsSubtotalDzd + deliveryPriceDzd - existing.discountDzd),
     },
     include: { items: true },
+    });
+    // تغيير مالي (سعر التوصيل والمجموع) على طلب معلّق — يُوثَّق في نفس المعاملة
+    await writeAuditInTx(tx, {
+      actorType: actor.type,
+      actorId: actor.id ?? null,
+      action: "order.delivery_update",
+      entityType: "order",
+      entityId: id,
+      before: { deliveryOption: existing.deliveryOption, commune: existing.commune, deliveryPriceDzd: existing.deliveryPriceDzd, totalDzd: existing.totalDzd },
+      after: { deliveryOption: updated.deliveryOption, commune: updated.commune, deliveryPriceDzd: updated.deliveryPriceDzd, totalDzd: updated.totalDzd },
+    });
+    return updated;
   });
 }

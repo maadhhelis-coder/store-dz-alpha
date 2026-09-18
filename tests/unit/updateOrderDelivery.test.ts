@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const order = { id: "o1", status: "pending", wilayaCode: 16, address: "old", itemsSubtotalDzd: 2700, discountDzd: 0 };
 const update = vi.fn(async (args: unknown) => args);
-vi.mock("@/server/db/prisma", () => ({ prisma: { order: { update: (a: unknown) => update(a) } } }));
+// التدقيق النهائي: التعديل صار داخل معاملة مع سجل تدقيق — نفس الـmock يمثّل tx (الـfactory
+// مرفوع للأعلى فلا متغيرات علوية داخله)
+vi.mock("@/server/db/prisma", () => {
+  const db = { order: { update: (a: unknown) => update(a) } };
+  return { prisma: { ...db, $transaction: (fn: (tx: typeof db) => unknown) => fn(db) } };
+});
+vi.mock("@/server/services/auditService", () => ({ writeAuditInTx: async () => undefined, writeAudit: async () => undefined }));
 vi.mock("@/server/repositories/ordersRepository", () => ({ findOrderById: async () => order }));
 vi.mock("@/server/repositories/wilayasRepository", () => ({
   findWilayaByCode: async () => ({ code: 16, isActive: true, homePriceDzd: 500, officePriceDzd: 350 }),

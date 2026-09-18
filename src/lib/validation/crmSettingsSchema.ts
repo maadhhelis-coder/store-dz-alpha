@@ -81,8 +81,6 @@ export const crmSettingSchemas = {
     .prefault({}),
   // تكلفة التغليف الافتراضية للطلب الجديد (لقطة وقت الإنشاء)
   packaging_cost_dzd: z.number().int().min(0).default(0),
-  // نافذة العزو last-touch بالأيام
-  attribution_window_days: z.number().int().min(1).max(365).default(30),
   // حدود التصدير
   export_max_rows: z.number().int().min(100).max(100000).default(10000),
   // تشغيل/تعطيل الأتمتة لكل معالِج (P7)
