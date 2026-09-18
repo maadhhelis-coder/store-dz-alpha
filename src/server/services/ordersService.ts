@@ -9,6 +9,7 @@ import { assertCouponUsable, computeCouponDiscountDzd, InvalidCouponError } from
 import type { OrderCreateInput } from "@/lib/validation/orderSchema";
 import { matchOrCreateCustomerInTx } from "@/server/modules/customers/identityService";
 import { createOutboxEvent, transitionOrderStatus } from "@/server/modules/orders/statusService";
+import { nudgeOutbox } from "@/server/modules/automation/outboxDrainer";
 import { Prisma } from "@prisma/client";
 import type { OrderStatus } from "@prisma/client";
 import { notifyOwner } from "@/lib/ownerNotify";
@@ -71,7 +72,11 @@ export async function createOrder(input: OrderCreateInput, meta: CreateOrderMeta
   if (deliveryPriceDzd === null) throw new DeliveryOptionUnavailableError();
 
   try {
-    return await createOrderTransaction(input, meta, deliveryPriceDzd, wilaya);
+    const order = await createOrderTransaction(input, meta, deliveryPriceDzd, wilaya);
+    // P7: حدث order.created التُزم مع الطلب — نبضة تصريف بعد الرد (الشيت/المعالِجات)
+    // بدل انتظار الـcron اليومي؛ خارج نطاق طلب لا نبضة والـcron يتكفّل.
+    nudgeOutbox();
+    return order;
   } catch (error) {
     // مُتغيّر (variant) يُحذَف ويُعاد إنشاؤه بـUUID جديد كليًا عند كل تعديل منتج يمسّ
     // المتغيّرات (راجع productsService.updateProduct) — لو زبون فتح صفحة المنتج قبل هذا
