@@ -481,8 +481,15 @@ maybeDescribe("P6 — المرتجعات والمالية (integration)", () => 
       idempotencyKey: key,
       actor: actor(),
     };
-    const [a, b] = await Promise.all([createFinancialAdjustment(base), createFinancialAdjustment(base)]);
-    expect(a.id).toBe(b.id);
+    // متزامنان بنفس المفتاح: عقد executeIdempotent — مُنفَّذ واحد فقط، والخاسر إمّا نفس السجل
+    // أو IDEMPOTENCY_IN_FLIGHT (409 يُعاد بعدها) — لا سجل ثانٍ في الحالتين
+    const race = await Promise.allSettled([createFinancialAdjustment(base), createFinancialAdjustment(base)]);
+    const ok = race.filter((r): r is PromiseFulfilledResult<{ id: string }> => r.status === "fulfilled");
+    expect(ok.length).toBeGreaterThanOrEqual(1);
+    for (const r of race) {
+      if (r.status === "rejected") expect(r.reason).toMatchObject({ code: "IDEMPOTENCY_IN_FLIGHT" });
+    }
+    const a = ok[0].value;
     const again = await createFinancialAdjustment(base);
     expect(again.id).toBe(a.id);
     expect(await prisma.financialAdjustment.count({ where: { orderId: order.id } })).toBe(1);
