@@ -84,10 +84,10 @@ export default function AdsAccountsSyncPanel() {
       }
       const { meta, tiktok } = data.result;
       const parts: string[] = [];
-      if (meta.error) parts.push(`ميتا: ${meta.error}`);
-      else parts.push(`ميتا: ${meta.synced} إعلان`);
-      if (tiktok.error) parts.push(`تيك توك: ${tiktok.error}`);
-      else parts.push(`تيك توك: ${tiktok.synced} إعلان`);
+      // منصة بلا معرّف/توكن محفوظ = «غير متاح» صراحةً، لا «0 إعلان» (كان نجاحًا وهميًا)
+      const label = (name: string, r: { synced: number; error: string | null; configured: boolean }) =>
+        r.error ? `${name}: ${r.error}` : r.configured ? `${name}: ${r.synced} إعلان` : `${name}: غير متاح — يحتاج إلى إعداد (المعرّف والتوكن)`;
+      parts.push(label("ميتا", meta), label("تيك توك", tiktok));
       setMessage({
         type: meta.error || tiktok.error ? "error" : "success",
         text: `تمت المزامنة — ${parts.join(" | ")}`,
