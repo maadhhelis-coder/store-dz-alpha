@@ -15,6 +15,8 @@ import {
   BarChart3,
   Gift,
   Ticket,
+  Undo2,
+  Wallet,
   Sparkles,
   Settings,
   X,
@@ -42,6 +44,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "التحليلات", href: "/admin/analytics", icon: BarChart3 },
   { label: "العروض الإضافية", href: "/admin/offers", icon: Gift },
   { label: "كوبونات الخصم", href: "/admin/coupons", icon: Ticket },
+  { label: "المرتجعات", href: "/admin/returns", icon: Undo2 },
+  { label: "المالية", href: "/admin/finance", icon: Wallet },
   { label: "الذكاء الاصطناعي", href: "/admin/ai-agent", icon: Sparkles, comingSoon: true },
   { label: "الإعدادات", href: "/admin/settings", icon: Settings },
 ];

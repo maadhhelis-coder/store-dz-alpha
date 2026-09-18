@@ -69,8 +69,8 @@ maybeDescribe("ملف العميل 360 (integration)", () => {
     expect(m.netRecognizedRevenueDzd).toBe(10_000);
     expect(m.revenueClvDzd).toBe(10_000);
     expect(m.costsOnRecognizedDzd).toBe(5_000);
-    expect(m.grossProfitClvDzd).toBe(5_000);
-    expect(m.netProfitClvDzd).toBe(5_000); // لا تكاليف إرجاع
+    expect(m.grossProfitClvDzd).toBe(6_000); // الصافي − كلفة البضاعة فقط (P6)
+    expect(m.netProfitClvDzd).toBe(5_000); // − كل التكاليف، لا تكاليف إرجاع ولا تعديلات
     expect(m.recognizedOrdersCount).toBe(1);
   });
 

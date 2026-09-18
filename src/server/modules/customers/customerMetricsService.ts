@@ -11,7 +11,7 @@ import {
 // جلب واحد بلا N+1: الطلبات + بنودها في استعلامين فقط.
 
 export async function getCustomerMetrics(customerId: string): Promise<CustomerMetrics> {
-  const [orders, returnCosts] = await Promise.all([
+  const [orders, returnCosts, adjustments] = await Promise.all([
     prisma.order.findMany({
       where: { customerId, isTest: false },
       select: {
@@ -31,6 +31,11 @@ export async function getCustomerMetrics(customerId: string): Promise<CustomerMe
     prisma.returnRecord.findMany({
       where: { order: { customerId, isTest: false } },
       select: { returnShippingCostDzd: true },
+    }),
+    // التعديلات المالية (P6) على طلبات العميل — تدخل Net Profit CLV بإشارتها
+    prisma.financialAdjustment.findMany({
+      where: { order: { customerId, isTest: false } },
+      select: { amountDzd: true, direction: true },
     }),
   ]);
 
@@ -60,5 +65,5 @@ export async function getCustomerMetrics(customerId: string): Promise<CustomerMe
     };
   });
 
-  return computeCustomerMetrics({ orders: snapshots, returnCosts });
+  return computeCustomerMetrics({ orders: snapshots, returnCosts, adjustments });
 }

@@ -105,7 +105,7 @@ describe("computeCustomerMetrics — أساس الاعتراف", () => {
     });
     expect(m.revenueClvDzd).toBe(20_000);
     expect(m.costsOnRecognizedDzd).toBe(10_000);
-    expect(m.grossProfitClvDzd).toBe(10_000);
+    expect(m.grossProfitClvDzd).toBe(11_500); // الصافي − كلفة البضاعة (P6)
     expect(m.returnShippingCostsDzd).toBe(1_000);
     expect(m.netProfitClvDzd).toBe(9_000);
   });

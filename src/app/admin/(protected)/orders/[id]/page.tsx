@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import OrderDetailForm from "@/components/admin/OrderDetailForm";
 import ShipmentPanel from "@/components/admin/crm/ShipmentPanel";
+import ReturnsPanel from "@/components/admin/crm/ReturnsPanel";
+import OrderFinancePanel from "@/components/admin/crm/OrderFinancePanel";
 import { getOrder, OrderNotFoundError } from "@/server/services/ordersService";
 import { getShipmentsForOrder } from "@/server/modules/shipping/shipmentService";
 
@@ -37,6 +39,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
       </h1>
       <OrderDetailForm order={order} dispatchError={dispatchError} />
       <ShipmentPanel orderId={order.id} orderStatus={order.status} />
+      <ReturnsPanel orderId={order.id} orderStatus={order.status} items={order.items} />
+      <OrderFinancePanel orderId={order.id} />
     </div>
   );
 }
