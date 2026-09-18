@@ -1200,6 +1200,9 @@ model ReturnRecord {
   returnNumber            String       @unique @map("return_number")
   reason                  ReturnReason
   status                  ReturnStatus @default(open)
+  // استبدال صريح (P6): دورة إرجاع مرتبطة بشحنة بديلة عبر reship — لا تُعدّ رفضًا
+  // ولا RTO في المقاييس، ولا تُعامَل كإرجاع عادي صامتًا.
+  isExchange              Boolean      @default(false) @map("is_exchange")
   outboundShippingCostDzd Int?         @map("outbound_shipping_cost_dzd")
   returnShippingCostDzd   Int?         @map("return_shipping_cost_dzd")
   notes                   String?
@@ -1324,6 +1327,8 @@ model CodSettlement {
   provider          String
   settlementDate    DateTime            @map("settlement_date")
   reconciliationKey String              @map("reconciliation_key")
+  // بصمة محتوى الاستيراد (P6): نفس المفتاح بمحتوى مختلف = تعارض يُرفع ولا يُدهس.
+  contentHash       String?             @map("content_hash")
   expectedDzd       Int                 @default(0) @map("expected_dzd")
   collectedDzd      Int                 @default(0) @map("collected_dzd")
   discrepancyDzd    Int                 @default(0) @map("discrepancy_dzd")

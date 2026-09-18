@@ -3,6 +3,7 @@ import { z } from "zod";
 import { UnauthorizedError, ForbiddenError } from "@/lib/auth/requireAdmin";
 import { requirePermission } from "@/lib/auth/requirePermission";
 import { InvalidTransitionError } from "@/server/modules/orders/stateMachine";
+import { InsufficientStockError } from "@/server/modules/orders/statusService";
 import {
   reshipOrder,
   ShipmentError,
@@ -54,6 +55,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         { error: error.message, code: error.code, shipmentId: error.shipmentId },
         { status: SHIPMENT_ERROR_STATUS[error.code] },
       );
+    }
+    if (error instanceof InsufficientStockError) {
+      // P6: إعادة الشحن تخصم ما أُعيد للمخزون من دورة الإرجاع — قد يكون بِيع في الأثناء
+      return NextResponse.json({ error: error.message, code: "INSUFFICIENT_STOCK" }, { status: 409 });
     }
     if (error instanceof InvalidTransitionError) {
       return NextResponse.json(

@@ -73,7 +73,7 @@ export async function getProfitMetrics(window: DateWindow, filters?: MasterFilte
              COALESCE(SUM(oi.unit_cost_dzd * oi.quantity), 0)::bigint AS "knownCogsDzd",
              COUNT(*) FILTER (WHERE oi.unit_cost_dzd IS NULL)::bigint AS "itemsMissingCost"
       FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id AND o.is_test = false
       WHERE o.status = 'delivered' AND oi.product_slug_snapshot = ${filters.productSlug} ${dateFilter} ${wilayaFilter}
     `;
 
@@ -104,13 +104,13 @@ export async function getProfitMetrics(window: DateWindow, filters?: MasterFilte
       SELECT COUNT(*)::bigint AS "deliveredOrders",
              COALESCE(SUM(items_subtotal_dzd - discount_dzd), 0)::bigint AS "productRevenueDzd"
       FROM orders
-      WHERE status = 'delivered' ${orderDateFilter} ${orderWilayaFilter}
+      WHERE is_test = false AND status = 'delivered' ${orderDateFilter} ${orderWilayaFilter}
     `,
     prisma.$queryRaw<{ knownCogsDzd: bigint | null; itemsMissingCost: bigint }[]>`
       SELECT COALESCE(SUM(oi.unit_cost_dzd * oi.quantity), 0)::bigint AS "knownCogsDzd",
              COUNT(*) FILTER (WHERE oi.unit_cost_dzd IS NULL)::bigint AS "itemsMissingCost"
       FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id AND o.is_test = false
       WHERE o.status = 'delivered' ${itemDateFilter} ${itemWilayaFilter}
     `,
   ]);
@@ -189,7 +189,7 @@ export async function getRoasLast30Days(): Promise<{ revenueDzd: number; spendDz
 
   const [revenueAgg, spendAgg] = await Promise.all([
     prisma.order.aggregate({
-      where: { status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: thirtyDaysAgo } },
+      where: { isTest: false, status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: thirtyDaysAgo } },
       _sum: { totalDzd: true },
     }),
     prisma.adSpendEntry.aggregate({ _sum: { spendDzd: true } }),
@@ -251,7 +251,7 @@ export async function getProductPerformanceTable(
              COUNT(DISTINCT oi.order_id) FILTER (WHERE o.status = 'returned')::bigint AS "returnedOrders",
              COALESCE(SUM(oi.line_total_dzd) FILTER (WHERE o.status IN ('confirmed','shipped','delivered')), 0)::bigint AS "revenueDzd"
       FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id AND o.is_test = false
       WHERE 1=1 ${orderDateFilter} ${orderWilayaFilter}
       GROUP BY oi.product_slug_snapshot
     `,

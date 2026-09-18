@@ -45,10 +45,11 @@ export type StatusChangeContext = {
 
 export type OrderWithItems = NonNullable<Awaited<ReturnType<typeof ordersRepository.findOrderById>>>;
 
-// حالات "الطلب لن يُنفَّذ نهائيًا" — نفس دلالات النسخة السابقة حرفيًا (تعليق
-// المخزون التاريخي فوقها صالح). الحالات الجديدة لا تضيف عائلة تحرير: الـRTO
-// وreturned يمران عبر دورة الإرجاع (restockedQuantity) لا عبر انتقال الحالة.
-const STOCK_RELEASING_STATUSES: OrderStatus[] = ["cancelled", "fake", "duplicate", "wrong_number", "returned"];
+// حالات "الطلب لن يُنفَّذ نهائيًا" — تحرير المخزون كاملًا عند الوصول إليها.
+// returned ليست منها (P6): البضاعة المرتجعة قد تكون تالفة أو ناقصة، فالاسترجاع
+// للمخزون حصرًا عبر return_items.restockedQuantity (returnsService) — لا عبر انتقال
+// الحالة. السلوك القديم (استرجاع كامل عند returned) أُزيل ولا يُعاد.
+const STOCK_RELEASING_STATUSES: OrderStatus[] = ["cancelled", "fake", "duplicate", "wrong_number"];
 
 function isStockReleasingStatus(status: OrderStatus): boolean {
   return STOCK_RELEASING_STATUSES.includes(status);
@@ -89,6 +90,28 @@ async function adjustStockForStatusTransition(
   }
 }
 
+/** إعادة الشحن بعد إرجاع: ما أُعيد للمخزون فعليًا عبر دورات الإرجاع (Σ restockedQuantity
+ * لكل بند، دورات غير مرفوضة) يُخصم من جديد بخصم محروس — لا يُخصم ما لم يُسترجَع
+ * (بضاعة تالفة أو ما زالت عند الناقل)، فالمخزون لا يهبط تحت الصفر ولا يُحسب مرتين. */
+async function reclaimRestockedForReship(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  items: { id: string; productId: string | null; variantId: string | null }[],
+) {
+  const restocked = await tx.returnItem.groupBy({
+    by: ["orderItemId"],
+    where: { returnRecord: { orderId, status: { not: "rejected" } }, restockedQuantity: { gt: 0 } },
+    _sum: { restockedQuantity: true },
+  });
+  if (restocked.length === 0) return;
+  const byItem = new Map(items.map((i) => [i.id, i]));
+  const toReclaim = restocked
+    .map((r) => ({ item: byItem.get(r.orderItemId), quantity: r._sum.restockedQuantity ?? 0 }))
+    .filter((r) => r.item && r.quantity > 0)
+    .map((r) => ({ productId: r.item!.productId, variantId: r.item!.variantId, quantity: r.quantity }));
+  await adjustStockForStatusTransition(tx, toReclaim, "reclaim");
+}
+
 export class InsufficientStockError extends Error {
   constructor() {
     super("الكمية المطلوبة غير متوفرة بالمخزون");
@@ -121,6 +144,10 @@ export async function transitionOrderStatus(
           data: statusUpdateFields(to),
         });
         if (guarded.count === 0) return null;
+
+        if (context.allowReship && existing.status === "returned" && to === "confirmed") {
+          await reclaimRestockedForReship(tx, id, existing.items);
+        }
 
         await tx.orderStatusHistory.create({
           data: {

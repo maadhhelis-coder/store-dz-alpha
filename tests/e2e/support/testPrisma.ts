@@ -32,6 +32,14 @@ export async function sweepAllE2EData(): Promise<{
   // ON DELETE RESTRICT (قيد مقصود يفرض "نفس الطلب")، فحذف الأسطر قبلها يفشل.
   if (orderIds.length) {
     await testPrisma.shipmentEvent.deleteMany({ where: { shipment: { orderId: { in: orderIds } } } });
+    // P6: تسويات COD وتعديلات مالية مرتبطة بالطلب (FK Restrict) — تُحذف قبل الطلب
+    const settlementIds = (
+      await testPrisma.codSettlementItem.findMany({ where: { orderId: { in: orderIds } }, select: { settlementId: true } })
+    ).map((i) => i.settlementId);
+    await testPrisma.codSettlementItem.deleteMany({ where: { orderId: { in: orderIds } } });
+    await testPrisma.codSettlement.deleteMany({ where: { id: { in: settlementIds } } });
+    await testPrisma.financialAdjustment.deleteMany({ where: { orderId: { in: orderIds }, correctionOfId: { not: null } } });
+    await testPrisma.financialAdjustment.deleteMany({ where: { orderId: { in: orderIds } } });
     await testPrisma.returnItem.deleteMany({ where: { returnRecord: { orderId: { in: orderIds } } } });
     await testPrisma.returnRecord.deleteMany({ where: { orderId: { in: orderIds } } });
     await testPrisma.shipmentItem.deleteMany({ where: { orderId: { in: orderIds } } });

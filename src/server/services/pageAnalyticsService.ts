@@ -61,7 +61,7 @@ export async function getProductPageAnalytics(window?: DateWindow): Promise<Plat
              COUNT(DISTINCT oi.order_id)::bigint AS "ordersCount",
              SUM(oi.line_total_dzd)::bigint AS "revenueDzd"
       FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id AND o.is_test = false
       WHERE o.platform IS NOT NULL ${orderDateFilter}
       GROUP BY o.platform, oi.product_slug_snapshot
     `,
@@ -153,7 +153,7 @@ export async function getLandingPageAnalytics(window?: DateWindow): Promise<Plat
              COUNT(DISTINCT oi.order_id)::bigint AS "ordersCount",
              SUM(oi.line_total_dzd)::bigint AS "revenueDzd"
       FROM order_items oi
-      JOIN orders o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id AND o.is_test = false
       WHERE o.platform IS NOT NULL AND o.status IN ('confirmed', 'shipped', 'delivered') ${orderDateFilter}
       GROUP BY o.platform, oi.product_slug_snapshot
     `,

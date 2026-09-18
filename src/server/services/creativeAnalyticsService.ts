@@ -2,9 +2,11 @@ import { prisma } from "@/server/db/prisma";
 import type { OrderStatus, Prisma } from "@prisma/client";
 import type { DateWindow } from "@/server/repositories/analyticsRepository";
 
+// isTest=false دائمًا (P6): طلبات الاختبار خارج تحليلات الإعلانات على مستوى الاستعلام.
 function createdAtWhere(window: DateWindow | undefined): Prisma.OrderWhereInput {
-  if (!window?.start && !window?.end) return {};
+  if (!window?.start && !window?.end) return { isTest: false };
   return {
+    isTest: false,
     createdAt: {
       ...(window?.start ? { gte: window.start } : {}),
       ...(window?.end ? { lt: window.end } : {}),

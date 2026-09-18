@@ -47,8 +47,9 @@ function createdAtWhere(window: DateWindow) {
 export type MasterFilters = { productSlug?: string; wilayaCode?: number };
 
 export function orderFiltersWhere(filters?: MasterFilters): Prisma.OrderWhereInput {
-  if (!filters) return {};
+  if (!filters) return { isTest: false };
   return {
+    isTest: false,
     ...(filters.wilayaCode ? { wilayaCode: filters.wilayaCode } : {}),
     ...(filters.productSlug ? { items: { some: { productSlugSnapshot: filters.productSlug } } } : {}),
   };
@@ -78,7 +79,8 @@ function dateFilterSql(window: DateWindow, column: string) {
 }
 
 export async function getKpis(window: DateWindow, filters?: MasterFilters) {
-  const where = { ...createdAtWhere(window), ...orderFiltersWhere(filters) };
+  // isTest=false (P6): طلبات الاختبار خارج كل التحليلات على مستوى الاستعلام لا الواجهة
+  const where: Prisma.OrderWhereInput = { isTest: false, ...createdAtWhere(window), ...orderFiltersWhere(filters) };
   const leadWhere = { ...createdAtWhere(window), ...leadFiltersWhere(filters) };
 
   // ست استعلامات مستقلة تمامًا — بالتوازي الآن (راجع مذكرة pooler، آمن بعد التحول لـ
@@ -129,7 +131,7 @@ export async function getCpaLast30Days() {
   const [spendAgg, confirmedOrders] = [
     await prisma.adSpendEntry.aggregate({ _sum: { spendDzd: true } }),
     await prisma.order.count({
-      where: { status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: thirtyDaysAgo } },
+      where: { isTest: false, status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: thirtyDaysAgo } },
     }),
   ];
 
@@ -151,7 +153,7 @@ export async function getRevenueByDay(window: DateWindow) {
            SUM(total_dzd)::bigint AS revenue,
            COUNT(*)::bigint AS orders
     FROM orders
-    WHERE status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
+    WHERE is_test = false AND status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
     GROUP BY day
     ORDER BY day ASC
   `;
@@ -166,7 +168,7 @@ export async function getRevenueByDay(window: DateWindow) {
 export async function getStatusBreakdown(window: DateWindow) {
   const rows = await prisma.order.groupBy({
     by: ["status"],
-    where: createdAtWhere(window),
+    where: { isTest: false, ...createdAtWhere(window) },
     _count: true,
   });
 
@@ -186,7 +188,7 @@ export async function getTopProducts(window: DateWindow, limit: number) {
            SUM(oi.quantity)::bigint AS qty,
            SUM(oi.line_total_dzd)::bigint AS revenue
     FROM order_items oi
-    JOIN orders o ON o.id = oi.order_id
+    JOIN orders o ON o.id = oi.order_id AND o.is_test = false
     WHERE o.status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
     GROUP BY oi.product_slug_snapshot, oi.product_name_snapshot
     ORDER BY revenue DESC
@@ -212,7 +214,7 @@ export async function getTopWilayas(window: DateWindow, limit: number) {
            COUNT(*)::bigint AS orders,
            SUM(total_dzd)::bigint AS revenue
     FROM orders
-    WHERE status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
+    WHERE is_test = false AND status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
     GROUP BY wilaya_code, wilaya_name
     ORDER BY revenue DESC
     LIMIT ${limit}
@@ -270,7 +272,7 @@ export async function getBestOffers(window: DateWindow, limit: number) {
     FROM orders o
     JOIN offers ofr ON ofr.id = o.offer_id
     JOIN order_items oi ON oi.order_id = o.id AND oi.product_id = ofr.offer_product_id
-    WHERE o.offer_id IS NOT NULL AND o.status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
+    WHERE o.is_test = false AND o.offer_id IS NOT NULL AND o.status IN ('confirmed', 'shipped', 'delivered') ${dateFilter}
     GROUP BY o.offer_id
     ORDER BY orders DESC
     LIMIT ${limit}

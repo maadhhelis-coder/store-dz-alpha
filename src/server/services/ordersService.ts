@@ -15,6 +15,7 @@ import type { OrderStatus } from "@prisma/client";
 import { notifyOwner } from "@/lib/ownerNotify";
 import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
+import { getCrmSetting } from "@/server/modules/settings/crmSettingsService";
 import { formatPrice } from "@/lib/format";
 
 export { InvalidCouponError };
@@ -92,6 +93,10 @@ async function createOrderTransaction(
   wilaya: NonNullable<Awaited<ReturnType<typeof findWilayaByCode>>>,
 ) {
   return prisma.$transaction(async (tx) => {
+    // لقطة تكلفة التغليف وقت الإنشاء من crm_settings (P6) — تغيير الإعداد لاحقًا لا يمسّ
+    // ربحية الطلبات القديمة (نفس مبدأ unitCostDzd).
+    const packagingCostDzd = await getCrmSetting("packaging_cost_dzd");
+
     const product = await tx.product.findUnique({
       where: { slug: input.productSlug },
       include: { variants: true },
@@ -202,7 +207,7 @@ async function createOrderTransaction(
         customerId: customerMatch.customerId,
         customerMatchSource: customerMatch.matchSource,
         matchedPhoneId: customerMatch.matchedPhoneId,
-        packagingCostDzd: 0, // الافتراضي التشغيلي — يُعدَّل من الإعدادات في P6
+        packagingCostDzd,
         otherCostDzd: 0,
         wilayaCode: wilaya.code,
         wilayaName: wilaya.name,

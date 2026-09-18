@@ -13,10 +13,10 @@ export async function getDashboardStats() {
   const revenueStatuses = ["confirmed", "shipped", "delivered"] as const;
 
   const [ordersToday, pendingCount, weekRevenue, lowStockCount] = await Promise.all([
-    prisma.order.count({ where: { createdAt: { gte: startOfToday } } }),
-    prisma.order.count({ where: { status: "pending" } }),
+    prisma.order.count({ where: { isTest: false, createdAt: { gte: startOfToday } } }),
+    prisma.order.count({ where: { isTest: false, status: "pending" } }),
     prisma.order.aggregate({
-      where: { createdAt: { gte: startOfWeek }, status: { in: [...revenueStatuses] } },
+      where: { isTest: false, createdAt: { gte: startOfWeek }, status: { in: [...revenueStatuses] } },
       _sum: { totalDzd: true },
     }),
     prisma.product.count({ where: { isPublished: true, inventoryCount: { lte: LOW_STOCK_THRESHOLD } } }),
