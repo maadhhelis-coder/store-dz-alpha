@@ -3,9 +3,11 @@ import { upsertSyncedAdSpend } from "@/server/repositories/adSpendRepository";
 import { prisma } from "@/server/db/prisma";
 import { decryptSecret } from "@/lib/crypto/secretBox";
 
+// configured=false: لا معرّف/توكن محفوظ — تُعرض «غير متاح» لا «0 إعلان» (كانت مزامنة وهمية خضراء).
+export type PlatformSyncResult = { synced: number; error: string | null; configured: boolean };
 export type AdsSyncResult = {
-  meta: { synced: number; error: string | null };
-  tiktok: { synced: number; error: string | null };
+  meta: PlatformSyncResult;
+  tiktok: PlatformSyncResult;
 };
 
 // نافذة زمنية متدحرجة (آخر 30 يوم) — تُعاد كتابتها كل مزامنة، فتبقى أرقام المصروف/النقرات
@@ -33,10 +35,10 @@ async function runInBatches<T>(items: T[], batchSize: number, run: (item: T) => 
 // يجلب أداء كل إعلان حقيقي من Meta Marketing API (Facebook + Instagram معًا عبر
 // breakdowns=publisher_platform) — clicks + spend + impressions/CTR/CPC/CPM ومعرّفات
 // الحملة/المجموعة الإعلانية/الإعلان لكل ad_name، ويحفظها فـAdSpendEntry.
-async function syncMetaAds(): Promise<{ synced: number; error: string | null }> {
+async function syncMetaAds(): Promise<PlatformSyncResult> {
   const settings = await getSiteSettings();
   if (!settings.metaAdAccountId || !settings.metaAdsInsightsAccessToken) {
-    return { synced: 0, error: null };
+    return { synced: 0, error: null, configured: false };
   }
 
   try {
@@ -56,7 +58,7 @@ async function syncMetaAds(): Promise<{ synced: number; error: string | null }> 
     const data = await res.json();
 
     if (!res.ok) {
-      return { synced: 0, error: data?.error?.message ?? `Meta API error (${res.status})` };
+      return { synced: 0, error: data?.error?.message ?? `Meta API error (${res.status})`, configured: true };
     }
 
     type MetaInsightRow = {
@@ -95,18 +97,18 @@ async function syncMetaAds(): Promise<{ synced: number; error: string | null }> 
       }).then(() => undefined),
     );
 
-    return { synced: validRows.length, error: null };
+    return { synced: validRows.length, error: null, configured: true };
   } catch (error) {
-    return { synced: 0, error: error instanceof Error ? error.message : "خطأ غير معروف" };
+    return { synced: 0, error: error instanceof Error ? error.message : "خطأ غير معروف", configured: true };
   }
 }
 
 // يجلب أداء كل إعلان حقيقي من TikTok Marketing API — clicks + spend + impressions/CTR/CPC/CPM
 // ومعرّفات الحملة/المجموعة الإعلانية لكل ad_name، ويحفظها فـAdSpendEntry.
-async function syncTikTokAds(): Promise<{ synced: number; error: string | null }> {
+async function syncTikTokAds(): Promise<PlatformSyncResult> {
   const settings = await getSiteSettings();
   if (!settings.tiktokAdvertiserId || !settings.tiktokAdsReportAccessToken) {
-    return { synced: 0, error: null };
+    return { synced: 0, error: null, configured: false };
   }
 
   try {
@@ -143,7 +145,7 @@ async function syncTikTokAds(): Promise<{ synced: number; error: string | null }
     const data = await res.json();
 
     if (!res.ok || data.code !== 0) {
-      return { synced: 0, error: data?.message ?? `TikTok API error (${res.status})` };
+      return { synced: 0, error: data?.message ?? `TikTok API error (${res.status})`, configured: true };
     }
 
     type TikTokReportRow = {
@@ -180,9 +182,9 @@ async function syncTikTokAds(): Promise<{ synced: number; error: string | null }
       }).then(() => undefined),
     );
 
-    return { synced: validRows.length, error: null };
+    return { synced: validRows.length, error: null, configured: true };
   } catch (error) {
-    return { synced: 0, error: error instanceof Error ? error.message : "خطأ غير معروف" };
+    return { synced: 0, error: error instanceof Error ? error.message : "خطأ غير معروف", configured: true };
   }
 }
 
