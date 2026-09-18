@@ -12,6 +12,9 @@ const SCOPE_TO_PERMISSION: Record<ApiKeyScope, Permission> = {
   "orders:read": "orders.read",
   "orders:write": "orders.status_change",
   "products:read": "products.read",
+  "products:write": "products.manage",
+  "customers:read": "customers.read",
+  "analytics:read": "analytics.read",
   "webhooks:write": "integrations.manage",
 };
 

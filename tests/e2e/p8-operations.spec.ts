@@ -11,6 +11,8 @@ test.describe("P8 — الفريق والتصدير وحالة النظام @des
     const staff = await testPrisma.adminUser.findFirstOrThrow({ where: { email: { contains: "e2e-staff" } }, select: { id: true, role: true } });
     const owner = await testPrisma.adminUser.findUniqueOrThrow({ where: { email: E2E_OWNER_EMAIL }, select: { id: true } });
     const r = ownerPage.request;
+    const rbacAudits = () => testPrisma.auditLog.count({ where: { action: "rbac.update", entityId: "marketing:audit.read", actorId: owner.id } });
+    const rbacBefore = await rbacAudits(); // سجل التدقيق إلحاقي عبر التشغيلات — نقيس الفرق لا المجموع
     try {
       await ownerPage.goto("/admin/team");
       await expect(ownerPage.getByTestId("team-table")).toBeVisible();
@@ -38,7 +40,7 @@ test.describe("P8 — الفريق والتصدير وحالة النظام @des
       expect((await r.patch("/api/admin/crm/team/permissions", { data: { role: "admin", permission: "users.manage", granted: true } })).status()).toBe(409);
       const rev = await r.patch("/api/admin/crm/team/permissions", { data: { role: "marketing", permission: "audit.read", granted: false } });
       expect((await rev.json()).changed).toBe(true);
-      expect(await testPrisma.auditLog.count({ where: { action: "rbac.update", entityId: "marketing:audit.read", actorId: owner.id } })).toBe(2);
+      expect((await rbacAudits()) - rbacBefore).toBe(2);
 
       // دعوة ببريد عضو موجود = 409 صريح (لا نداء Supabase)
       expect((await r.post("/api/admin/crm/team", { data: { email: E2E_OWNER_EMAIL, role: "viewer" } })).status()).toBe(409);
