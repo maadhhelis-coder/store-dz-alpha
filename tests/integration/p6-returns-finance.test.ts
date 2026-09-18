@@ -227,6 +227,8 @@ maybeDescribe("P6 — المرتجعات والمالية (integration)", () => 
   });
 
   it("الاستبدال صريح ولا يُعدّ رفضًا في المقاييس", async () => {
+    const window = { from: new Date(Date.now() - 3_600_000), to: new Date(Date.now() + 3_600_000) };
+    const before = (await getProfitabilityReport(window, "order")).rates.refusedReturns;
     const order = await makeOrder();
     const itemA = order.items.find((i) => i.productId === productId)!;
     const ret = await createReturn({
@@ -237,11 +239,9 @@ maybeDescribe("P6 — المرتجعات والمالية (integration)", () => 
       actor: actor(),
     });
     expect(ret.isExchange).toBe(true);
-    const report = await getProfitabilityReport(
-      { from: new Date(Date.now() - 60_000), to: new Date(Date.now() + 60_000) },
-      "order",
-    );
-    expect(report.rates.refusedReturns).toBe(0);
+    // دورة الاستبدال بسبب refused لا تزيد عدّاد الرفض (القاعدة مشتركة مع اختبارات أخرى — نقارن قبل/بعد)
+    const after = (await getProfitabilityReport(window, "order")).rates.refusedReturns;
+    expect(after).toBe(before);
   });
 
   // ------------------------------------------------------------ تسويات COD
