@@ -10,6 +10,14 @@ import {
 } from "@/data/site";
 import type { Product } from "@/data/products";
 
+// اكتُشف على الإنتاج (Search Console: «URL non valide dans le champ image» — خطأ حرج يمنع
+// ظهور المنتج في نتائج Google): صور المنتجات تُخزَّن في Supabase Storage فروابطها مطلقة
+// أصلًا، وكان يُلصق SITE_URL أمامها فتنتج
+// ‎https://storedz.onehttps//…supabase.co/…‎ — رابط غير صالح في og:image وفي JSON-LD معًا.
+function absoluteUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `${SITE_URL}${url}`;
+}
+
 type BuildMetadataInput = {
   title: string;
   description: string;
@@ -26,7 +34,7 @@ export function buildMetadata({
   type = "website",
 }: BuildMetadataInput): Metadata {
   const url = `${SITE_URL}${path}`;
-  const ogImage = image ? `${SITE_URL}${image}` : `${SITE_URL}/images/og/og-default.png`;
+  const ogImage = image ? absoluteUrl(image) : `${SITE_URL}/images/og/og-default.png`;
 
   return {
     title,
@@ -114,13 +122,15 @@ export function websiteJsonLd() {
   };
 }
 
-export function productJsonLd(product: Product) {
+export type ShippingRange = { minDzd: number; maxDzd: number };
+
+export function productJsonLd(product: Product, shipping: ShippingRange) {
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: product.name,
     description: product.shortDescription,
-    image: product.images.map((img) => `${SITE_URL}${img}`),
+    image: product.images.map(absoluteUrl),
     sku: product.id,
     brand: { "@type": "Brand", name: "Store DZ" },
     offers: {
@@ -131,6 +141,32 @@ export function productJsonLd(product: Product) {
         ? "https://schema.org/InStock"
         : "https://schema.org/OutOfStock",
       url: `${SITE_URL}/products/${product.slug}`,
+      // حقلان طلبهما Search Console («Fiches de marchand»). القيم من بيانات المتجر الحقيقية:
+      // أسعار التوصيل في جدول wilayas (300–1300 دج حسب الولاية ونوع التوصيل)، ومدة التوصيل
+      // المعلنة في صفحة /shipping-delivery (يوم إلى يومين)، ومهلة 48 ساعة من /return-policy.
+      shippingDetails: {
+        "@type": "OfferShippingDetails",
+        shippingRate: {
+          "@type": "MonetaryAmount",
+          minValue: shipping.minDzd,
+          maxValue: shipping.maxDzd,
+          currency: "DZD",
+        },
+        shippingDestination: { "@type": "DefinedRegion", addressCountry: "DZ" },
+        deliveryTime: {
+          "@type": "ShippingDeliveryTime",
+          handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+          transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: 2, unitCode: "DAY" },
+        },
+      },
+      hasMerchantReturnPolicy: {
+        "@type": "MerchantReturnPolicy",
+        applicableCountry: "DZ",
+        returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+        merchantReturnDays: 2,
+        returnMethod: "https://schema.org/ReturnByMail",
+        returnFees: "https://schema.org/FreeReturn",
+      },
     },
   };
 }

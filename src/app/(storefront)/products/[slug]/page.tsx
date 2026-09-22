@@ -8,6 +8,7 @@ import type { Product } from "@/data/products";
 import { getPublishedProductBySlug, getRelatedProducts } from "@/lib/storefrontData";
 import { buildMetadata, productJsonLd } from "@/lib/seo";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
+import { getDeliveryPriceRange } from "@/server/repositories/wilayasRepository";
 
 type ProductPageProps = {
   params: Promise<{ slug: string }>;
@@ -45,7 +46,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
   // getSiteSettings مُغلَّفة بـcache() ويستدعيها الـlayout أيضًا، فهذه ليست رحلة
   // إضافية إلى القاعدة. getRelatedProducts كانت الرحلة الثانية وكانت تحجز أول بايت
   // لقسم يقع في آخر الصفحة — نُقلت إلى Suspense فصار الرسم موجة واحدة.
-  const settings = await getSiteSettings();
+  // مدى سعر التوصيل الحقيقي (من الولايات المفعّلة) — يدخل في بيانات Google المنظَّمة
+  const [settings, shipping] = await Promise.all([getSiteSettings(), getDeliveryPriceRange()]);
 
   // حشو سفلي يقابل الشريط الثابت أسفل الصفحة فلا يغطي آخر المحتوى
   return (
@@ -53,7 +55,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     // وهذا مستحيل أصلًا لأن الفوتر شقيق لاحق — فكل ما فعلته هو ترك 128px فراغًا بين
     // الأيقونات وشريط الروابط. التعويض الحقيقي صار على الفوتر نفسه (Footer.tsx).
     <div className="container-page pt-3 md:pt-5 pb-2 md:pb-3">
-      <JsonLd data={productJsonLd(product)} />
+      <JsonLd data={productJsonLd(product, shipping)} />
       <div className="mt-2">
         <ProductDetail
           product={product}
