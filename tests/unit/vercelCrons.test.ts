@@ -19,7 +19,11 @@ describe("vercel.json crons", () => {
       expect(cron.path, cron.path).toMatch(/^\/api\/cron\/[a-z-]+\/$/);
       const route = join(root, "src/app", cron.path.slice(0, -1), "route.ts");
       expect(existsSync(route), route).toBe(true);
-      expect(readFileSync(route, "utf8")).toContain("verifyCronSecret");
+      const source = readFileSync(route, "utf8");
+      expect(source).toContain("verifyCronSecret");
+      // اكتُشف بفحص الإنتاج: sync-ads وcleanup-tracking كانتا تنفّذان بلا runJob، أي بلا
+      // صف في job_runs وبلا قفل وبلا تنبيه — فشل صامت لا يراه صاحب المتجر إطلاقًا.
+      expect(source, `${route} يجب أن تمرّ عبر runJob`).toContain("runJob(");
       expect(cron.schedule).toMatch(/^(\S+\s+){4}\S+$/);
     }
   });
