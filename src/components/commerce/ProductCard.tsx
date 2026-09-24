@@ -20,10 +20,11 @@ export default function ProductCard({ product, priority = false }: ProductCardPr
     // البطاقة هي «الإطار الكبير» بخطوطه الذهبية اللامعة قليلًا (طلب صريح: توهج دائم لا عند المرور فقط).
     <div className="group flex flex-col rounded-xl overflow-hidden bg-ink gold-border gold-glow">
       {/* الصورة كاملة بلا قصّ ولا تكبير عند المرور، بإطارها الخاص الذهبي البارد الباهت غير اللامع
-          (gold-border-cool) داخل إطار البطاقة اللامع — طلب صريح. */}
+          (gold-border-cool) داخل إطار البطاقة اللامع — طلب صريح. الإطار مربّع لأن صورة البطاقة
+          مربّعة: بإطار 3:4 كانت تظهر حواف فارغة فوق الصورة وتحتها (طلب صريح بإزالتها). */}
       <PrefetchLink
         href={`/products/${product.slug}`}
-        className="relative block aspect-[3/4] overflow-hidden bg-ink m-3 rounded-lg gold-border-cool"
+        className="relative block aspect-square overflow-hidden bg-ink m-3 rounded-lg gold-border-cool"
       >
         <BrandImage
           src={cardImage(product)}
