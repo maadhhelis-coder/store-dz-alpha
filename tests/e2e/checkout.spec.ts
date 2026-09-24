@@ -72,7 +72,10 @@ test.describe("رحلة الشراء الأساسية", () => {
 
     await page.goto(`/products/${product.slug}`);
 
+    // لا خيار مُحدَّد مسبقًا (طلب صريح: الزبون هو من يختار)
+    await expect(page.locator('[data-testid="order-variant-option"][aria-pressed="true"]')).toHaveCount(0);
     await page.getByTestId("order-variant-option").first().click();
+    await expect(page.getByTestId("order-variant-option").first()).toHaveAttribute("aria-pressed", "true");
 
     const lastName = e2eLastName();
     const phone = e2ePhone();

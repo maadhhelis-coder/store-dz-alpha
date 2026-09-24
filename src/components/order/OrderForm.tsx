@@ -85,9 +85,9 @@ export default function OrderForm({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [offerAccepted, setOfferAccepted] = useState(false);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(
-    () => product.variants.find((v) => v.inStock)?.id,
-  );
+  // لا خيار مُحدَّد مسبقًا (طلب صريح: «الزبون هو لي يخير») — الإرسال بلا اختيار يُرفض برسالة
+  // «اختر خيارًا قبل إتمام الطلب» (راجع validate أدناه).
+  const [selectedVariantId, setSelectedVariantId] = useState<string | undefined>(undefined);
   const [variantError, setVariantError] = useState<string | null>(null);
   // مفتاح ثابت لكل "محاولة طلب" (يبقى نفسه عبر إعادة المحاولة بعد فشل، لأن المكوّن لا
   // يُعاد تركيبه بين خطوة "form" و"error") — يُرسَل للسيرفر ليتعرّف على إعادة إرسال
@@ -341,13 +341,15 @@ export default function OrderForm({
                 {variantGroups.map((group) => (
                   <fieldset key={group.name}>
                     <legend className="text-xs text-cream-dim mb-2">{group.name}</legend>
-                    <div className="flex flex-wrap gap-2">
+                    {/* شبكة عمودين: خياران في كل سطر (طلب صريح) */}
+                    <div className="grid grid-cols-2 gap-2">
                       {group.options.map((option) => {
                         const active = selectedVariantId === option.id;
                         return (
                           <button
                             key={option.id}
                             type="button"
+                            aria-pressed={active}
                             disabled={!option.inStock}
                             onClick={() => {
                               setSelectedVariantId(option.id);
@@ -356,7 +358,7 @@ export default function OrderForm({
                             data-testid="order-variant-option"
                             data-variant-value={option.value}
                             className={cn(
-                              "rounded-lg border px-3.5 py-2 text-sm transition-colors",
+                              "rounded-lg border px-3 py-2 text-sm text-center leading-snug transition-colors",
                               !option.inStock
                                 ? "border-gold/15 text-cream-dim/40 cursor-not-allowed line-through"
                                 : active

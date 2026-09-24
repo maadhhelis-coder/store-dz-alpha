@@ -121,12 +121,15 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
       isPublished,
       variants: variants
         .filter((v) => v.name.trim() && v.value.trim())
-        .map((v) => ({
+        // sortOrder = الترتيب الظاهر في النموذج. بدونه كانت كل الخيارات تُحفظ بـ0 فيعرضها المتجر
+        // بترتيب عشوائي (اكتُشف على «nettoyeur-pinceaux-electrique»: الأربعة sort_order=0).
+        .map((v, i) => ({
           name: v.name,
           value: v.value,
           sku: v.sku || undefined,
           priceOverrideDzd: v.priceOverrideDzd ? Number(v.priceOverrideDzd) : undefined,
           inventoryCount: Number(v.inventoryCount || 0),
+          sortOrder: i,
         })),
     };
 
@@ -276,9 +279,10 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
           <h2 className="font-display font-semibold text-gold mb-1">صورة البطاقة</h2>
           <p className="text-xs text-cream-dim/80 mb-3">
             تظهر في قوائم المتجر فقط (الرئيسية، كل المنتجات، التصنيف) — لا تظهر داخل صفحة المنتج.
+            <strong className="text-cream">استعمل صورة مربّعة</strong> لتملأ الإطار بلا حواف.
             اتركها فارغة لتُستعمل أول صورة من «الصور» أدناه. تُحفظ مع «حفظ التغييرات».
           </p>
-          <HeroImageUploader value={cardImageUrl} onChange={setCardImageUrl} aspectClass="aspect-[3/4]" />
+          <HeroImageUploader value={cardImageUrl} onChange={setCardImageUrl} aspectClass="aspect-square" />
         </div>
 
         <div className="rounded-xl gold-border bg-ink p-5">
