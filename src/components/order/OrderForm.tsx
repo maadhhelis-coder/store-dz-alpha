@@ -328,19 +328,20 @@ export default function OrderForm({
 
   return (
     <section id="order-form" aria-labelledby="order-form-title" className="scroll-mt-24">
-      {/* الإطار أطول قليلًا (طلب صريح): حشو رأسي أوسع من الجانبي */}
-      <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border px-5 py-8 sm:px-7 sm:py-10">
+      {/* استمارة مضغوطة (طلب صريح لاحق: «متجيش طويلة بزاف») — حشو رأسي ما زال أوسع قليلًا من
+          الجانبي كما طُلب سابقًا، لكن أصغر. */}
+      <div className="mx-auto w-full max-w-lg rounded-2xl bg-ink gold-border px-4 py-5 sm:px-6 sm:py-7">
         {(step === "form" || step === "submitting") && (
           <>
-            <h2 id="order-form-title" className="font-display text-base font-bold text-cream text-center leading-relaxed">
+            <h2 id="order-form-title" className="font-display text-sm font-bold text-cream text-center leading-snug">
               للطلب يرجى ملء هذا النموذج سنتصل بكم في أقرب وقت ممكن!
             </h2>
 
             {variantGroups.length > 0 && (
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-2">
                 {variantGroups.map((group) => (
                   <fieldset key={group.name}>
-                    <legend className="text-xs text-cream-dim mb-2">{group.name}</legend>
+                    <legend className="text-xs text-cream-dim mb-1">{group.name}</legend>
                     {/* شبكة عمودين: خياران في كل سطر (طلب صريح) */}
                     <div className="grid grid-cols-2 gap-2">
                       {group.options.map((option) => {
@@ -358,7 +359,7 @@ export default function OrderForm({
                             data-testid="order-variant-option"
                             data-variant-value={option.value}
                             className={cn(
-                              "rounded-lg border px-3 py-2 text-sm text-center leading-snug transition-colors",
+                              "rounded-lg border px-3 py-1.5 text-sm text-center leading-snug transition-colors",
                               !option.inStock
                                 ? "border-gold/15 text-cream-dim/40 cursor-not-allowed line-through"
                                 : active
@@ -377,7 +378,13 @@ export default function OrderForm({
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
+            <form
+              onSubmit={handleSubmit}
+              // مضغوطة: تباعد أصغر بين الخانات + تسميات وحقول أقصر. نطاقها هذه الاستمارة فقط —
+              // Field وinputClass مشتركان مع 17 شاشة في لوحة التحكم فلا نغيّرهما.
+              className="mt-3 space-y-2.5 [&_label>span:first-child]:mb-1 [&_input]:py-2 [&_select]:py-2"
+              noValidate
+            >
               <Field label="الاسم واللقب" error={errors.fullName}>
                 <input
                   type="text"
@@ -468,7 +475,7 @@ export default function OrderForm({
 
 
               <fieldset>
-                <legend className="text-xs text-cream-dim mb-2">نوع التوصيل</legend>
+                <legend className="text-xs text-cream-dim mb-1">نوع التوصيل</legend>
                 <div className="grid grid-cols-2 gap-3">
                   <label
                     className={radioLabelClass(form.deliveryOption === "home")}
@@ -536,7 +543,7 @@ export default function OrderForm({
                 </label>
               )}
 
-              <div className="rounded-xl gold-border bg-black/40 p-4 space-y-2 text-sm">
+              <div className="rounded-xl gold-border bg-black/40 px-3 py-2.5 space-y-1 text-sm">
                 <div className="flex justify-between text-cream-dim">
                   <span>سعر المنتج</span>
                   <span>{formatPrice(productLineTotal)}</span>
@@ -551,7 +558,7 @@ export default function OrderForm({
                   <span>سعر التوصيل</span>
                   <span>{deliveryPrice !== null ? formatPrice(deliveryPrice) : "—"}</span>
                 </div>
-                <div className="flex justify-between font-bold text-gold pt-2 border-t border-gold/15">
+                <div className="flex justify-between font-bold text-gold pt-1.5 border-t border-gold/15">
                   <span>المجموع</span>
                   <span>{formatPrice(total)}</span>
                 </div>
@@ -561,7 +568,7 @@ export default function OrderForm({
                 type="submit"
                 disabled={step === "submitting"}
                 className={cn(
-                  "w-full gold-gradient text-ink font-bold py-3.5 rounded-xl hover:brightness-110 transition disabled:opacity-60 flex items-center justify-center gap-2",
+                  "w-full gold-gradient text-ink font-bold py-3 rounded-xl hover:brightness-110 transition disabled:opacity-60 flex items-center justify-center gap-2",
                   // نفس حركة "اطلب الآن" — تتوقف أثناء الإرسال فلا تنافس المؤشّر
                   step !== "submitting" && "cta-attention",
                 )}
@@ -673,7 +680,7 @@ function inputClass(hasError: boolean) {
 }
 
 function radioLabelClass(active: boolean) {
-  return `flex items-center justify-center text-center rounded-lg border px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+  return `flex items-center justify-center text-center rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
     active
       ? "gold-gradient text-ink border-transparent font-semibold"
       : "border-gold/25 text-cream-dim hover:border-gold/50"
