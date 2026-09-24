@@ -37,6 +37,9 @@ export const productCreateSchema = z.object({
   priceDzd: z.number().int().min(1),
   oldPriceDzd: z.number().int().min(0).optional().nullable(),
   costDzd: z.number().int().min(0).optional().nullable(),
+  // رابط مرفوع (Supabase Storage) أو ملف ثابت في public/images — الأخير لصورة البطاقة
+  // المنقولة من الكود بالـmigration؛ بدونه يُرفض حفظ المنتج الحالي من اللوحة.
+  cardImageUrl: z.union([z.string().url(), z.string().regex(/^\/images\/[\w./-]+$/)]).optional().nullable(),
   shortDescription: z.string().trim().min(1).max(300),
   longDescriptionHtml: z.string().trim().min(1),
   howToUse: howToUseField.default([]),

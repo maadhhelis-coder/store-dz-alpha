@@ -9,15 +9,10 @@ type ProductCardProps = {
   priority?: boolean;
 };
 
-// صورة البطاقة في المتجر فقط (طلب صريح: لا تدخل معرض صفحة المنتج) — ملف في public/images/cards
-// باسم الـslug. ponytail: خريطة ثابتة لمنتج واحد؛ خانة «صورة البطاقة» في لوحة التحكم عند
-// تعدد المنتجات. بلا صورة مخصصة تُستعمل الصورة الأولى للمنتج.
-const CARD_IMAGES: Record<string, string> = {
-  "pack-douche-robinet": "/images/cards/pack-douche-robinet.jpg",
-};
-
-export function cardImage(product: Pick<Product, "slug" | "images">): string {
-  return CARD_IMAGES[product.slug] ?? product.images[0];
+// صورة البطاقة في قوائم المتجر فقط (طلب صريح: لا تدخل معرض صفحة المنتج) — تُضبط من خانة
+// «صورة البطاقة» في لوحة التحكم. بلا صورة مخصصة تُستعمل الصورة الأولى من المعرض.
+export function cardImage(product: Pick<Product, "cardImage" | "images">): string {
+  return product.cardImage || product.images[0];
 }
 
 export default function ProductCard({ product, priority = false }: ProductCardProps) {
