@@ -6,6 +6,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import type { Category, Product, ProductImage, ProductVariant } from "@prisma/client";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import MediaUploader from "@/components/admin/MediaUploader";
+import HeroImageUploader from "@/components/admin/HeroImageUploader";
 import { Field, inputClass } from "@/components/shared/FormField";
 import { cn } from "@/lib/utils";
 import { slugify } from "@/lib/slugify";
@@ -50,6 +51,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
   const [inventoryCount, setInventoryCount] = useState(String(initialProduct?.inventoryCount ?? 0));
   const [isPublished, setIsPublished] = useState(initialProduct?.isPublished ?? true);
   const [images, setImages] = useState<ProductImage[]>(initialProduct?.images ?? []);
+  const [cardImageUrl, setCardImageUrl] = useState(initialProduct?.cardImageUrl ?? "");
   const [variants, setVariants] = useState<VariantRow[]>(
     (initialProduct?.variants ?? []).map((v) => ({
       id: v.id,
@@ -109,6 +111,7 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
       priceDzd: Number(priceDzd),
       oldPriceDzd: oldPriceDzd ? Number(oldPriceDzd) : null,
       costDzd: costDzd ? Number(costDzd) : null,
+      cardImageUrl: cardImageUrl || null,
       shortDescription,
       longDescriptionHtml,
       howToUse: howToUse.filter((s) => s.trim().length > 0),
@@ -270,7 +273,17 @@ export default function ProductForm({ mode, categories, initialProduct }: Produc
         </div>
 
         <div className="rounded-xl gold-border bg-ink p-5">
-          <h2 className="font-display font-semibold text-gold mb-3">الصور</h2>
+          <h2 className="font-display font-semibold text-gold mb-1">صورة البطاقة</h2>
+          <p className="text-xs text-cream-dim/80 mb-3">
+            تظهر في قوائم المتجر فقط (الرئيسية، كل المنتجات، التصنيف) — لا تظهر داخل صفحة المنتج.
+            اتركها فارغة لتُستعمل أول صورة من «الصور» أدناه. تُحفظ مع «حفظ التغييرات».
+          </p>
+          <HeroImageUploader value={cardImageUrl} onChange={setCardImageUrl} aspectClass="aspect-[3/4]" />
+        </div>
+
+        <div className="rounded-xl gold-border bg-ink p-5">
+          <h2 className="font-display font-semibold text-gold mb-1">الصور</h2>
+          <p className="text-xs text-cream-dim/80 mb-3">معرض صفحة المنتج — ما يراه الزبون عند فتح المنتج.</p>
           <MediaUploader productId={productId} images={images} onImagesChange={setImages} />
         </div>
 

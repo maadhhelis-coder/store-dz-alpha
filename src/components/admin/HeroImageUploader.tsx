@@ -6,9 +6,11 @@ import { Loader2, Trash2, Upload } from "lucide-react";
 type HeroImageUploaderProps = {
   value: string;
   onChange: (url: string) => void;
+  // شكل المعاينة: 16:9 لصورة القمع، 3:4 لصورة بطاقة المنتج (نفس شكل البطاقة في المتجر)
+  aspectClass?: string;
 };
 
-export default function HeroImageUploader({ value, onChange }: HeroImageUploaderProps) {
+export default function HeroImageUploader({ value, onChange, aspectClass = "aspect-video" }: HeroImageUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function HeroImageUploader({ value, onChange }: HeroImageUploader
   if (value) {
     return (
       <div>
-        <div className="relative aspect-video w-full max-w-xs rounded-lg overflow-hidden gold-border group">
+        <div className={`relative ${aspectClass} w-full max-w-xs rounded-lg overflow-hidden gold-border group`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={value} alt="" className="w-full h-full object-cover" />
           <button
@@ -68,7 +70,7 @@ export default function HeroImageUploader({ value, onChange }: HeroImageUploader
         type="button"
         onClick={() => fileInputRef.current?.click()}
         disabled={uploading}
-        className="w-full max-w-xs aspect-video rounded-lg border border-dashed border-gold/25 flex items-center justify-center text-cream-dim hover:text-gold hover:border-gold transition-colors"
+        className={`w-full max-w-xs ${aspectClass} rounded-lg border border-dashed border-gold/25 flex items-center justify-center text-cream-dim hover:text-gold hover:border-gold transition-colors`}
       >
         {uploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
       </button>

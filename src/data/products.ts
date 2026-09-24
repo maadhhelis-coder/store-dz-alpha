@@ -21,6 +21,8 @@ export type Product = {
   longDescriptionHtml: string;
   howToUse: string[];
   images: string[];
+  // صورة البطاقة في قوائم المتجر فقط؛ غائبة ⇒ أول صورة من images (راجع cardImage)
+  cardImage?: string;
   badge?: ProductBadge;
   inStock: boolean;
   // عدد حقيقي من المخزون الفعلي (Prisma) — يُملأ فقط عندما تكون الكمية منخفضة فعلًا

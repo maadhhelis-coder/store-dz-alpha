@@ -343,6 +343,9 @@ model Product {
   // تكلفة الوحدة (COGS) — اختيارية ونصّها فارغة لكل المنتجات الحالية عمدًا (لا نفترض رقمًا
   // غير موجود فعليًا). تُستعمل فحساب الربح الحقيقي؛ راجع OrderItem.unitCostDzd للقطة وقت الطلب.
   costDzd             Int?          @map("cost_dzd")
+  // صورة البطاقة في قوائم المتجر فقط (الرئيسية/المنتجات/التصنيف/منتجات مشابهة) — لا تدخل
+  // معرض صفحة المنتج (طلب صريح). فارغة ⇒ البطاقة تعرض أول صورة من المعرض.
+  cardImageUrl        String?       @map("card_image_url")
   shortDescription    String        @map("short_description")
   longDescriptionHtml String        @map("long_description_html")
   howToUse            Json          @default("[]") @map("how_to_use")
