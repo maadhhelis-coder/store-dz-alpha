@@ -112,13 +112,16 @@ h6 {
    مستقر" هندسيًا بشكل دائم، فيفشل كل اختبار E2E يحاول النقر عليه بـTimeout — راجع
    locator.click stability check. box-shadow وحده لا يغيّر Bounding Box إطلاقًا، فيبقى الزر
    قابلاً للنقر آليًا بينما يحافظ على تأثير بصري جذاب. تُحترَم prefers-reduced-motion أيضًا. */
+/* الوهج ثابت على طبقة ::after ونحرّك opacity فقط (تُركَّب على الـGPU): تحريك box-shadow
+   نفسه بلا توقف كان يعيد رسم وهج 28px كل إطار طول بقاء الصفحة مفتوحة — Lighthouse موبايل:
+   «non-composited animations» وجزء من ثوانٍ الرسم على هاتف ضعيف. نفس الشكل للعين. */
 @keyframes cta-attention-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 theme(--color-gold / 45%);
+    opacity: 0;
   }
   50% {
-    box-shadow: 0 0 28px 8px theme(--color-gold / 45%);
+    opacity: 1;
   }
 }
 
@@ -148,6 +151,18 @@ h6 {
    مساحة النقر 7px فتضيع نقرة سريعة (ظهر في CI على زر تأكيد الطلبية تحديدًا،
    وهو أسوأ زر يمكن أن تضيع نقرته). المستعمل يرى نفس الحركة، والهدف لا يتحرك. */
 .cta-attention {
+  position: relative;
+}
+
+.cta-attention::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 28px 8px theme(--color-gold / 45%);
+  opacity: 0;
+  pointer-events: none;
+  will-change: opacity;
   animation: cta-attention-pulse 2.2s ease-in-out infinite;
 }
 
@@ -160,7 +175,7 @@ h6 {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cta-attention,
+  .cta-attention::after,
   .cta-nudge {
     animation: none;
   }

@@ -133,7 +133,7 @@ export default async function FunnelPage({ params }: FunnelPageProps) {
 
       {/* قسم الشهادات مُعطَّل مؤقتًا — راجع التعليق في page.tsx (الصفحة الرئيسية) للسبب. */}
 
-      <div className="sticky bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-3 md:hidden">
+      <div className="sticky bottom-0 inset-x-0 z-40 bg-black/95 border-t border-gold/15 p-3 md:hidden">
         <FunnelCtaButton product={product} ctaText={funnel.ctaText} />
       </div>
     </div>

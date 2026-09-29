@@ -131,7 +131,7 @@ export default function ProductDetail({ product, orderSettings }: ProductDetailP
 
       {/* شريط «اطلب الآن» وحده أسفل الصفحة: ثابت لا يتحرك ولا يختفي مع التمرير
           (طلب صريح). «تأكيد الطلبية» شيء آخر — داخل الاستمارة داخل الإطار. */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 backdrop-blur border-t border-gold/15 p-2.5">
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/95 border-t border-gold/15 p-2.5">
         <div className="container-page flex items-center gap-3">
           <span className="shrink-0 text-lg font-bold text-gold">{formatPrice(product.price)}</span>
           <OrderNowButton product={product} variant="sticky-bar" target="form" className="flex-1" />
