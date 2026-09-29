@@ -1,6 +1,6 @@
 "use client";
 
-import PrefetchLink from "@/components/shared/PrefetchLink";
+import Link from "next/link";
 import { ShoppingBag } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { Product } from "@/data/products";
@@ -95,14 +95,18 @@ export default function OrderNowButton({
     );
   }
 
+  // prefetch كامل عند ظهور الزر: النقر يفتح صفحة المنتج فورًا بدل ~0.5–2ث بلا أي تغيير على الشاشة
+  // (قيس فعلي: 532ms على اتصال سريع). ponytail: رسم صفحة منتج واحدة لكل زر ظاهر — إن كثرت
+  // المنتجات في الشبكة نرجع لـPrefetchLink (جلب عند اللمس فقط).
   return (
-    <PrefetchLink
+    <Link
       href={`/products/${product.slug}`}
+      prefetch
       onClick={() => trackCreativeEvent("cta_click", pageKind, pathname, product.slug)}
       data-testid="order-now-button"
       className={classes}
     >
       {content}
-    </PrefetchLink>
+    </Link>
   );
 }
