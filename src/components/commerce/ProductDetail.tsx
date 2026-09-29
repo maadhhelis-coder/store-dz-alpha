@@ -38,7 +38,7 @@ export default function ProductDetail({ product, orderSettings }: ProductDetailP
         {/* عمود الصور يثبت مكانه حتى ينتهي كل ما في الإطار المجاور (طلب صريح) —
             sticky على الحاسوب فقط؛ على الهاتف العمودان فوق بعضهما أصلًا. */}
         <div className="md:sticky md:top-24 md:self-start">
-          <ProductGallery images={product.images} productName={product.name} />
+          <ProductGallery images={product.images} imageAlts={product.imageAlts} productName={product.name} />
         </div>
 
         {/* الإطار المستطيلي الكبير — خطوطه صفراء باردة، تمييزًا عن الذهبي الدافئ

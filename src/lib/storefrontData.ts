@@ -39,6 +39,7 @@ export function mapProduct(p: ProductRow): Product {
     longDescriptionHtml: p.longDescriptionHtml,
     howToUse: Array.isArray(p.howToUse) ? (p.howToUse as unknown[]).filter((s): s is string => typeof s === "string") : [],
     images: p.images.length > 0 ? p.images.map((img) => img.url) : ["/images/placeholder.jpg"],
+    imageAlts: p.images.map((img) => img.altText ?? ""),
     cardImage: p.cardImageUrl ?? undefined,
     badge: p.badge ? BADGE_MAP[p.badge] : undefined,
     inStock: p.inStock && p.inventoryCount > 0,
