@@ -30,7 +30,7 @@ export default function ShippingDeliveryPage() {
           <h2 className="text-cream font-display font-semibold text-lg mb-2">مدة التوصيل</h2>
           <p>
             بعد تأكيد طلبك، يبدأ تحضيره وشحنه مباشرة عبر شركة توصيل معتمدة. مدة الوصول عادة
-            تكون بين يوم إلى يومين، وقد تختلف قليلًا حسب الولاية والبلدية.
+            تكون من 1 إلى 3 أيام حسب الولاية والبلدية.
           </p>
         </section>
 

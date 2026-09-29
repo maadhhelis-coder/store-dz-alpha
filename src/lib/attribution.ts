@@ -43,7 +43,16 @@ export function normalizePlatform(raw: string | null | undefined): AttributionPl
 }
 
 function clean(value: string | null | undefined): string | null {
-  const v = (value ?? "").trim();
+  let v = (value ?? "").trim();
+  // اسم الإعلان يصل أحيانًا مرمَّزًا مرتين ({{ad.name}} في رابط Meta): "C4+%7C+%D9%81..." بدل
+  // "C4 | فتح..." — فتنقسم زيارات نفس الإعلان على اسمين. فكّ الترميز المتبقّي مرة واحدة.
+  if (/%[0-9a-f]{2}/i.test(v)) {
+    try {
+      v = decodeURIComponent(v.replace(/\+/g, " ")).trim();
+    } catch {
+      // ترميز مكسور — يبقى كما وصل
+    }
+  }
   return v ? v.slice(0, MAX_LEN) : null;
 }
 

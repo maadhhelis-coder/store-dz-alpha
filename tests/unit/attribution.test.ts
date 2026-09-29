@@ -151,3 +151,12 @@ describe("التواصل — القوالب والمزوّدون", () => {
     expect(await whatsappCloudProvider.send(msg)).toMatchObject({ kind: "sent", providerMessageId: "wamid.1" });
   });
 });
+
+describe("اسم الإعلان المرمَّز مرتين", () => {
+  it("C4+%7C+... يُفك إلى نفس اسم الإعلان فلا تنقسم الزيارات", () => {
+    const touch = parseTouchFromParams(params("utm_source=fb&utm_content=C4%2B%257C%2B%25D9%2581%25D8%25AA%25D8%25AD"), "/p", T0);
+    expect(touch?.creativeName).toBe("C4 | فتح");
+    const normal = parseTouchFromParams(params("utm_content=C1%20%7C%20test"), "/p", T0);
+    expect(normal?.creativeName).toBe("C1 | test");
+  });
+});
