@@ -37,7 +37,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-cream font-display font-semibold text-lg mb-2">التوصيل</h2>
           <p>
-            نوصل الطلبات إلى {WILAYA_COUNT} ولاية عبر كامل التراب الوطني، عادة خلال يوم إلى يومين حسب
+            نوصل الطلبات إلى {WILAYA_COUNT} ولاية عبر كامل التراب الوطني، عادة خلال 1 إلى 3 أيام حسب
             الولاية، وتصلك رسالة أو مكالمة من فريق التوصيل قبل الوصول لتحديد الموعد المناسب.
           </p>
         </section>

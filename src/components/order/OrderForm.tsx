@@ -344,7 +344,7 @@ export default function OrderForm({
         {(step === "form" || step === "submitting") && (
           <>
             <h2 id="order-form-title" className="font-display text-sm font-bold text-cream text-center leading-snug">
-              للطلب يرجى ملء هذا النموذج سنتصل بكم في أقرب وقت ممكن!
+              عمّري الاستمارة ونعيطولك نأكدو الطلبية — الدفع عند الاستلام
             </h2>
 
             {variantGroups.length > 0 && (
@@ -378,6 +378,8 @@ export default function OrderForm({
                             )}
                           >
                             {option.value}
+                            {/* السعر ظاهر قبل النقر — الزبونة ترى توفير الباك بلا ما تجرّب كل خيار */}
+                            <span className="block text-xs opacity-80">{formatPrice(option.priceDzd ?? product.price)}</span>
                           </button>
                         );
                       })}
