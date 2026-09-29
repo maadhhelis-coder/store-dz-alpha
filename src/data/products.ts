@@ -21,6 +21,8 @@ export type Product = {
   longDescriptionHtml: string;
   howToUse: string[];
   images: string[];
+  // وصف كل صورة (alt) بنفس ترتيب images — فارغ ⇒ وصف عام من اسم المنتج
+  imageAlts?: string[];
   // صورة البطاقة في قوائم المتجر فقط؛ غائبة ⇒ أول صورة من images (راجع cardImage)
   cardImage?: string;
   badge?: ProductBadge;

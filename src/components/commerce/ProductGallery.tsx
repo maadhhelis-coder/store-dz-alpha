@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 
 type ProductGalleryProps = {
   images: string[];
+  imageAlts?: string[];
   productName: string;
 };
 
-export default function ProductGallery({ images, productName }: ProductGalleryProps) {
+export default function ProductGallery({ images, imageAlts, productName }: ProductGalleryProps) {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeImage = images[activeIndex] ?? images[0];
   const hasMany = images.length > 1;
@@ -29,7 +30,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
       <div className="relative aspect-square overflow-hidden rounded-xl">
         <BrandImage
           src={activeImage}
-          alt={`${productName} — Store DZ`}
+          alt={imageAlts?.[activeIndex] || `${productName} — Store DZ`}
           fill
           // صورة LCP: fetchPriority=high بدل priority (مُهمَل في Next 16) — Lighthouse موبايل
           // أظهر ~1s تأخير قبل بدء تحميلها لأن preload بلا أولوية عالية ينتظر بقية الموارد.
@@ -82,7 +83,7 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
             >
               <BrandImage
                 src={image}
-                alt={`${productName} — صورة ${index + 1}`}
+                alt={imageAlts?.[index] || `${productName} — صورة ${index + 1}`}
                 fill
                 // contain لا cover: القصّ كان يخفي أطراف الصورة فتبدو «مغطّاة»
                 className="object-contain"
