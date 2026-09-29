@@ -1,21 +1,15 @@
 import type { Metadata } from "next";
-import { Cairo, Tajawal } from "next/font/google";
+import { Cairo } from "next/font/google";
 import "./globals.css";
 import { SITE_NAME, SITE_TAGLINE, SITE_URL } from "@/data/site";
 import { getSiteSettings } from "@/server/services/siteSettingsService";
 
-// الأوزان محصورة فقط فيما يُستعمل فعليًا فالكود (تحقّقنا عبر grep عن كل أصناف
-// font-* المستعملة) — كل وزن إضافي غير مستخدم يعني ملفات خطوط زائدة تُبطئ التحميل الأول.
+// خط واحد متغيّر (variable) بلا weight: ملف واحد لكل subset يغطّي كل الأوزان —
+// ملفّان بدل 8 (Cairo 3 أوزان + Tajawal 3 أوزان × عربي/لاتيني، ~120KB مُحمَّلة مسبقًا
+// تنافس صورة المنتج على شبكة الهاتف). العناوين والنص كلاهما Cairo الآن.
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["arabic", "latin"],
-  weight: ["600", "700", "800"],
-});
-
-const tajawal = Tajawal({
-  variable: "--font-tajawal",
-  subsets: ["arabic", "latin"],
-  weight: ["400", "700", "800"],
 });
 
 // revalidate مضبوط فطبقة (storefront)/layout.tsx تحديدًا، لا هنا — الجذر يُغلّف أيضًا /admin
@@ -54,7 +48,7 @@ export default function RootLayout({
     <html
       lang="ar"
       dir="rtl"
-      className={`${cairo.variable} ${tajawal.variable} h-full antialiased`}
+      className={`${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-black text-cream">{children}</body>
     </html>

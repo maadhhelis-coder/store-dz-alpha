@@ -12,7 +12,7 @@
   --color-cream-dim: #c9c2ac;
 
   --font-display: var(--font-cairo), "Cairo", sans-serif;
-  --font-body: var(--font-tajawal), "Tajawal", sans-serif;
+  --font-body: var(--font-cairo), "Cairo", sans-serif;
 }
 
 :root {

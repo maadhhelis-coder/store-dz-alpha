@@ -183,3 +183,10 @@ export function breadcrumbJsonLd(items: { name: string; path: string }[]) {
     })),
   };
 }
+
+// الموقع يخدم المسارات بشرطة مائلة ختامية (trailingSlash: true) وcanonical/og:url كذلك.
+// يُطبَّق على روابط الخريطة وعلى مسارات التتبّع (زيارة من رابط إعلان بلا «/» تُخدَم الآن
+// بإعادة كتابة داخلية فيراها المتصفح بلا «/» — نوحّدها كي لا تنقسم الإحصاءات على مسارين).
+export function withTrailingSlash(url: string): string {
+  return url.endsWith("/") ? url : url + "/";
+}

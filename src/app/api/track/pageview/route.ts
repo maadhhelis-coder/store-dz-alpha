@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { recordPageView } from "@/server/repositories/pageViewsRepository";
 import { checkTrackRateLimit } from "@/server/services/rateLimitService";
 import { getClientIp } from "@/lib/getClientIp";
+import { withTrailingSlash } from "@/lib/seo";
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true });
     }
     const body = await request.json().catch(() => null);
-    const path = typeof body?.path === "string" ? body.path.slice(0, 300) : "/";
+    const path = typeof body?.path === "string" ? withTrailingSlash(body.path.slice(0, 300)) : "/";
     await recordPageView(path);
   } catch (error) {
     console.error("record pageview error", error);

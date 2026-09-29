@@ -67,6 +67,21 @@ export async function middleware(request: NextRequest) {
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", csp);
 
+  // skipTrailingSlashRedirect (next.config): بدل تحويلة 308 إضافية لكل نقرة إعلان بلا «/»
+  // (0.1–0.4 ث على الهاتف) نخدم نفس الصفحة بإعادة كتابة داخلية؛ canonical يبقى بـ«/».
+  // الإدارة تبقى بالتحويلة: فحص الجلسة أدناه مبني على المسار الكامل.
+  const lastSegment = pathname.slice(pathname.lastIndexOf("/") + 1);
+  if (!pathname.endsWith("/") && !lastSegment.includes(".")) {
+    // URL عادي لا nextUrl.clone(): NextURL يعيد ضبط الشرطة حسب إعداد trailingSlash فقد يحذفها.
+    const url = new URL(`${pathname}/${request.nextUrl.search}`, request.url);
+    if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
+      return NextResponse.redirect(url, 308);
+    }
+    const response = NextResponse.rewrite(url, { request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy", csp);
+    return response;
+  }
+
   // صفحة الدخول لا تحتاج جلسة Supabase — لكنها كأي صفحة أخرى تحتاج nonce/CSP خاصة بها.
   if (pathname === "/admin/login" || pathname === "/admin/login/") {
     const response = NextResponse.next({ request: { headers: requestHeaders } });

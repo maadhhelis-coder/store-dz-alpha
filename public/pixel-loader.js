@@ -1,6 +1,21 @@
 (function () {
   "use strict";
 
+  // البيكسلات (~200KB لفيسبوك وحده) تبدأ بعد أن تظهر الصفحة: عند أول لمسة/تمرير أو بعد
+  // 3 ثوانٍ، أيهما أسبق — كانت تتحمّل قبل صورة المنتج (Lighthouse: fbevents عند 1.5ث، LCP 3.2ث).
+  // الأحداث المُطلَقة قبل ذلك تنتظرها whenPixelsReady (src/lib/trackConversion.ts) فلا تضيع.
+  var started = false;
+  var TRIGGERS = ["pointerdown", "keydown", "scroll", "touchstart"];
+  function start() {
+    if (started) return;
+    started = true;
+    TRIGGERS.forEach(function (e) { window.removeEventListener(e, start); });
+    init();
+  }
+  TRIGGERS.forEach(function (e) { window.addEventListener(e, start, { passive: true }); });
+  setTimeout(start, 3000);
+
+  function init() {
   var configEl = document.getElementById("pixel-config");
   if (!configEl) return;
 
@@ -90,5 +105,6 @@
     })(window, document, "https://sc-static.net/scevent.min.js");
     window.snaptr("init", config.snapchatPixelId);
     window.snaptr("track", "PAGE_VIEW");
+  }
   }
 })();

@@ -1,11 +1,10 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/data/site";
 
-// الموقع يخدم المسارات بشرطة مائلة ختامية (trailingSlash: true) وcanonical/og:url كذلك؛
+import { withTrailingSlash } from "@/lib/seo";
+
 // روابط الخريطة بلا الشرطة كانت تُرد بـ308 لكل صفحة (تحقق فعلي على الإنتاج).
-export function withTrailingSlash(url: string): string {
-  return url.endsWith("/") ? url : url + "/";
-}
+export { withTrailingSlash };
 import { getPublishedProducts, getCategories } from "@/lib/storefrontData";
 import { prisma } from "@/server/db/prisma";
 

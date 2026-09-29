@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
   // فقط (Docker/E2E المحليان لا يضبطانه أبدًا) — نُعطّل standalone تحديدًا هناك.
   output: process.env.VERCEL ? undefined : "standalone",
   trailingSlash: true,
+  // التحويلة التلقائية /x → /x/ تعطَّلت هنا وتُعالَج في middleware.ts بإعادة كتابة داخلية
+  // (بلا 308): روابط الإعلانات بلا «/» كانت تكلّف رحلة شبكة إضافية على الهاتف.
+  skipTrailingSlashRedirect: true,
   images: {
     formats: ["image/avif", "image/webp"],
     remotePatterns: [
