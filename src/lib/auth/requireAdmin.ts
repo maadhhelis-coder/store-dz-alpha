@@ -23,11 +23,14 @@ export async function requireAdmin(): Promise<AdminUser> {
   // فشل بناء عميل Supabase أو استدعاء auth.getUser() (رابط/مفتاح فارغ أو غير صالح، أو
   // انقطاع خدمة Supabase Auth) يُعامَل كـ"غير مصرح" (401) لا كخطأ خادم 500 — هذه الطبقة
   // دفاع إضافي مستقل عن middleware.ts، فيجب أن تفشل مغلقة (fail closed) بنفس المبدأ.
-  let user;
+  let user: { id: string } | null;
   try {
     const supabase = await createSupabaseServerClient();
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
+    // getClaims: تحقق محلي من توقيع JWT (راجع supabaseMiddlewareClient.ts) بدل نداء شبكة
+    // ثانٍ لـSupabase Auth فنفس الطلب. الحساب المعطّل يبقى مرفوضًا فورًا عبر isActive أدناه.
+    const result = await supabase.auth.getClaims();
+    const sub = result.data?.claims.sub;
+    user = sub ? { id: sub } : null;
   } catch (error) {
     // إشارات Next.js الداخلية الخاصة (مثل "Dynamic server usage" التي يرميها cookies()
     // فسياق التوليد الساكن ليُعلِم Next.js أن هذه الصفحة يجب أن تُصنَّف ديناميكية) ليست

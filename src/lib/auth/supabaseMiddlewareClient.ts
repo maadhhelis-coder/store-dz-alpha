@@ -13,7 +13,7 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 // عند إعادة بناء NextResponse.next() داخليًا (خصوصًا داخل setAll التي تُعيد بناءه مرة ثانية).
 export async function updateSupabaseSession(request: NextRequest, requestHeaders: Headers) {
   let response = NextResponse.next({ request: { headers: requestHeaders } });
-  let user = null;
+  let user: { sub: string } | null = null;
 
   // فشل تكوين Supabase (رابط/مفتاح فارغ أو غير صالح) أو انقطاع خدمة Supabase Auth نفسها
   // يجب أن يُعامَل كـ"لا جلسة" (401/إعادة توجيه لتسجيل الدخول) وليس تعطّل الطلب بالكامل
@@ -51,8 +51,12 @@ export async function updateSupabaseSession(request: NextRequest, requestHeaders
       },
     });
 
-    const result = await supabase.auth.getUser();
-    user = result.data.user;
+    // getClaims بدل getUser: يتحقق من توقيع JWT محليًا بمفتاح المشروع العام (JWKS مُخزَّن
+    // مؤقتًا) بدل نداء شبكة لـSupabase Auth فكل طلب إداري — ذاك النداء بلا مهلة كان يعلّق
+    // الطلب >10 ثوانٍ كلما تباطأ Auth لحظيًا (اكتُشف: e2e يفشل فكل تشغيلة على مسار مختلف).
+    // يجدد الجلسة المنتهية كما كان. isActive يبقى مفحوصًا من القاعدة فكل طلب (requireAdmin).
+    const result = await supabase.auth.getClaims();
+    user = result.data?.claims ?? null;
     // عطل عابر مُعاد (لا مرمي) من Supabase Auth — شبكة أو 5xx — يُعامَل كـ«لا جلسة» (إغلاق آمن)
     // لكن يُسجَّل حتى لا يمرّ «طُرد إلى صفحة الدخول» بلا أثر (اكتُشف في CI). جلسة منتهية/غائبة
     // (4xx) سلوك عادي لا يُسجَّل.

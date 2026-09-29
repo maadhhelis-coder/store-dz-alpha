@@ -112,15 +112,16 @@ export default function OrderForm({
   const selectedVariant = product.variants.find((v) => v.id === selectedVariantId);
   const unitPrice = selectedVariant?.priceDzd ?? product.price;
 
-  // إشارة "بدء إتمام الطلب" لبيكسلات الإعلانات — تُطلَق مرة واحدة فقط عند فتح النافذة
-  // (بمصفوفة اعتماديات فارغة)، بغض النظر عن أي تعديل لاحق في الكمية أو المتغيّر المختار.
-  useEffect(() => {
+  // "بدء إتمام الطلب" (بيكسلات) + form_start (لوحة المتجر) — مرة واحدة عند أول كتابة/اختيار
+  // فعلي داخل الاستمارة، لا عند تحميل الصفحة: الاستمارة ظاهرة لكل زائر منذ أُزيلت النافذة،
+  // فالإطلاق عند التحميل كان يحسب كل زيارة "بدء طلب" ويجعل المعدل بلا معنى.
+  const formStartedRef = useRef(false);
+  function markFormStarted() {
+    if (formStartedRef.current) return;
+    formStartedRef.current = true;
     trackInitiateCheckout({ contentId: product.slug, contentName: product.name, value: unitPrice });
-    // نفس منطق form_submit (راجع أسفل) لكن عند فتح النافذة فعليًا — يعطي "معدل بدء تعبئة
-    // الاستمارة" حقيقيًا ومنفصلًا عن "معدل إكمالها"، بدل الاكتفاء بالإرسال النهائي فقط.
     trackCreativeEvent("form_start", pageKind, pathname, product.slug);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }
 
   // التقاط "الطلب المتروك": الزبون عبّأ شيئًا ثم غادر بلا إرسال. كان مربوطًا
   // بإغلاق النافذة المنبثقة؛ بلا نافذة صار مربطه مغادرة الصفحة. pagehide يغطي
@@ -380,6 +381,7 @@ export default function OrderForm({
 
             <form
               onSubmit={handleSubmit}
+              onInput={markFormStarted}
               // مضغوطة: تباعد أصغر بين الخانات + تسميات وحقول أقصر. نطاقها هذه الاستمارة فقط —
               // Field وinputClass مشتركان مع 17 شاشة في لوحة التحكم فلا نغيّرهما.
               className="mt-3 space-y-2.5 [&_label>span:first-child]:mb-1 [&_input]:py-2 [&_select]:py-2"

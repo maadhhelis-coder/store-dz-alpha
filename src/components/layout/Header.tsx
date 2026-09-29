@@ -22,7 +22,7 @@ export default function Header({ logoUrl, instagramUrl, facebookUrl, tiktokUrl }
   const fbUrl = facebookUrl || FACEBOOK_URL;
 
   return (
-    <header className="sticky top-0 z-40 bg-black/90 backdrop-blur border-b border-gold/15">
+    <header className="sticky top-0 z-40 bg-black/95 border-b border-gold/15">
       {/* طلب صريح لاحق: جعل اللوغو "تقريبًا لاصق" بالحافة اليمنى وأيقونات التواصل "لاصقة"
           بالحافة اليسرى بالحاسوب — container-page (بحدّ أقصى 1200px) كان يترك فراغًا حقيقيًا
           خارجه على الشاشات الواسعة. عرض كامل هنا مع padding أفقي خاص بالهيدر بدل container-page. */}

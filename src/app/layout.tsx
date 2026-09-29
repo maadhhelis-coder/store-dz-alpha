@@ -22,7 +22,10 @@ const tajawal = Tajawal({
 // الذي له احتياجات تحديث مختلفة تمامًا (وأصلًا ديناميكي حكمًا بسبب قراءة جلسة المصادقة).
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSiteSettings();
-  const favicon = settings.faviconUrl || "/images/brand/logo-on-black.png";
+  // الافتراضي أيقونة 48px (2.5KB) لا الشعار الكامل 512px (330KB): المتصفح يحمّل الأيقونة
+  // مع أول الصفحة، فكانت تنافس الصفحة على شبكة الهاتف (Lighthouse: أثقل ملف في الصفحة).
+  const favicon = settings.faviconUrl || "/images/brand/icon-48.png";
+  const appleIcon = settings.faviconUrl || "/images/brand/icon-180.png";
 
   return {
     metadataBase: new URL(SITE_URL),
@@ -37,7 +40,7 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     icons: {
       icon: favicon,
-      apple: favicon,
+      apple: appleIcon,
     },
   };
 }

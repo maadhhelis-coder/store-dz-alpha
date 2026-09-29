@@ -61,6 +61,10 @@ function readSnapshot(now: Date): AttributionSnapshot | null {
 /** اللقطة الكاملة (first/last) — تُرسل مع الطلب كما هي؛ null بلا عزو. */
 export function getAttributionSnapshot(): AttributionSnapshot | null {
   if (typeof window === "undefined") return null;
+  // التقاط الرابط الحالي أولًا: CreativeViewTracker (داخل الصفحة) يُرسل page_view قبل أن
+  // يلتقط PageViewTracker (في الـlayout، خلف Suspense) معلمات utm — فكانت أول زيارة من
+  // الإعلان (أغلب الزيارات) تُسجَّل بلا اسم إعلان. الدمج حتمي فالتقاط مكرّر لا يضر.
+  captureAttributionFromUrl(new URLSearchParams(window.location.search));
   try {
     return readSnapshot(new Date());
   } catch {

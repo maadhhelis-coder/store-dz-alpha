@@ -31,7 +31,10 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
           src={activeImage}
           alt={`${productName} — Store DZ`}
           fill
-          priority
+          // صورة LCP: fetchPriority=high بدل priority (مُهمَل في Next 16) — Lighthouse موبايل
+          // أظهر ~1s تأخير قبل بدء تحميلها لأن preload بلا أولوية عالية ينتظر بقية الموارد.
+          loading="eager"
+          fetchPriority="high"
           className="object-contain"
           sizes="(max-width: 768px) 100vw, 50vw"
         />
