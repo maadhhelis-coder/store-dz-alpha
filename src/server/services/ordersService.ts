@@ -17,6 +17,7 @@ import { notifyOwner } from "@/lib/ownerNotify";
 import { raiseSystemAlertOnce } from "@/server/modules/alerts/alertsService";
 import { LOW_STOCK_THRESHOLD } from "@/lib/stock";
 import { runAfterResponse } from "@/lib/afterResponse";
+import { markNewLeadsConvertedByPhone } from "@/server/repositories/leadsRepository";
 import { getCrmSetting } from "@/server/modules/settings/crmSettingsService";
 import { attributionFieldsForOrder } from "@/lib/attribution";
 import { formatPrice } from "@/lib/format";
@@ -365,6 +366,10 @@ async function createOrderTransaction(
     // كتابة على مخزن التخزين المؤقّت، ولا يصحّ أن ينتظرها الزبون بعد أن التزمت
     // معاملته فعلًا. الدالة محروسة بـtry/catch داخليًا فلا تُسقط طلبًا ناجحًا.
     runAfterResponse("revalidate storefront", async () => revalidateStorefrontProducts());
+    // طلب متروك سابق بنفس الرقم صار طلبًا فعليًا — لا يبقى «جديدًا» في قائمة المتروكة.
+    runAfterResponse("convert matching leads", async () => {
+      await markNewLeadsConvertedByPhone(finalOrder.phone);
+    });
     // إشعار صاحب المتجر (تبويب الإشعارات → «إشعارات الطلبيات») + تنبيه مخزون منخفض
     // بعد الخصم — كلاهما بعد الرد، ولا يرمي أي منهما.
     runAfterResponse("owner order notification", () =>

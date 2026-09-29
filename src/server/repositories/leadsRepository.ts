@@ -50,6 +50,12 @@ export function updateLeadStatus(id: string, status: LeadStatus, notes?: string)
   });
 }
 
+// زبون تُرك رقمه كطلب متروك ثم رجع وأكمل الطلب بنفس الرقم — لا يبقى «جديد» في القائمة
+// فيُتّصل به بلا داعٍ. الرقم مطبّع بنفس normalizeAlgerianPhone في الطرفين (05XXXXXXXX).
+export function markNewLeadsConvertedByPhone(phone: string) {
+  return prisma.lead.updateMany({ where: { phone, status: "new" }, data: { status: "converted" } });
+}
+
 export function countNewLeads() {
   return prisma.lead.count({ where: { status: "new" } });
 }
