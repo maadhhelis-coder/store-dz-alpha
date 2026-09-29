@@ -1,6 +1,21 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PixelWindow = typeof window & { fbq?: any; ttq?: any; gtag?: any; snaptr?: any };
 
+// pixel-loader.js يُحمَّل بـlazyOnload (عمدًا، لسلاسة الشريط على الهاتف) فيُعرِّف fbq/ttq/gtag/snaptr
+// بعد ثوانٍ من فتح الصفحة — وViewContent كان يُطلَق قبل ذلك فيضيع بصمت (خاصة على الجوال).
+// ننتظر حتى يُعرِّفها المُحمِّل (يُعرِّفها كلها دفعة واحدة) ثم نُطلق. بلا بيكسلات مضبوطة
+// (لا #pixel-config) لا انتظار ولا إطلاق.
+const PIXEL_WAIT_STEP_MS = 250;
+const PIXEL_WAIT_MAX_TRIES = 120; // 30 ثانية — بعدها نتوقف (الزائر غالبًا غادر)
+
+export function whenPixelsReady(fire: () => void, tries = 0): void {
+  if (typeof window === "undefined") return;
+  const w = window as PixelWindow;
+  if (w.fbq || w.ttq || w.gtag || w.snaptr) return fire();
+  if (!document.getElementById("pixel-config") || tries >= PIXEL_WAIT_MAX_TRIES) return;
+  setTimeout(() => whenPixelsReady(fire, tries + 1), PIXEL_WAIT_STEP_MS);
+}
+
 type PurchaseParams = {
   value: number;
   currency?: string;
@@ -17,59 +32,60 @@ type PurchaseParams = {
 // السيرفر عبر Meta CAPI/TikTok Events API لنفس الطلب (راجع metaCapiService.ts وtiktokEventsApiService.ts)،
 // وهذا ما يُتيح لميتا/تيك توك دمج حدثي Pixel وCAPI فلا يُحتسب الشراء مرتين.
 export function trackPurchase({ value, currency = "DZD", contentName, contentId, quantity, orderId }: PurchaseParams): void {
-  if (typeof window === "undefined") return;
-  const w = window as PixelWindow;
+  whenPixelsReady(() => {
+    const w = window as PixelWindow;
 
-  try {
-    if (typeof w.fbq === "function") {
-      w.fbq(
-        "track",
-        "Purchase",
-        {
+    try {
+      if (typeof w.fbq === "function") {
+        w.fbq(
+          "track",
+          "Purchase",
+          {
+            value,
+            currency,
+            content_name: contentName,
+            content_type: "product",
+            ...(contentId ? { content_ids: [contentId], contents: [{ id: contentId, quantity: quantity ?? 1 }] } : {}),
+          },
+          { eventID: orderId },
+        );
+      }
+    } catch {}
+
+    try {
+      if (typeof w.ttq?.track === "function") {
+        w.ttq.track(
+          "CompletePayment",
+          {
+            value,
+            currency,
+            content_name: contentName,
+            ...(contentId ? { content_id: contentId, quantity: quantity ?? 1 } : {}),
+          },
+          { event_id: orderId },
+        );
+      }
+    } catch {}
+
+    try {
+      if (typeof w.gtag === "function") {
+        w.gtag("event", "purchase", {
           value,
           currency,
-          content_name: contentName,
-          content_type: "product",
-          ...(contentId ? { content_ids: [contentId], contents: [{ id: contentId, quantity: quantity ?? 1 }] } : {}),
-        },
-        { eventID: orderId },
-      );
-    }
-  } catch {}
+          transaction_id: orderId,
+          ...(contentId
+            ? { items: [{ item_id: contentId, item_name: contentName, quantity: quantity ?? 1, price: value }] }
+            : {}),
+        });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.ttq?.track === "function") {
-      w.ttq.track(
-        "CompletePayment",
-        {
-          value,
-          currency,
-          content_name: contentName,
-          ...(contentId ? { content_id: contentId, quantity: quantity ?? 1 } : {}),
-        },
-        { event_id: orderId },
-      );
-    }
-  } catch {}
-
-  try {
-    if (typeof w.gtag === "function") {
-      w.gtag("event", "purchase", {
-        value,
-        currency,
-        transaction_id: orderId,
-        ...(contentId
-          ? { items: [{ item_id: contentId, item_name: contentName, quantity: quantity ?? 1, price: value }] }
-          : {}),
-      });
-    }
-  } catch {}
-
-  try {
-    if (typeof w.snaptr === "function") {
-      w.snaptr("track", "PURCHASE", { price: value, currency, transaction_id: orderId });
-    }
-  } catch {}
+    try {
+      if (typeof w.snaptr === "function") {
+        w.snaptr("track", "PURCHASE", { price: value, currency, transaction_id: orderId });
+      }
+    } catch {}
+  });
 }
 
 type ContentEventParams = {
@@ -82,81 +98,83 @@ type ContentEventParams = {
 // حدث "مشاهدة منتج" — يُطلَق عند تحميل صفحة منتج أو صفحة هبوط، ليمتلك كل من ميتا/تيك توك
 // إشارة منتصف القمع اللازمة للتحسين وإعادة الاستهداف (بدل الاكتفاء بـPageView وPurchase فقط).
 export function trackViewContent({ contentId, contentName, value, currency = "DZD" }: ContentEventParams): void {
-  if (typeof window === "undefined") return;
-  const w = window as PixelWindow;
+  whenPixelsReady(() => {
+    const w = window as PixelWindow;
 
-  try {
-    if (typeof w.fbq === "function") {
-      w.fbq("track", "ViewContent", {
-        content_ids: [contentId],
-        content_type: "product",
-        content_name: contentName,
-        value,
-        currency,
-      });
-    }
-  } catch {}
+    try {
+      if (typeof w.fbq === "function") {
+        w.fbq("track", "ViewContent", {
+          content_ids: [contentId],
+          content_type: "product",
+          content_name: contentName,
+          value,
+          currency,
+        });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.ttq?.track === "function") {
-      w.ttq.track("ViewContent", { content_id: contentId, content_name: contentName, value, currency });
-    }
-  } catch {}
+    try {
+      if (typeof w.ttq?.track === "function") {
+        w.ttq.track("ViewContent", { content_id: contentId, content_name: contentName, value, currency });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.gtag === "function") {
-      w.gtag("event", "view_item", {
-        currency,
-        value,
-        items: [{ item_id: contentId, item_name: contentName, price: value }],
-      });
-    }
-  } catch {}
+    try {
+      if (typeof w.gtag === "function") {
+        w.gtag("event", "view_item", {
+          currency,
+          value,
+          items: [{ item_id: contentId, item_name: contentName, price: value }],
+        });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.snaptr === "function") {
-      w.snaptr("track", "VIEW_CONTENT", { item_ids: [contentId], price: value, currency });
-    }
-  } catch {}
+    try {
+      if (typeof w.snaptr === "function") {
+        w.snaptr("track", "VIEW_CONTENT", { item_ids: [contentId], price: value, currency });
+      }
+    } catch {}
+  });
 }
 
 // حدث "بدء إتمام الطلب" — يُطلَق عند فتح نافذة الطلب (OrderModal)، النقطة التي يُظهر فيها
 // الزائر نيّة شراء فعلية قبل تعبئة/إرسال النموذج.
 export function trackInitiateCheckout({ contentId, contentName, value, currency = "DZD" }: ContentEventParams): void {
-  if (typeof window === "undefined") return;
-  const w = window as PixelWindow;
+  whenPixelsReady(() => {
+    const w = window as PixelWindow;
 
-  try {
-    if (typeof w.fbq === "function") {
-      w.fbq("track", "InitiateCheckout", {
-        content_ids: [contentId],
-        content_type: "product",
-        content_name: contentName,
-        value,
-        currency,
-      });
-    }
-  } catch {}
+    try {
+      if (typeof w.fbq === "function") {
+        w.fbq("track", "InitiateCheckout", {
+          content_ids: [contentId],
+          content_type: "product",
+          content_name: contentName,
+          value,
+          currency,
+        });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.ttq?.track === "function") {
-      w.ttq.track("InitiateCheckout", { content_id: contentId, content_name: contentName, value, currency });
-    }
-  } catch {}
+    try {
+      if (typeof w.ttq?.track === "function") {
+        w.ttq.track("InitiateCheckout", { content_id: contentId, content_name: contentName, value, currency });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.gtag === "function") {
-      w.gtag("event", "begin_checkout", {
-        currency,
-        value,
-        items: [{ item_id: contentId, item_name: contentName, price: value }],
-      });
-    }
-  } catch {}
+    try {
+      if (typeof w.gtag === "function") {
+        w.gtag("event", "begin_checkout", {
+          currency,
+          value,
+          items: [{ item_id: contentId, item_name: contentName, price: value }],
+        });
+      }
+    } catch {}
 
-  try {
-    if (typeof w.snaptr === "function") {
-      w.snaptr("track", "START_CHECKOUT", { item_ids: [contentId], price: value, currency });
-    }
-  } catch {}
+    try {
+      if (typeof w.snaptr === "function") {
+        w.snaptr("track", "START_CHECKOUT", { item_ids: [contentId], price: value, currency });
+      }
+    } catch {}
+  });
 }
