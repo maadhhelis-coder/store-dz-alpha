@@ -157,9 +157,18 @@ export default function OrderForm({
 
   useEffect(() => {
     const onPageHide = () => captureAbandonRef.current();
+    // متصفح فيسبوك/انستغرام الداخلي (مصدر أغلب زيارات الإعلانات) كثيرًا ما يُغلَق بلا pagehide،
+    // فكانت الطلبات المتروكة لا تُلتقط أبدًا (0 خلال 7 أيام رغم ~100 زيارة). visibilitychange→hidden
+    // يُطلَق موثوقًا عند إغلاق المتصفح الداخلي أو التحويل لتطبيق آخر. العلَم يمنع الازدواج،
+    // ولو رجع الزبون وأكمل الطلب يصير «converted» على الخادم (ordersService).
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") captureAbandonRef.current();
+    };
     window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       // تنقّل داخلي (لا pagehide) — نفس الالتقاط، والعلَم يمنع الازدواج
       captureAbandonRef.current();
     };
