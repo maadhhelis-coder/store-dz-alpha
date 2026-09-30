@@ -1,19 +1,11 @@
 (function () {
   "use strict";
 
-  // البيكسلات (~200KB لفيسبوك وحده) تبدأ بعد أن تظهر الصفحة: عند أول لمسة/تمرير أو بعد
-  // ثانية واحدة، أيهما أسبق (كانت 3ث + انتظار lazyOnload ≈ 6ث: زوار يغادرون قبلها لا يحسبهم Meta) — كانت تتحمّل قبل صورة المنتج (Lighthouse: fbevents عند 1.5ث، LCP 3.2ث).
+  // يُحمَّل بـafterInteractive (TrackingPixels.tsx) ويبدأ فورًا: طلب صريح «البيكسل يتشعل من بعد ثانية ولا جوج».
+  // كان lazyOnload + انتظار لمسة/ثانية = fbevents عند 4–5ث على هاتف 4G، وزوار يغادرون قبلها لا يحسبهم Meta.
+  // صورة المنتج (LCP) لها preload بأولوية عالية في <head> فتبدأ قبله دائمًا.
   // الأحداث المُطلَقة قبل ذلك تنتظرها whenPixelsReady (src/lib/trackConversion.ts) فلا تضيع.
-  var started = false;
-  var TRIGGERS = ["pointerdown", "keydown", "scroll", "touchstart"];
-  function start() {
-    if (started) return;
-    started = true;
-    TRIGGERS.forEach(function (e) { window.removeEventListener(e, start); });
-    init();
-  }
-  TRIGGERS.forEach(function (e) { window.addEventListener(e, start, { passive: true }); });
-  setTimeout(start, 1000);
+  init();
 
   function init() {
   var configEl = document.getElementById("pixel-config");

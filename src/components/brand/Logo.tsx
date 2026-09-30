@@ -42,7 +42,8 @@ export default function Logo({ className, size = 44, logoUrl, imgClassName, text
           height={size}
           className="w-full h-full object-cover"
           style={{ transform: "scale(0.85)" }}
-          priority
+          // eager لا priority: preload الشعار كان يسبق صورة المنتج (LCP) في <head>
+          loading="eager"
         />
       </span>
       <span className={cn("font-display font-bold text-lg tracking-wide text-cream", textClassName)}>

@@ -75,12 +75,15 @@ async function sendMetaCapiEvent(eventName: string, order: MetaCapiOrderContext)
   }
 }
 
-export function sendMetaCapiPurchase(order: MetaCapiOrderContext) {
-  return sendMetaCapiEvent("Purchase", order);
+// عند إرسال الاستمارة: Lead (نفس event_id مع Lead المتصفح فيُدمجان). «شراء» لا يُحتسب هنا —
+// طلب صريح: «شراء» يتحسب غير بعد التأكيد، باش Meta ما يحسبهاش مرتين.
+export function sendMetaCapiLead(order: MetaCapiOrderContext) {
+  return sendMetaCapiEvent("Lead", order);
 }
 
-export function sendMetaCapiOrderConfirmed(order: MetaCapiOrderContext) {
-  return sendMetaCapiEvent("OrderConfirmed", order);
+// عند تأكيد الطلب (هاتف/واتساب) — الحدث الوحيد «Purchase» لهذا الطلب.
+export function sendMetaCapiPurchase(order: MetaCapiOrderContext) {
+  return sendMetaCapiEvent("Purchase", order);
 }
 
 export function sendMetaCapiOrderDelivered(order: MetaCapiOrderContext) {

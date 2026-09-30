@@ -8,7 +8,7 @@ import {
   fireWebhookEvent,
 } from "@/server/services/webhooksService";
 import {
-  sendMetaCapiOrderConfirmed,
+  sendMetaCapiPurchase,
   sendMetaCapiOrderDelivered,
 } from "@/server/services/metaCapiService";
 import {
@@ -301,6 +301,9 @@ function finalizeStatusSideEffects(existing: OrderWithItems, updated: OrderWithI
       phone: updated.phone,
       firstName: updated.customerFirstName,
       lastName: updated.customerLastName,
+      // IP/UA الزبون المحفوظة وقت الطلب (لا المشرف الذي يؤكد) — تحسّن مطابقة Meta للـPurchase
+      ipAddress: updated.ipAddress ?? undefined,
+      userAgent: updated.userAgent ?? undefined,
     };
     const tiktokOrderContext = {
       orderNumber: updated.orderNumber,
@@ -308,7 +311,7 @@ function finalizeStatusSideEffects(existing: OrderWithItems, updated: OrderWithI
       phone: updated.phone,
     };
     if (updated.status === "confirmed") {
-      runAfterResponse("meta capi confirmed error", () => sendMetaCapiOrderConfirmed(capiOrderContext));
+      runAfterResponse("meta capi purchase error", () => sendMetaCapiPurchase(capiOrderContext));
       runAfterResponse("tiktok confirmed error", () => sendTikTokOrderConfirmed(tiktokOrderContext));
     }
     if (updated.status === "delivered") {
