@@ -75,7 +75,8 @@ export default async function FunnelPage({ params }: FunnelPageProps) {
               src={heroImage}
               alt={funnel.headline}
               fill
-              sizes="(max-width: 768px) 100vw, 50vw"
+              // ≤828w على الهاتف (WebP <80KB) — راجع ProductGallery.tsx
+              sizes="(max-width: 768px) 276px, 50vw"
               className="object-cover"
               priority
             />

@@ -25,13 +25,10 @@ type PurchaseParams = {
   orderId: string;
 };
 
-// يُطلق حدث "شراء" حقيقي على كل بيكسل تتبّع مفعّل (إن وُجد) بعد تأكيد الطلب فعليًا —
-// لا يفشل أبدًا بصمت أي بيكسل آخر إذا فشل واحد منها.
-//
-// orderId يُمرَّر كـ event_id/eventID لميتا وتيك توك تحديدًا — نفس القيمة التي يرسلها
-// السيرفر عبر Meta CAPI/TikTok Events API لنفس الطلب (راجع metaCapiService.ts وtiktokEventsApiService.ts)،
-// وهذا ما يُتيح لميتا/تيك توك دمج حدثي Pixel وCAPI فلا يُحتسب الشراء مرتين.
-export function trackPurchase({ value, currency = "DZD", contentName, contentId, quantity, orderId }: PurchaseParams): void {
+// عند إرسال الاستمارة: Lead لميتا (لا Purchase — «شراء» يُرسَل من السيرفر عند التأكيد فقط،
+// sendMetaCapiPurchase في statusService.ts). orderId = eventID، نفس event_id الذي يرسله السيرفر
+// مع Lead (sendMetaCapiLead) فيدمجهما Meta ولا يُحتسب مرتين. بقية البيكسلات بلا تغيير.
+export function trackOrderSubmitted({ value, currency = "DZD", contentName, contentId, quantity, orderId }: PurchaseParams): void {
   whenPixelsReady(() => {
     const w = window as PixelWindow;
 
@@ -39,7 +36,7 @@ export function trackPurchase({ value, currency = "DZD", contentName, contentId,
       if (typeof w.fbq === "function") {
         w.fbq(
           "track",
-          "Purchase",
+          "Lead",
           {
             value,
             currency,

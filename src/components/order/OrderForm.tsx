@@ -12,7 +12,7 @@ import { normalizeAlgerianPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { Field, inputClass as baseInputClass } from "@/components/shared/FormField";
 import { buildWhatsAppUrl } from "@/lib/whatsapp";
-import { trackPurchase, trackInitiateCheckout } from "@/lib/trackConversion";
+import { trackOrderSubmitted, trackInitiateCheckout } from "@/lib/trackConversion";
 import { getOrCreateVisitorId, getAttribution, getAttributionSnapshot, trackCreativeEvent, type PageKindValue } from "@/lib/tracking";
 import {
   buildOrderSummaryText,
@@ -311,7 +311,7 @@ export default function OrderForm({
 
       trackCreativeEvent("form_submit", pageKind, pathname, product.slug);
 
-      trackPurchase({
+      trackOrderSubmitted({
         value: result.totalDzd,
         currency: "DZD",
         contentName: product.name,

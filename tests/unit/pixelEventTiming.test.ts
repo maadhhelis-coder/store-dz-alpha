@@ -40,9 +40,20 @@ describe("أحداث البيكسل تنتظر تحميل pixel-loader", () => {
     trackViewContent({ contentId: "p1", value: 2200 });
     expect(fbq).not.toHaveBeenCalled();
 
-    win.fbq = fbq; // pixel-loader.js حُمِّل (lazyOnload)
+    win.fbq = fbq; // pixel-loader.js حُمِّل
     await vi.advanceTimersByTimeAsync(300);
     expect(fbq).toHaveBeenCalledWith("track", "ViewContent", expect.objectContaining({ content_ids: ["p1"] }));
+  });
+
+  it("إرسال الاستمارة = Lead لميتا (Purchase عند التأكيد فقط، من السيرفر)", async () => {
+    const win = fakeBrowser("");
+    const fbq = vi.fn();
+    win.fbq = fbq;
+    const { trackOrderSubmitted } = await import("@/lib/trackConversion");
+
+    trackOrderSubmitted({ value: 2200, orderId: "SDZ-1" });
+    expect(fbq).toHaveBeenCalledWith("track", "Lead", expect.objectContaining({ value: 2200 }), { eventID: "SDZ-1" });
+    expect(fbq).not.toHaveBeenCalledWith("track", "Purchase", expect.anything(), expect.anything());
   });
 
   it("بلا بيكسلات مضبوطة لا انتظار ولا إطلاق", async () => {

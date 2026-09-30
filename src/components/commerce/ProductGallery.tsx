@@ -37,7 +37,9 @@ export default function ProductGallery({ images, imageAlts, productName }: Produ
           loading="eager"
           fetchPriority="high"
           className="object-contain"
-          sizes="(max-width: 768px) 100vw, 50vw"
+          // 276px على الهاتف لا 100vw: المتصفح يطلب sizes×DPR، فهاتف DPR 3 كان يطلب 1080w (WebP 102KB)؛
+          // بهذا يبقى الحد 828w (WebP ~69KB، AVIF ~37KB — طلب صريح: أقل من 80 كيلو). الإطار الفعلي ~334px.
+          sizes="(max-width: 768px) 276px, 50vw"
         />
 
         {hasMany && (

@@ -27,7 +27,8 @@ export default function BrandBar() {
             alt="شعار Store DZ"
             width={120}
             height={120}
-            priority
+            // eager لا priority: preload الشعار كان يسبق صورة المنتج (LCP) في <head>
+            loading="eager"
             className="w-full h-full object-cover"
             style={{ transform: "scale(1.08)" }}
           />

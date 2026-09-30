@@ -3,7 +3,7 @@ import { revalidateStorefrontProducts } from "@/server/services/productsService"
 import * as ordersRepository from "@/server/repositories/ordersRepository";
 import { findWilayaByCode } from "@/server/repositories/wilayasRepository";
 import { fireWebhookEvent } from "@/server/services/webhooksService";
-import { sendMetaCapiPurchase } from "@/server/services/metaCapiService";
+import { sendMetaCapiLead } from "@/server/services/metaCapiService";
 import { sendTikTokCompletePayment } from "@/server/services/tiktokEventsApiService";
 import { assertCouponUsable, computeCouponDiscountDzd, InvalidCouponError } from "@/lib/validation/couponRules";
 import type { OrderCreateInput } from "@/lib/validation/orderSchema";
@@ -341,8 +341,8 @@ async function createOrderTransaction(
     });
     // P7: runAfterResponse بدل after() الخام — نفس السلوك داخل طلب HTTP، وخارجه (اختبارات
     // التكامل/سكربتات) لا يرمي فلا يُسقط معاملة الطلب بعد التزامها الفعلي.
-    runAfterResponse("meta capi purchase", () =>
-      sendMetaCapiPurchase({
+    runAfterResponse("meta capi lead", () =>
+      sendMetaCapiLead({
         orderNumber: finalOrder.orderNumber,
         totalDzd: finalOrder.totalDzd,
         phone: finalOrder.phone,
