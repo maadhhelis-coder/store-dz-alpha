@@ -1,0 +1,12 @@
+# AI crawler policy for storedz.one
+# Public storefront pages may be read and cited by AI assistants and search engines.
+User-Agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+# Structured summaries for AI engines
+LLMs-Txt: https://storedz.one/llms.txt
+Summary: https://storedz.one/ai/summary.json
+FAQ: https://storedz.one/ai/faq.json
+Sitemap: https://storedz.one/sitemap.xml
